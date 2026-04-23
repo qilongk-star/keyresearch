@@ -1,0 +1,11 @@
+name = "notion-proxy"
+main = "worker.js"
+compatibility_date = "2024-01-01"
+
+# === Set your Notion token here (or use wrangler secret) ===
+# Run: wrangler secret put NOTION_TOKEN
+# Then paste your token when prompted
+# 
+# Or uncomment below (NOT recommended for shared repos):
+# [vars]
+# NOTION_TOKEN = "ntn_xxx_your_token_here"

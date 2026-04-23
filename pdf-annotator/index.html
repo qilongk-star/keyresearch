@@ -429,14 +429,15 @@
   
   <div class="modal" id="notion-modal">
     <div class="modal-content">
-      <h3>⚙️ Notion 配置</h3>
-      <input type="text" id="notion-token" placeholder="Integration Token (ntn_xxx)">
-      <input type="text" id="notion-db" placeholder="数据库 ID">
-      <p style="font-size:11px;color:#888;margin-bottom:12px">
-        Token 和数据库 ID 只存在浏览器本地，不上传到任何服务器
-      </p>
-      <button onclick="saveNotionConfig()">保存</button>
-      <button class="secondary" onclick="closeModal('notion-modal')">取消</button>
+      <h3>⚙️ 系统信息</h3>
+      <p style="margin-bottom:12px;color:#aaa;font-size:14px">Notion Token 已在服务端配置，学生无需输入。</p>
+      <div style="background:#1a1a1a;border-radius:8px;padding:12px;margin-bottom:16px">
+        <div style="font-size:12px;color:#888">连接状态</div>
+        <div style="font-size:14px;color:#4caf50">✅ 已连接 (代理服务)</div>
+        <div style="font-size:12px;color:#888;margin-top:8px">数据库 ID</div>
+        <div style="font-size:13px;color:#ddd;font-family:monospace;word-break:break-all" id="db-display"></div>
+      </div>
+      <button onclick="closeModal('notion-modal')">关闭</button>
     </div>
   </div>
   
@@ -476,15 +477,17 @@
 pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
 
 const DEFAULT_DB_ID = '34b3730d-690c-814a-b412-d8ea7186b88d';
+const PROXY_URL = 'https://notion-proxy.keyresearch.workers.dev';
 
 let pdfDoc = null, totalPages = 0, mode = 'select', scale = 1.5;
 let annotations = [], pages = [], pendingNotePosition = null;
 let currentPdfSource = { type: 'local', name: '', url: '' };
 let selectedHighlight = null;
+let proxyReady = false;
 
+// DB ID can still be customized by admin via URL hash
 let notionConfig = {
-  token: localStorage.getItem('notion_token') || '',
-  dbId: localStorage.getItem('notion_db_id') || DEFAULT_DB_ID
+  dbId: new URLSearchParams(location.hash.slice(1)).get('db') || DEFAULT_DB_ID
 };
 
 const PROJECTS = [
@@ -518,7 +521,7 @@ function initProjects() {
 }
 initProjects();
 
-if (notionConfig.token) updateStatus('已连接', true);
+checkProxy();
 
 function setMode(m) {
   mode = m;
@@ -937,10 +940,25 @@ function deleteAnnotation(id) {
   }
 }
 
+async function checkProxy() {
+  updateStatus('检查连接...', false);
+  $('db-display').textContent = notionConfig.dbId;
+  try {
+    const resp = await fetch(PROXY_URL + '/health');
+    if (resp.ok) {
+      proxyReady = true;
+      updateStatus('已连接', true);
+    } else {
+      updateStatus('连接失败', false);
+    }
+  } catch (e) {
+    updateStatus('未连接', false);
+  }
+}
+
 function openNotionSetup() {
-  $('notion-token').value = notionConfig.token;
-  $('notion-db').value = notionConfig.dbId;
-  $('notion-modal').classList.add('active');
+  // No token setup needed - token is stored server-side
+  alert('Notion Token 已在服务端配置，学生无需输入。\n\n如需更换数据库，请联系管理员修改 URL 中的 db 参数。\n当前数据库: ' + notionConfig.dbId);
 }
 
 function closeModal(id) {
@@ -948,18 +966,17 @@ function closeModal(id) {
 }
 
 function saveNotionConfig() {
-  notionConfig.token = $('notion-token').value.trim();
-  notionConfig.dbId = $('notion-db').value.trim();
-  localStorage.setItem('notion_token', notionConfig.token);
-  localStorage.setItem('notion_db_id', notionConfig.dbId);
-  updateStatus('已连接', true);
+  // No-op for student-facing version
   closeModal('notion-modal');
 }
 
 function saveToNotion() {
-  if (!notionConfig.token || !notionConfig.dbId) {
-    alert('请先设置 Notion 连接');
-    openNotionSetup();
+  if (!proxyReady) {
+    alert('服务未连接，请稍后重试或联系管理员');
+    return;
+  }
+  if (!notionConfig.dbId) {
+    alert('数据库未配置，请联系管理员');
     return;
   }
   if (annotations.length === 0) {
@@ -997,21 +1014,21 @@ async function confirmSave() {
   const richTextParts = chunks.map(c => ({ text: { content: c } }));
   
   try {
-    const resp = await fetch('https://api.notion.com/v1/pages', {
+    const resp = await fetch(PROXY_URL + '/api/notion', {
       method: 'POST',
-      headers: {
-        'Authorization': 'Bearer ' + notionConfig.token,
-        'Notion-Version': '2022-06-28',
-        'Content-Type': 'application/json'
-      },
+      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        parent: { database_id: notionConfig.dbId },
-        properties: {
-          'Name': { title: [{ text: { content: pdfName } }] },
-          'Project': { rich_text: [{ text: { content: project } }] },
-          'PdfName': { rich_text: [{ text: { content: pdfName } }] },
-          'Annotations': { rich_text: richTextParts },
-          'LastModified': { date: { start: new Date().toISOString() } }
+        url: 'https://api.notion.com/v1/pages',
+        method: 'POST',
+        body: {
+          parent: { database_id: notionConfig.dbId },
+          properties: {
+            'Name': { title: [{ text: { content: pdfName } }] },
+            'Project': { rich_text: [{ text: { content: project } }] },
+            'PdfName': { rich_text: [{ text: { content: pdfName } }] },
+            'Annotations': { rich_text: richTextParts },
+            'LastModified': { date: { start: new Date().toISOString() } }
+          }
         }
       })
     });
@@ -1027,9 +1044,8 @@ async function confirmSave() {
 }
 
 async function loadFromNotion() {
-  if (!notionConfig.token || !notionConfig.dbId) {
-    alert('请先设置 Notion 连接');
-    openNotionSetup();
+  if (!proxyReady || !notionConfig.dbId) {
+    alert('服务未连接，请稍后重试或联系管理员');
     return;
   }
   
@@ -1037,14 +1053,14 @@ async function loadFromNotion() {
     const project = $('project-select').value;
     const body = project ? { filter: { property: 'Project', rich_text: { equals: project } } } : {};
     
-    const resp = await fetch(`https://api.notion.com/v1/databases/${notionConfig.dbId}/query`, {
+    const resp = await fetch(PROXY_URL + '/api/notion', {
       method: 'POST',
-      headers: {
-        'Authorization': 'Bearer ' + notionConfig.token,
-        'Notion-Version': '2022-06-28',
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify({ ...body, page_size: 50 })
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        url: `https://api.notion.com/v1/databases/${notionConfig.dbId}/query`,
+        method: 'POST',
+        body: { ...body, page_size: 50 }
+      })
     });
     
     const result = await resp.json();
