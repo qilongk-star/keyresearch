@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>PDF Annotator for Notion</title>
+  <title>PDF Annotator - Research Team</title>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
   <style>
     * { box-sizing: border-box; margin: 0; padding: 0; }
@@ -11,40 +11,39 @@
     
     .toolbar {
       position: fixed; top: 0; left: 0; right: 0; height: 56px;
-      background: #2d2d2d; display: flex; align-items: center; gap: 12px;
-      padding: 0 20px; z-index: 1000; border-bottom: 1px solid #404040;
+      background: #2d2d2d; display: flex; align-items: center; gap: 10px;
+      padding: 0 16px; z-index: 1000; border-bottom: 1px solid #404040;
+      flex-wrap: nowrap; overflow-x: auto;
     }
     .toolbar button { 
-      padding: 10px 18px; border: none; border-radius: 8px; cursor: pointer; 
-      font-size: 14px; font-weight: 500; transition: all 0.2s;
+      padding: 8px 14px; border: none; border-radius: 6px; cursor: pointer; 
+      font-size: 13px; font-weight: 500; transition: all 0.2s; white-space: nowrap;
     }
     .toolbar button:hover { transform: translateY(-1px); }
-    .toolbar .btn-primary { background: #0078d4; color: white; }
-    .toolbar .btn-primary:hover { background: #106ebe; }
-    .toolbar .btn-secondary { background: #404040; color: white; }
-    .toolbar .btn-highlight { background: linear-gradient(135deg, #ffd700, #ffb700); color: #000; }
-    .toolbar .btn-note { background: linear-gradient(135deg, #e74c3c, #c0392b); color: white; }
-    .toolbar .btn-active { box-shadow: 0 0 0 3px rgba(0,120,212,0.5); }
+    .btn-primary { background: #0078d4; color: white; }
+    .btn-primary:hover { background: #106ebe; }
+    .btn-secondary { background: #404040; color: white; }
+    .btn-highlight { background: linear-gradient(135deg, #ffd700, #ffb700); color: #000; }
+    .btn-note { background: linear-gradient(135deg, #e74c3c, #c0392b); color: white; }
+    .btn-active { box-shadow: 0 0 0 3px rgba(0,120,212,0.5); }
     
     .main { margin-top: 56px; padding: 20px; }
     
-    #upload-section { 
-      text-align: center; padding: 80px 20px; 
-    }
+    #upload-section { text-align: center; padding: 60px 20px; }
     #upload-section.hidden { display: none; }
     .upload-box {
-      border: 3px dashed #404040; border-radius: 16px; padding: 60px 40px;
+      border: 3px dashed #404040; border-radius: 16px; padding: 50px 30px;
       max-width: 600px; margin: 0 auto; transition: all 0.3s;
     }
     .upload-box:hover { border-color: #0078d4; background: rgba(0,120,212,0.1); }
     .upload-box input[type="file"] { display: none; }
     .upload-box label {
       display: inline-flex; align-items: center; gap: 10px;
-      padding: 16px 32px; background: #0078d4; color: white;
-      border-radius: 12px; cursor: pointer; font-size: 16px; font-weight: 600;
+      padding: 14px 28px; background: #0078d4; color: white;
+      border-radius: 10px; cursor: pointer; font-size: 15px; font-weight: 600;
     }
     .upload-box label:hover { background: #106ebe; }
-    .upload-box p { margin-top: 24px; color: #888; font-size: 14px; }
+    .upload-box p { margin-top: 20px; color: #888; font-size: 13px; }
     
     #pdf-section { display: none; }
     #pdf-section.active { display: block; }
@@ -56,12 +55,6 @@
       box-shadow: 0 4px 20px rgba(0,0,0,0.4); border-radius: 8px; overflow: hidden;
     }
     .page-wrapper canvas { display: block; }
-    
-    .text-layer {
-      position: absolute; top: 0; left: 0; right: 0; bottom: 0;
-      opacity: 0.2; line-height: 1.0;
-    }
-    .text-layer > span { position: absolute; white-space: pre; }
     
     .annotation-layer {
       position: absolute; top: 0; left: 0; right: 0; bottom: 0;
@@ -77,58 +70,49 @@
     .highlight-span:hover { background: rgba(255, 215, 0, 0.6); }
     
     .note-marker {
-      position: absolute; width: 28px; height: 28px; 
+      position: absolute; width: 26px; height: 26px; 
       background: linear-gradient(135deg, #e74c3c, #c0392b);
       border-radius: 50%; cursor: pointer; 
       display: flex; align-items: center; justify-content: center; 
-      font-size: 14px; color: white; font-weight: bold;
+      font-size: 12px; color: white; font-weight: bold;
       box-shadow: 0 2px 8px rgba(231,76,60,0.4);
       pointer-events: auto; transition: transform 0.2s;
     }
     .note-marker:hover { transform: scale(1.1); }
     
     .note-popup {
-      position: absolute; background: #fff; color: #333; padding: 16px;
+      position: fixed; background: #fff; color: #333; padding: 16px;
       border-radius: 12px; width: 280px; 
       box-shadow: 0 8px 32px rgba(0,0,0,0.3); z-index: 100; 
       font-size: 14px; line-height: 1.5;
     }
-    .note-popup::before {
-      content: ''; position: absolute; top: -10px; left: 14px;
-      border: 10px solid transparent; border-bottom-color: #fff; border-top: none;
-    }
-    .note-popup textarea { 
-      width: 100%; border: 2px solid #ddd; border-radius: 8px; 
-      padding: 10px; resize: none; font-size: 14px; min-height: 80px;
-    }
-    .note-popup textarea:focus { border-color: #0078d4; outline: none; }
-    .note-popup-buttons { margin-top: 12px; display: flex; gap: 8px; }
+    .note-popup-buttons { margin-top: 10px; display: flex; gap: 8px; }
     .note-popup button { 
-      flex: 1; padding: 8px 16px; border: none; border-radius: 6px; 
+      flex: 1; padding: 7px 14px; border: none; border-radius: 6px; 
       cursor: pointer; font-weight: 500;
     }
     .note-popup .btn-save { background: #0078d4; color: white; }
     .note-popup .btn-delete { background: #e74c3c; color: white; }
     
     .sidebar {
-      position: fixed; top: 56px; right: 0; width: 320px; 
+      position: fixed; top: 56px; right: 0; width: 300px; 
       height: calc(100vh - 56px); background: #252525; 
       border-left: 1px solid #404040; overflow-y: auto; 
-      padding: 20px; display: none;
+      padding: 16px; display: none;
     }
     .sidebar.active { display: block; }
-    .sidebar h3 { font-size: 16px; margin-bottom: 16px; color: #fff; }
+    .sidebar h3 { font-size: 15px; margin-bottom: 12px; color: #fff; }
     
     .annotation-item {
-      background: #353535; border-radius: 10px; padding: 12px; 
-      margin-bottom: 12px; cursor: pointer; 
+      background: #353535; border-radius: 8px; padding: 10px; 
+      margin-bottom: 10px; cursor: pointer; 
       border: 2px solid transparent; transition: all 0.2s;
     }
     .annotation-item:hover { border-color: #0078d4; }
-    .annotation-item.highlight { border-left: 4px solid #ffd700; }
-    .annotation-item.note { border-left: 4px solid #e74c3c; }
-    .annotation-item .page { font-size: 12px; color: #888; margin-bottom: 6px; }
-    .annotation-item .text { font-size: 13px; color: #ddd; line-height: 1.4; }
+    .annotation-item.highlight { border-left: 3px solid #ffd700; }
+    .annotation-item.note { border-left: 3px solid #e74c3c; }
+    .annotation-item .page { font-size: 11px; color: #888; margin-bottom: 4px; }
+    .annotation-item .text { font-size: 12px; color: #ddd; line-height: 1.4; }
     
     .modal {
       position: fixed; top: 0; left: 0; right: 0; bottom: 0;
@@ -137,64 +121,70 @@
     }
     .modal.active { display: flex; }
     .modal-content {
-      background: #2d2d2d; padding: 32px; border-radius: 16px; 
+      background: #2d2d2d; padding: 28px; border-radius: 14px; 
       width: 420px; max-width: 90%; box-shadow: 0 20px 60px rgba(0,0,0,0.5);
     }
-    .modal-content h3 { margin-bottom: 20px; font-size: 18px; }
-    .modal-content input { 
-      width: 100%; padding: 12px; margin-bottom: 16px; 
+    .modal-content h3 { margin-bottom: 16px; font-size: 17px; }
+    .modal-content input, .modal-content select { 
+      width: 100%; padding: 10px; margin-bottom: 12px; 
       border: 2px solid #404040; background: #1a1a1a; color: #fff; 
-      border-radius: 8px; font-size: 14px;
+      border-radius: 8px; font-size: 13px;
     }
-    .modal-content input:focus { border-color: #0078d4; outline: none; }
+    .modal-content input:focus, .modal-content select:focus { border-color: #0078d4; outline: none; }
     .modal-content button { 
-      width: 100%; padding: 14px; background: #0078d4; color: white; 
+      width: 100%; padding: 12px; background: #0078d4; color: white; 
       border: none; border-radius: 8px; cursor: pointer; font-weight: 600;
     }
     .modal-content button:hover { background: #106ebe; }
-    .modal-content button.secondary { 
-      background: #404040; margin-top: 10px; 
-    }
+    .modal-content button.secondary { background: #404040; margin-top: 8px; }
     
     .status { 
-      font-size: 13px; padding: 8px 14px; background: #353535; 
-      border-radius: 8px; display: flex; align-items: center; gap: 8px;
+      font-size: 12px; padding: 6px 10px; background: #353535; 
+      border-radius: 6px; display: flex; align-items: center; gap: 6px;
+      white-space: nowrap;
     }
     .status.connected { background: #107c10; }
-    .status.error { background: #d13438; }
-    .status-dot { 
-      width: 8px; height: 8px; border-radius: 50%; background: #888;
-    }
+    .status-dot { width: 7px; height: 7px; border-radius: 50%; background: #888; }
     .status.connected .status-dot { background: #4caf50; }
     
-    .page-nav {
-      position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%);
-      background: #2d2d2d; border-radius: 12px; padding: 12px 20px;
-      display: flex; align-items: center; gap: 16px; 
-      box-shadow: 0 4px 20px rgba(0,0,0,0.3);
+    .project-select {
+      padding: 6px 10px; border-radius: 6px; background: #1a1a1a; color: #fff;
+      border: 1px solid #404040; font-size: 12px; max-width: 160px;
     }
-    .page-nav button { 
-      background: #404040; border: none; color: white; 
-      padding: 8px 16px; border-radius: 6px; cursor: pointer;
+    .project-select:focus { border-color: #0078d4; outline: none; }
+    
+    .saved-list {
+      max-height: 300px; overflow-y: auto; margin-bottom: 12px;
     }
-    .page-nav span { color: #fff; font-size: 14px; }
+    .saved-item {
+      background: #353535; border-radius: 8px; padding: 10px 12px;
+      margin-bottom: 8px; cursor: pointer; border: 2px solid transparent;
+      transition: all 0.2s;
+    }
+    .saved-item:hover { border-color: #0078d4; }
+    .saved-item .name { font-weight: 600; margin-bottom: 4px; }
+    .saved-item .meta { font-size: 11px; color: #888; }
   </style>
 </head>
 <body>
   <div class="toolbar">
     <input type="file" id="file-input" accept=".pdf" style="display:none">
-    <button class="btn-primary" onclick="document.getElementById('file-input').click()">📁 打开 PDF</button>
+    <button class="btn-primary" onclick="document.getElementById('file-input').click()">📁 Open</button>
+    
+    <select class="project-select" id="project-select">
+      <option value="">选项目...</option>
+    </select>
     
     <div style="flex:1"></div>
     
     <button class="btn-secondary btn-highlight" id="btn-highlight" onclick="setMode('highlight')">🖍️ 高亮</button>
     <button class="btn-secondary btn-note" id="btn-note" onclick="setMode('note')">📝 批注</button>
-    <button class="btn-secondary" id="btn-select" onclick="setMode('select')">↖️ 选择</button>
+    <button class="btn-secondary" id="btn-select" onclick="setMode('select')">↖️</button>
     
     <div style="flex:1"></div>
     
-    <div class="status" id="status"><span class="status-dot"></span>未连接 Fcitx</div>
-    <button class="btn-primary" onclick="openNotionSetup()">⚙️ 设置 Fcitx</button>
+    <div class="status" id="status"><span class="status-dot"></span>未连接</div>
+    <button class="btn-primary" onclick="openNotionSetup()" style="padding:6px 10px;font-size:11px">⚙️</button>
     <button class="btn-primary" onclick="saveToNotion()">💾 保存</button>
     <button class="btn-secondary" onclick="loadFromNotion()">📂 加载</button>
   </div>
@@ -203,11 +193,8 @@
     <div id="upload-section">
       <div class="upload-box">
         <input type="file" id="file-input-main" accept=".pdf">
-        <label for="file-input-main" onclick="document.getElementById('file-input-main').click()">
-          📁 选择 PDF 文件
-        </label>
-        <p>支持 PDF 高亮、批注，数据保存到 Notion 数据库</p>
-        <p style="margin-top:12px;font-size:12px;">先点击「设置 Notion」配置 Notion Token 和数据库 ID</p>
+        <label for="file-input-main">📁 选择 PDF 文件</label>
+        <p>PDF 高亮 + 批注 → 数据保存到 Notion</p>
       </div>
     </div>
     
@@ -217,21 +204,19 @@
   </div>
   
   <div class="sidebar" id="sidebar">
-    <h3>📋 批注列表</h3>
+    <h3>📋 批注列表 (<span id="anno-count">0</span>)</h3>
     <div id="annotation-list"></div>
   </div>
   
   <div class="modal" id="notion-modal">
     <div class="modal-content">
       <h3>⚙️ Notion 配置</h3>
-      <input type="text" id="notion-token" placeholder="Integration Token (ntn_xxx 或 secret_xxx)">
-      <input type="text" id="notion-db" placeholder="数据库 ID (32位字符)">
-      <p style="font-size:12px;color:#888;margin-bottom:16px">
-        1. 在 Notion 创建数据库，添加字段：PdfName(title)、Annotations(json)<br>
-        2. 创建 Integration 并复制 Token<br>
-        3. 将数据库与 Integration 连接
+      <input type="text" id="notion-token" placeholder="Integration Token (ntn_xxx)">
+      <input type="text" id="notion-db" placeholder="数据库 ID">
+      <p style="font-size:11px;color:#888;margin-bottom:12px">
+        Token 和数据库 ID 只存在浏览器本地，不上传到任何服务器
       </p>
-      <button onclick="saveNotionConfig()">保存配置</button>
+      <button onclick="saveNotionConfig()">保存</button>
       <button class="secondary" onclick="closeModal('notion-modal')">取消</button>
     </div>
   </div>
@@ -239,62 +224,96 @@
   <div class="modal" id="note-modal">
     <div class="modal-content">
       <h3>📝 添加批注</h3>
-      <textarea id="note-text" rows="4" placeholder="输入批注内容..." style="width:100%;padding:12px;border:2px solid #404040;background:#1a1a1a;color:#fff;border-radius:8px;resize:none;font-size:14px;"></textarea>
-      <div style="display:flex;gap:12px;margin-top:16px">
+      <textarea id="note-text" rows="4" placeholder="输入批注内容..." style="width:100%;padding:10px;border:2px solid #404040;background:#1a1a1a;color:#fff;border-radius:8px;resize:none;font-size:13px;"></textarea>
+      <div style="display:flex;gap:10px;margin-top:12px">
         <button onclick="saveNote()" style="flex:1">保存</button>
         <button class="secondary" onclick="closeModal('note-modal')" style="flex:1">取消</button>
       </div>
     </div>
   </div>
   
-  <div class="modal" id="pdf-name-modal">
+  <div class="modal" id="save-modal">
     <div class="modal-content">
-      <h3>📄 PDF 名称</h3>
-      <input type="text" id="pdf-name-input" placeholder="为这个 PDF 命名...">
-      <button onclick="confirmSave()">保存到 Notion</button>
-      <button class="secondary" onclick="closeModal('pdf-name-modal')">取消</button>
+      <h3>💾 保存到 Notion</h3>
+      <select id="save-project" style="width:100%;padding:10px;margin-bottom:12px;border:2px solid #404040;background:#1a1a1a;color:#fff;border-radius:8px;font-size:13px">
+        <option value="">选择项目...</option>
+      </select>
+      <input type="text" id="pdf-name-input" placeholder="PDF 名称（如：Smith2023-AI_Ethics）">
+      <button onclick="confirmSave()">保存</button>
+      <button class="secondary" onclick="closeModal('save-modal')">取消</button>
+    </div>
+  </div>
+  
+  <div class="modal" id="load-modal">
+    <div class="modal-content">
+      <h3>📂 加载标注</h3>
+      <div class="saved-list" id="saved-list"></div>
+      <button class="secondary" onclick="closeModal('load-modal')">关闭</button>
     </div>
   </div>
 
 <script>
 pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
 
-let pdfDoc = null;
-let totalPages = 0;
-let mode = 'select';
-let scale = 1.5;
-let annotations = [];
-let pages = [];
-let pendingNotePosition = null;
+// Default config - pre-filled with your database
+const DEFAULT_DB_ID = '34b3730d-690c-814a-b412-d8ea7186b88d';
+
+let pdfDoc = null, totalPages = 0, mode = 'select', scale = 1.5;
+let annotations = [], pages = [], pendingNotePosition = null;
 
 let notionConfig = {
   token: localStorage.getItem('notion_token') || '',
-  dbId: localStorage.getItem('notion_db_id') || ''
+  dbId: localStorage.getItem('notion_db_id') || DEFAULT_DB_ID
 };
 
+const PROJECTS = [
+  'SURF02170-Time Pressure',
+  'SURF01960-AI Emo',
+  'SURF02018-AI Food Order',
+  'AI-Proenvironment',
+  'Other'
+];
+
 function $(id) { return document.getElementById(id); }
+
 function updateStatus(text, connected = false) {
   const s = $('status');
   s.innerHTML = `<span class="status-dot"></span>${text}`;
   s.className = 'status' + (connected ? ' connected' : '');
 }
 
-if (notionConfig.token && notionConfig.dbId) {
-  updateStatus('已连接', true);
+// Init project dropdowns
+function initProjects() {
+  ['project-select', 'save-project'].forEach(id => {
+    const sel = $(id);
+    sel.innerHTML = '<option value="">选项目...</option>';
+    PROJECTS.forEach(p => {
+      const opt = document.createElement('option');
+      opt.value = p; opt.textContent = p;
+      sel.appendChild(opt);
+    });
+  });
+  // Restore last selected project
+  const last = localStorage.getItem('last_project');
+  if (last) $('project-select').value = last;
 }
+initProjects();
+
+if (notionConfig.token) updateStatus('已连接', true);
 
 function setMode(m) {
   mode = m;
   document.querySelectorAll('.annotation-layer').forEach(layer => {
     layer.className = 'annotation-layer' + (m !== 'select' ? ' active' : '');
   });
-  document.querySelectorAll('.toolbar button').forEach(btn => btn.classList.remove('btn-active'));
-  $('btn-' + m)?.classList.add('btn-active');
+  ['highlight','note','select'].forEach(id => {
+    const btn = $('btn-' + id);
+    if (btn) btn.classList.toggle('btn-active', id === m);
+  });
 }
 
 async function loadPDF(file) {
   if (!file) return;
-  
   const arrayBuffer = await file.arrayBuffer();
   pdfDoc = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
   totalPages = pdfDoc.numPages;
@@ -303,202 +322,134 @@ async function loadPDF(file) {
   $('pdf-section').classList.add('active');
   $('sidebar').classList.add('active');
   $('pdf-container').innerHTML = '';
-  pages = [];
-  annotations = [];
+  pages = []; annotations = [];
   
   for (let i = 1; i <= totalPages; i++) {
     const page = await pdfDoc.getPage(i);
     const viewport = page.getViewport({ scale });
-    
     const wrapper = document.createElement('div');
-    wrapper.className = 'page-wrapper';
-    wrapper.dataset.page = i;
+    wrapper.className = 'page-wrapper'; wrapper.dataset.page = i;
     
     const canvas = document.createElement('canvas');
-    canvas.width = viewport.width;
-    canvas.height = viewport.height;
+    canvas.width = viewport.width; canvas.height = viewport.height;
     
     const textLayerDiv = document.createElement('div');
     textLayerDiv.className = 'text-layer';
-    textLayerDiv.style.cssText = `position:absolute;top:0;left:0;width:${viewport.width}px;height:${viewport.height}px;`;
+    textLayerDiv.style.cssText = `position:absolute;top:0;left:0;width:${viewport.width}px;height:${viewport.height}px;opacity:0.2;line-height:1.0;`;
     
     const annotationLayer = document.createElement('div');
     annotationLayer.className = 'annotation-layer';
     annotationLayer.style.cssText = `position:absolute;top:0;left:0;width:${viewport.width}px;height:${viewport.height}px;`;
     
-    const ctx = canvas.getContext('2d');
-    await page.render({ canvasContext: ctx, viewport }).promise;
-    
-    wrapper.appendChild(canvas);
-    wrapper.appendChild(textLayerDiv);
-    wrapper.appendChild(annotationLayer);
+    await page.render({ canvasContext: canvas.getContext('2d'), viewport }).promise;
+    wrapper.appendChild(canvas); wrapper.appendChild(textLayerDiv); wrapper.appendChild(annotationLayer);
     $('pdf-container').appendChild(wrapper);
     
     pages.push({ page, canvas, viewport, wrapper, annotationLayer, textLayerDiv, pageNum: i });
     
-    // Render text layer for selection
     const textContent = await page.getTextContent();
     await pdfjsLib.renderTextLayer({
       textContentSource: { promise: Promise.resolve(textContent) },
-      container: textLayerDiv,
-      viewport: viewport,
-      textDivs: []
+      container: textLayerDiv, viewport, textDivs: []
     });
     
     setupAnnotationEvents(annotationLayer, i);
   }
   
   setMode('select');
-  updateStatus(`已加载 ${totalPages} 页`, true);
+  updateStatus(`${totalPages} 页已加载`, true);
   updateAnnotationList();
 }
 
 function setupAnnotationEvents(layer, pageNum) {
   layer.addEventListener('mousedown', (e) => {
     if (mode !== 'note') return;
-    
     const rect = layer.getBoundingClientRect();
-    pendingNotePosition = { 
-      pageNum, 
-      x: (e.clientX - rect.left) / rect.width, 
-      y: (e.clientY - rect.top) / rect.height 
-    };
+    pendingNotePosition = { pageNum, x: (e.clientX - rect.left) / rect.width, y: (e.clientY - rect.top) / rect.height };
     $('note-text').value = '';
     $('note-modal').classList.add('active');
   });
   
   layer.addEventListener('mouseup', (e) => {
     if (mode !== 'highlight') return;
-    
     const selection = window.getSelection();
     if (!selection.rangeCount || selection.isCollapsed) return;
     
-    // Find which page
     let targetPage = null;
     for (const p of pages) {
       const rect = p.wrapper.getBoundingClientRect();
       const selRect = selection.getRangeAt(0).getBoundingClientRect();
-      if (selRect.top >= rect.top && selRect.bottom <= rect.bottom) {
-        targetPage = p;
-        break;
-      }
+      if (selRect.top >= rect.top && selRect.bottom <= rect.bottom) { targetPage = p; break; }
     }
     if (!targetPage) return;
     
     const range = selection.getRangeAt(0);
     const rangeRects = range.getClientRects();
     const hlRects = [];
-    
     for (let i = 0; i < rangeRects.length; i++) {
-      const r = rangeRects[i];
-      const pageRect = targetPage.wrapper.getBoundingClientRect();
-      hlRects.push({
-        x: (r.left - pageRect.left) / pageRect.width,
-        y: (r.top - pageRect.top) / pageRect.height,
-        width: r.width / pageRect.width,
-        height: r.height / pageRect.height
-      });
+      const r = rangeRects[i]; const pr = targetPage.wrapper.getBoundingClientRect();
+      hlRects.push({ x: (r.left - pr.left) / pr.width, y: (r.top - pr.top) / pr.height, width: r.width / pr.width, height: r.height / pr.height });
     }
     
-    const hl = {
-      id: 'hl_' + Date.now(),
-      type: 'highlight',
-      pageNum: targetPage.pageNum,
-      text: selection.toString(),
-      color: '#ffd700',
-      rects: hlRects
-    };
-    
-    annotations.push(hl);
-    renderHighlight(hl, targetPage);
+    annotations.push({
+      id: 'hl_' + Date.now(), type: 'highlight', pageNum: targetPage.pageNum,
+      text: selection.toString(), color: '#ffd700', rects: hlRects
+    });
+    renderAnnotation(annotations[annotations.length - 1], targetPage);
     selection.removeAllRanges();
     updateAnnotationList();
   });
 }
 
-function renderHighlight(hl, page) {
-  const layer = page.annotationLayer;
-  const rect = page.wrapper.getBoundingClientRect();
+function renderAnnotation(a, page) {
+  if (!page) page = pages.find(p => p.pageNum === a.pageNum);
+  if (!page) return;
   
-  hl.rects.forEach(r => {
-    const span = document.createElement('div');
-    span.className = 'highlight-span';
-    span.style.left = (r.x * 100) + '%';
-    span.style.top = (r.y * 100) + '%';
-    span.style.width = (r.width * 100) + '%';
-    span.style.height = (r.height * 100) + '%';
-    span.style.background = hl.color + '66';
-    layer.appendChild(span);
-  });
+  if (a.type === 'highlight') {
+    a.rects.forEach(r => {
+      const span = document.createElement('div');
+      span.className = 'highlight-span';
+      span.style.left = (r.x * 100) + '%'; span.style.top = (r.y * 100) + '%';
+      span.style.width = (r.width * 100) + '%'; span.style.height = (r.height * 100) + '%';
+      span.style.background = (a.color || '#ffd700') + '66';
+      page.annotationLayer.appendChild(span);
+    });
+  } else if (a.type === 'note') {
+    const marker = document.createElement('div');
+    marker.className = 'note-marker'; marker.dataset.noteId = a.id;
+    marker.style.left = (a.x * 100) + '%'; marker.style.top = (a.y * 100) + '%';
+    marker.textContent = '📝';
+    marker.addEventListener('click', (e) => { e.stopPropagation(); showNotePopup(a, marker); });
+    page.annotationLayer.appendChild(marker);
+  }
+}
+
+function showNotePopup(note, marker) {
+  document.querySelectorAll('.note-popup').forEach(p => p.remove());
+  const popup = document.createElement('div');
+  popup.className = 'note-popup';
+  popup.innerHTML = `<div style="margin-bottom:8px">${note.text}</div>
+    <div class="note-popup-buttons">
+      <button class="btn-delete" onclick="deleteAnnotation('${note.id}')">删除</button>
+      <button class="btn-save" onclick="document.querySelectorAll('.note-popup').forEach(p=>p.remove())">关闭</button>
+    </div>`;
+  const mr = marker.getBoundingClientRect();
+  popup.style.left = mr.left + 'px'; popup.style.top = (mr.bottom + 10) + 'px';
+  document.body.appendChild(popup);
+  setTimeout(() => {
+    document.addEventListener('click', function handler(e) {
+      if (!popup.contains(e.target) && !marker.contains(e.target)) { popup.remove(); document.removeEventListener('click', handler); }
+    });
+  }, 10);
 }
 
 function saveNote() {
   const text = $('note-text').value.trim();
   if (!text || !pendingNotePosition) return;
-  
-  const note = {
-    id: 'note_' + Date.now(),
-    type: 'note',
-    pageNum: pendingNotePosition.pageNum,
-    text: text,
-    x: pendingNotePosition.x,
-    y: pendingNotePosition.y
-  };
-  
+  const note = { id: 'note_' + Date.now(), type: 'note', pageNum: pendingNotePosition.pageNum, text, x: pendingNotePosition.x, y: pendingNotePosition.y };
   annotations.push(note);
-  renderNote(note);
-  updateAnnotationList();
-  closeModal('note-modal');
-  pendingNotePosition = null;
-}
-
-function renderNote(note) {
-  const page = pages.find(p => p.pageNum === note.pageNum);
-  if (!page) return;
-  
-  const marker = document.createElement('div');
-  marker.className = 'note-marker';
-  marker.style.left = (note.x * 100) + '%';
-  marker.style.top = (note.y * 100) + '%';
-  marker.textContent = '📝';
-  marker.dataset.noteId = note.id;
-  
-  marker.addEventListener('click', (e) => {
-    e.stopPropagation();
-    showNotePopup(note, marker);
-  });
-  
-  page.annotationLayer.appendChild(marker);
-}
-
-function showNotePopup(note, marker) {
-  document.querySelectorAll('.note-popup').forEach(p => p.remove());
-  
-  const popup = document.createElement('div');
-  popup.className = 'note-popup';
-  popup.innerHTML = `
-    <div>${note.text}</div>
-    <div class="note-popup-buttons">
-      <button class="btn-delete" onclick="deleteAnnotation('${note.id}')">删除</button>
-      <button class="btn-save" onclick="document.querySelectorAll('.note-popup').forEach(p=>p.remove())">关闭</button>
-    </div>
-  `;
-  
-  const markerRect = marker.getBoundingClientRect();
-  popup.style.left = markerRect.left + 'px';
-  popup.style.top = (markerRect.bottom + 14) + 'px';
-  popup.style.position = 'fixed';
-  
-  document.body.appendChild(popup);
-  
-  setTimeout(() => {
-    document.addEventListener('click', function handler(e) {
-      if (!popup.contains(e.target) && !marker.contains(e.target)) {
-        popup.remove();
-        document.removeEventListener('click', handler);
-      }
-    });
-  }, 10);
+  renderAnnotation(note);
+  updateAnnotationList(); closeModal('note-modal'); pendingNotePosition = null;
 }
 
 function deleteAnnotation(id) {
@@ -510,49 +461,24 @@ function deleteAnnotation(id) {
 
 function updateAnnotationList() {
   const list = $('annotation-list');
+  $('anno-count').textContent = annotations.length;
   list.innerHTML = '';
-  
-  if (annotations.length === 0) {
-    list.innerHTML = '<p style="color:#888;text-align:center;padding:20px;">暂无批注</p>';
-    return;
-  }
+  if (annotations.length === 0) { list.innerHTML = '<p style="color:#888;text-align:center;padding:16px">暂无批注</p>'; return; }
   
   const grouped = {};
-  annotations.forEach(a => {
-    if (!grouped[a.pageNum]) grouped[a.pageNum] = [];
-    grouped[a.pageNum].push(a);
-  });
-  
+  annotations.forEach(a => { if (!grouped[a.pageNum]) grouped[a.pageNum] = []; grouped[a.pageNum].push(a); });
   Object.keys(grouped).sort((a,b) => a-b).forEach(pg => {
     grouped[pg].forEach(a => {
       const item = document.createElement('div');
       item.className = `annotation-item ${a.type}`;
-      item.innerHTML = `
-        <div class="page">第 ${a.pageNum} 页</div>
-        <div class="text">${a.text || '批注'}</div>
-      `;
-      item.onclick = () => goToAnnotation(a);
+      item.innerHTML = `<div class="page">P${a.pageNum}</div><div class="text">${a.text || '批注'}</div>`;
+      item.onclick = () => { document.querySelector(`[data-page="${a.pageNum}"]`)?.scrollIntoView({ behavior: 'smooth', block: 'center' }); };
       list.appendChild(item);
     });
   });
 }
 
-function goToAnnotation(a) {
-  const wrapper = document.querySelector(`[data-page="${a.pageNum}"]`);
-  if (wrapper) {
-    wrapper.scrollIntoView({ behavior: 'smooth', block: 'center' });
-  }
-}
-
-function renderAnnotations() {
-  annotations.forEach(a => {
-    const page = pages.find(p => p.pageNum === a.pageNum);
-    if (!page) return;
-    
-    if (a.type === 'highlight') renderHighlight(a, page);
-    else if (a.type === 'note') renderNote(a);
-  });
-}
+function renderAllAnnotations() { annotations.forEach(a => renderAnnotation(a)); }
 
 function openNotionSetup() {
   $('notion-token').value = notionConfig.token;
@@ -560,9 +486,7 @@ function openNotionSetup() {
   $('notion-modal').classList.add('active');
 }
 
-function closeModal(id) {
-  document.getElementById(id).classList.remove('active');
-}
+function closeModal(id) { document.getElementById(id).classList.remove('active'); }
 
 function saveNotionConfig() {
   notionConfig.token = $('notion-token').value.trim();
@@ -574,119 +498,107 @@ function saveNotionConfig() {
 }
 
 function saveToNotion() {
-  if (!notionConfig.token || !notionConfig.dbId) {
-    alert('请先设置 Notion 连接');
-    openNotionSetup();
-    return;
-  }
-  $('pdf-name-modal').classList.add('active');
+  if (!notionConfig.token || !notionConfig.dbId) { alert('请先设置 Notion 连接'); openNotionSetup(); return; }
+  // Pre-select current project
+  $('save-project').value = $('project-select').value;
+  $('pdf-name-input').value = '';
+  $('save-modal').classList.add('active');
 }
 
 async function confirmSave() {
-  const pdfName = $('pdf-name-input').value || 'PDF-' + new Date().toISOString().slice(0,10);
-  closeModal('pdf-name-modal');
+  const project = $('save-project').value || 'Other';
+  const pdfName = $('pdf-name-input').value.trim() || 'PDF-' + new Date().toISOString().slice(0,10);
+  closeModal('save-modal');
   
-  const data = {
-    pdf_name: pdfName,
-    total_pages: totalPages,
-    annotations: annotations,
-    created_at: new Date().toISOString()
-  };
+  // Notion rich_text has a 2000 char limit per block; split if needed
+  const data = JSON.stringify({
+    pdf_name: pdfName, project, total_pages: totalPages,
+    annotations, created_at: new Date().toISOString()
+  });
+  
+  // Split into chunks of 2000 chars for rich_text
+  const chunks = [];
+  for (let i = 0; i < data.length; i += 2000) {
+    chunks.push(data.slice(i, i + 2000));
+  }
+  
+  const richTextParts = chunks.map(c => ({ text: { content: c } }));
   
   try {
     const resp = await fetch('https://api.notion.com/v1/pages', {
       method: 'POST',
-      headers: {
-        'Authorization': 'Bearer ' + notionConfig.token,
-        'Notion-Version': '2022-06-28',
-        'Content-Type': 'application/json'
-      },
+      headers: { 'Authorization': 'Bearer ' + notionConfig.token, 'Notion-Version': '2022-06-28', 'Content-Type': 'application/json' },
       body: JSON.stringify({
         parent: { database_id: notionConfig.dbId },
         properties: {
-          Name: { title: [{ text: { content: pdfName } }] },
-          Annotations: { rich_text: [{ text: { content: JSON.stringify(data) } }] }
+          'Name': { title: [{ text: { content: pdfName } }] },
+          'Project': { rich_text: [{ text: { content: project } }] },
+          'PdfName': { rich_text: [{ text: { content: pdfName } }] },
+          'Annotations': { rich_text: richTextParts },
+          'LastModified': { date: { start: new Date().toISOString() } }
         }
       })
     });
-    
     const result = await resp.json();
-    if (result.object === 'error') {
-      alert('保存失败: ' + result.message);
-    } else {
-      alert('✅ 已保存到 Notion: ' + pdfName);
-    }
-  } catch (e) {
-    alert('保存失败: ' + e.message);
-  }
+    if (result.object === 'error') alert('保存失败: ' + result.message);
+    else alert('✅ 已保存: ' + pdfName + ' → ' + project);
+  } catch (e) { alert('保存失败: ' + e.message); }
 }
 
 async function loadFromNotion() {
-  if (!notionConfig.token || !notionConfig.dbId) {
-    alert('请先设置 Notion 连接');
-    openNotionSetup();
-    return;
-  }
+  if (!notionConfig.token || !notionConfig.dbId) { alert('请先设置 Notion 连接'); openNotionSetup(); return; }
   
   try {
+    const project = $('project-select').value;
+    const body = project ? { filter: { property: 'Project', rich_text: { equals: project } } } : {};
     const resp = await fetch(`https://api.notion.com/v1/databases/${notionConfig.dbId}/query`, {
       method: 'POST',
-      headers: {
-        'Authorization': 'Bearer ' + notionConfig.token,
-        'Notion-Version': '2022-06-28',
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify({ page_size: 50 })
+      headers: { 'Authorization': 'Bearer ' + notionConfig.token, 'Notion-Version': '2022-06-28', 'Content-Type': 'application/json' },
+      body: JSON.stringify({ ...body, page_size: 50 })
     });
-    
     const result = await resp.json();
-    if (result.object === 'error') {
-      alert('加载失败: ' + result.message);
-      return;
-    }
+    if (result.object === 'error') { alert('加载失败: ' + result.message); return; }
     
     const list = result.results || [];
-    if (list.length === 0) {
-      alert('没有保存的 PDF 标注');
-      return;
-    }
+    if (list.length === 0) { alert('没有找到标注记录'); return; }
     
-    const names = list.map((p, i) => `${i+1}. ${p.properties.Name?.title?.[0]?.plain_text || 'Untitled'}`).join('\n');
-    const choice = prompt('选择要加载的 PDF:\n\n' + names + '\n\n输入序号:');
-    const idx = parseInt(choice) - 1;
-    
-    if (idx >= 0 && idx < list.length) {
-      const dataStr = list[idx].properties.Annotations?.rich_text?.[0]?.plain_text;
-      if (dataStr) {
-        const data = JSON.parse(dataStr);
-        annotations = data.annotations || [];
-        renderAnnotations();
-        updateAnnotationList();
-        alert('✅ 已加载: ' + data.pdf_name + ' (' + annotations.length + ' 条批注)');
-      }
-    }
-  } catch (e) {
-    alert('加载失败: ' + e.message);
-  }
+    const container = $('saved-list');
+    container.innerHTML = '';
+    list.forEach((page, idx) => {
+      const name = page.properties.Name?.title?.[0]?.plain_text || 'Untitled';
+      const proj = page.properties.Project?.rich_text?.[0]?.plain_text || '-';
+      const date = page.properties.LastModified?.date?.start?.slice(0,10) || '-';
+      const item = document.createElement('div');
+      item.className = 'saved-item';
+      item.innerHTML = `<div class="name">${name}</div><div class="meta">${proj} · ${date}</div>`;
+      item.onclick = () => loadAnnotations(page, item);
+      container.appendChild(item);
+    });
+    $('load-modal').classList.add('active');
+  } catch (e) { alert('加载失败: ' + e.message); }
 }
 
-document.getElementById('file-input').addEventListener('change', (e) => {
-  if (e.target.files[0]) loadPDF(e.target.files[0]);
-});
-document.getElementById('file-input-main').addEventListener('change', (e) => {
-  if (e.target.files[0]) loadPDF(e.target.files[0]);
-});
+async function loadAnnotations(page, item) {
+  const dataStr = (page.properties.Annotations?.rich_text || []).map(rt => rt.plain_text).join('');
+  if (!dataStr) { alert('无标注数据'); return; }
+  try {
+    const data = JSON.parse(dataStr);
+    annotations = data.annotations || [];
+    renderAllAnnotations();
+    updateAnnotationList();
+    closeModal('load-modal');
+    alert('✅ 已加载: ' + data.pdf_name + ' (' + annotations.length + ' 条批注)');
+  } catch (e) { alert('数据解析失败'); }
+}
 
-// Expose functions
-window.setMode = setMode;
-window.saveNote = saveNote;
-window.deleteAnnotation = deleteAnnotation;
-window.openNotionSetup = openNotionSetup;
-window.closeModal = closeModal;
-window.saveNotionConfig = saveNotionConfig;
-window.saveToNotion = saveToNotion;
-window.confirmSave = confirmSave;
-window.loadFromNotion = loadFromNotion;
+$('file-input').addEventListener('change', (e) => { if (e.target.files[0]) loadPDF(e.target.files[0]); });
+$('file-input-main').addEventListener('change', (e) => { if (e.target.files[0]) loadPDF(e.target.files[0]); });
+$('project-select').addEventListener('change', (e) => { localStorage.setItem('last_project', e.target.value); });
+
+window.setMode = setMode; window.saveNote = saveNote; window.deleteAnnotation = deleteAnnotation;
+window.openNotionSetup = openNotionSetup; window.closeModal = closeModal;
+window.saveNotionConfig = saveNotionConfig; window.saveToNotion = saveToNotion;
+window.confirmSave = confirmSave; window.loadFromNotion = loadFromNotion;
 </script>
 </body>
 </html>
