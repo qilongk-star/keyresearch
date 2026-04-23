@@ -29,11 +29,11 @@
     
     .main { margin-top: 56px; padding: 20px; }
     
-    #upload-section { text-align: center; padding: 60px 20px; }
+    #upload-section { text-align: center; padding: 40px 20px; }
     #upload-section.hidden { display: none; }
     .upload-box {
-      border: 3px dashed #404040; border-radius: 16px; padding: 50px 30px;
-      max-width: 600px; margin: 0 auto; transition: all 0.3s;
+      border: 3px dashed #404040; border-radius: 16px; padding: 40px 30px;
+      max-width: 600px; margin: 0 auto 20px; transition: all 0.3s;
     }
     .upload-box:hover { border-color: #0078d4; background: rgba(0,120,212,0.1); }
     .upload-box input[type="file"] { display: none; }
@@ -43,7 +43,21 @@
       border-radius: 10px; cursor: pointer; font-size: 15px; font-weight: 600;
     }
     .upload-box label:hover { background: #106ebe; }
-    .upload-box p { margin-top: 20px; color: #888; font-size: 13px; }
+    .upload-box p { margin-top: 16px; color: #888; font-size: 13px; }
+    
+    .url-input-box {
+      max-width: 600px; margin: 0 auto;
+      background: #252525; border-radius: 12px; padding: 20px;
+      border: 1px solid #404040;
+    }
+    .url-input-box h4 { margin-bottom: 12px; color: #fff; font-size: 14px; }
+    .url-input-box input {
+      width: 100%; padding: 12px; border: 2px solid #404040; background: #1a1a1a; color: #fff;
+      border-radius: 8px; font-size: 13px; margin-bottom: 12px;
+    }
+    .url-input-box input:focus { border-color: #0078d4; outline: none; }
+    .url-input-box button { width: 100%; }
+    .url-input-box .hint { font-size: 11px; color: #888; margin-top: 10px; }
     
     #pdf-section { display: none; }
     #pdf-section.active { display: block; }
@@ -164,12 +178,18 @@
     .saved-item:hover { border-color: #0078d4; }
     .saved-item .name { font-weight: 600; margin-bottom: 4px; }
     .saved-item .meta { font-size: 11px; color: #888; }
+    
+    .cors-notice {
+      background: #3d2914; border: 1px solid #8b6914; border-radius: 8px;
+      padding: 12px; margin-top: 12px; font-size: 12px; color: #d4a84b;
+    }
+    .cors-notice a { color: #4fc3f7; }
   </style>
 </head>
 <body>
   <div class="toolbar">
     <input type="file" id="file-input" accept=".pdf" style="display:none">
-    <button class="btn-primary" onclick="document.getElementById('file-input').click()">📁 Open</button>
+    <button class="btn-primary" onclick="document.getElementById('file-input').click()">📁 本地PDF</button>
     
     <select class="project-select" id="project-select">
       <option value="">选项目...</option>
@@ -193,8 +213,21 @@
     <div id="upload-section">
       <div class="upload-box">
         <input type="file" id="file-input-main" accept=".pdf">
-        <label for="file-input-main">📁 选择 PDF 文件</label>
-        <p>PDF 高亮 + 批注 → 数据保存到 Notion</p>
+        <label for="file-input-main">📁 选择本地 PDF 文件</label>
+        <p>或粘贴 Notion PDF 链接直接加载</p>
+      </div>
+      
+      <div class="url-input-box">
+        <h4>🔗 从 Notion PDF 链接加载</h4>
+        <input type="text" id="notion-url-input" placeholder="粘贴 Notion PDF 链接 (https://file.notion.so/...)">
+        <button class="btn-primary" onclick="loadFromNotionUrl()">加载 PDF</button>
+        <div class="hint">支持 file.notion.so 链接，需要链接包含有效的下载 token</div>
+        <div class="cors-notice" id="cors-notice" style="display:none">
+          ⚠️ 由于浏览器安全限制，直接加载 Notion 链接可能失败。<br>
+          如果失败，请：<br>
+          1. 在 Notion 中点击 PDF → 下载到本地<br>
+          2. 用「本地PDF」按钮打开
+        </div>
       </div>
     </div>
     
@@ -239,6 +272,7 @@
         <option value="">选择项目...</option>
       </select>
       <input type="text" id="pdf-name-input" placeholder="PDF 名称（如：Smith2023-AI_Ethics）">
+      <input type="hidden" id="pdf-source-url">
       <button onclick="confirmSave()">保存</button>
       <button class="secondary" onclick="closeModal('save-modal')">取消</button>
     </div>
@@ -255,11 +289,11 @@
 <script>
 pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
 
-// Default config - pre-filled with your database
 const DEFAULT_DB_ID = '34b3730d-690c-814a-b412-d8ea7186b88d';
 
 let pdfDoc = null, totalPages = 0, mode = 'select', scale = 1.5;
 let annotations = [], pages = [], pendingNotePosition = null;
+let currentPdfSource = { type: 'local', name: '', url: '' };
 
 let notionConfig = {
   token: localStorage.getItem('notion_token') || '',
@@ -282,7 +316,6 @@ function updateStatus(text, connected = false) {
   s.className = 'status' + (connected ? ' connected' : '');
 }
 
-// Init project dropdowns
 function initProjects() {
   ['project-select', 'save-project'].forEach(id => {
     const sel = $(id);
@@ -293,7 +326,6 @@ function initProjects() {
       sel.appendChild(opt);
     });
   });
-  // Restore last selected project
   const last = localStorage.getItem('last_project');
   if (last) $('project-select').value = last;
 }
@@ -312,12 +344,62 @@ function setMode(m) {
   });
 }
 
+// Load PDF from Notion URL
+async function loadFromNotionUrl() {
+  const url = $('notion-url-input').value.trim();
+  if (!url) { alert('请输入 Notion PDF 链接'); return; }
+  if (!url.includes('file.notion.so')) { alert('请输入有效的 Notion file.notion.so 链接'); return; }
+  
+  $('cors-notice').style.display = 'block';
+  updateStatus('加载中...', false);
+  
+  try {
+    // Try to fetch with CORS proxy or directly
+    // Notion URLs typically work but may have CORS issues
+    const loadingTask = pdfjsLib.getDocument({
+      url: url,
+      withCredentials: false,
+      cMapUrl: 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/cmaps/',
+      cMapPacked: true
+    });
+    
+    loadingTask.onProgress = ({ loaded, total }) => {
+      const pct = total ? Math.round(loaded / total * 100) : 0;
+      updateStatus(`加载中 ${pct}%...`, false);
+    };
+    
+    pdfDoc = await loadingTask.promise;
+    totalPages = pdfDoc.numPages;
+    
+    // Extract PDF name from URL
+    const urlObj = new URL(url);
+    const nameMatch = urlObj.searchParams.get('downloadName') || url.split('/').pop().split('?')[0];
+    currentPdfSource = { type: 'notion', name: decodeURIComponent(nameMatch || 'Notion-PDF'), url: url };
+    
+    renderPdfPages();
+    updateStatus(`${totalPages} 页已加载`, true);
+    
+  } catch (err) {
+    console.error('Load error:', err);
+    updateStatus('加载失败', false);
+    alert('加载失败: ' + err.message + '\n\n可能原因：\n1. 链接已过期（Notion 链接有时效性）\n2. 浏览器安全限制（CORS）\n\n建议：下载 PDF 后用「本地PDF」打开');
+  }
+}
+
+// Load PDF from local file
 async function loadPDF(file) {
   if (!file) return;
+  
   const arrayBuffer = await file.arrayBuffer();
   pdfDoc = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
   totalPages = pdfDoc.numPages;
+  currentPdfSource = { type: 'local', name: file.name.replace('.pdf', ''), url: '' };
   
+  renderPdfPages();
+  updateStatus(`${totalPages} 页已加载`, true);
+}
+
+function renderPdfPages() {
   $('upload-section').classList.add('hidden');
   $('pdf-section').classList.add('active');
   $('sidebar').classList.add('active');
@@ -325,39 +407,29 @@ async function loadPDF(file) {
   pages = []; annotations = [];
   
   for (let i = 1; i <= totalPages; i++) {
-    const page = await pdfDoc.getPage(i);
-    const viewport = page.getViewport({ scale });
-    const wrapper = document.createElement('div');
-    wrapper.className = 'page-wrapper'; wrapper.dataset.page = i;
-    
-    const canvas = document.createElement('canvas');
-    canvas.width = viewport.width; canvas.height = viewport.height;
-    
-    const textLayerDiv = document.createElement('div');
-    textLayerDiv.className = 'text-layer';
-    textLayerDiv.style.cssText = `position:absolute;top:0;left:0;width:${viewport.width}px;height:${viewport.height}px;opacity:0.2;line-height:1.0;`;
-    
-    const annotationLayer = document.createElement('div');
-    annotationLayer.className = 'annotation-layer';
-    annotationLayer.style.cssText = `position:absolute;top:0;left:0;width:${viewport.width}px;height:${viewport.height}px;`;
-    
-    await page.render({ canvasContext: canvas.getContext('2d'), viewport }).promise;
-    wrapper.appendChild(canvas); wrapper.appendChild(textLayerDiv); wrapper.appendChild(annotationLayer);
-    $('pdf-container').appendChild(wrapper);
-    
-    pages.push({ page, canvas, viewport, wrapper, annotationLayer, textLayerDiv, pageNum: i });
-    
-    const textContent = await page.getTextContent();
-    await pdfjsLib.renderTextLayer({
-      textContentSource: { promise: Promise.resolve(textContent) },
-      container: textLayerDiv, viewport, textDivs: []
+    pdfDoc.getPage(i).then(page => {
+      const viewport = page.getViewport({ scale });
+      const wrapper = document.createElement('div');
+      wrapper.className = 'page-wrapper'; wrapper.dataset.page = i;
+      
+      const canvas = document.createElement('canvas');
+      canvas.width = viewport.width; canvas.height = viewport.height;
+      
+      const annotationLayer = document.createElement('div');
+      annotationLayer.className = 'annotation-layer';
+      annotationLayer.style.cssText = `position:absolute;top:0;left:0;width:${viewport.width}px;height:${viewport.height}px;`;
+      
+      page.render({ canvasContext: canvas.getContext('2d'), viewport });
+      wrapper.appendChild(canvas);
+      wrapper.appendChild(annotationLayer);
+      $('pdf-container').appendChild(wrapper);
+      
+      pages.push({ page, canvas, viewport, wrapper, annotationLayer, pageNum: i });
+      setupAnnotationEvents(annotationLayer, i);
     });
-    
-    setupAnnotationEvents(annotationLayer, i);
   }
   
   setMode('select');
-  updateStatus(`${totalPages} 页已加载`, true);
   updateAnnotationList();
 }
 
@@ -478,8 +550,6 @@ function updateAnnotationList() {
   });
 }
 
-function renderAllAnnotations() { annotations.forEach(a => renderAnnotation(a)); }
-
 function openNotionSetup() {
   $('notion-token').value = notionConfig.token;
   $('notion-db').value = notionConfig.dbId;
@@ -499,29 +569,28 @@ function saveNotionConfig() {
 
 function saveToNotion() {
   if (!notionConfig.token || !notionConfig.dbId) { alert('请先设置 Notion 连接'); openNotionSetup(); return; }
-  // Pre-select current project
+  if (annotations.length === 0) { alert('没有批注可保存'); return; }
+  
   $('save-project').value = $('project-select').value;
-  $('pdf-name-input').value = '';
+  $('pdf-name-input').value = currentPdfSource.name || '';
+  $('pdf-source-url').value = currentPdfSource.url || '';
   $('save-modal').classList.add('active');
 }
 
 async function confirmSave() {
   const project = $('save-project').value || 'Other';
-  const pdfName = $('pdf-name-input').value.trim() || 'PDF-' + new Date().toISOString().slice(0,10);
+  const pdfName = $('pdf-name-input').value.trim() || currentPdfSource.name || 'PDF-' + new Date().toISOString().slice(0,10);
+  const sourceUrl = $('pdf-source-url').value;
   closeModal('save-modal');
   
-  // Notion rich_text has a 2000 char limit per block; split if needed
   const data = JSON.stringify({
     pdf_name: pdfName, project, total_pages: totalPages,
-    annotations, created_at: new Date().toISOString()
+    annotations, source_url: sourceUrl, source_type: currentPdfSource.type,
+    created_at: new Date().toISOString()
   });
   
-  // Split into chunks of 2000 chars for rich_text
   const chunks = [];
-  for (let i = 0; i < data.length; i += 2000) {
-    chunks.push(data.slice(i, i + 2000));
-  }
-  
+  for (let i = 0; i < data.length; i += 2000) chunks.push(data.slice(i, i + 2000));
   const richTextParts = chunks.map(c => ({ text: { content: c } }));
   
   try {
@@ -584,6 +653,14 @@ async function loadAnnotations(page, item) {
   try {
     const data = JSON.parse(dataStr);
     annotations = data.annotations || [];
+    currentPdfSource = { type: data.source_type || 'local', name: data.pdf_name, url: data.source_url || '' };
+    
+    // If source URL exists, try to reload the PDF
+    if (currentPdfSource.url && currentPdfSource.url.includes('file.notion.so')) {
+      $('notion-url-input').value = currentPdfSource.url;
+      await loadFromNotionUrl();
+    }
+    
     renderAllAnnotations();
     updateAnnotationList();
     closeModal('load-modal');
@@ -591,10 +668,13 @@ async function loadAnnotations(page, item) {
   } catch (e) { alert('数据解析失败'); }
 }
 
+function renderAllAnnotations() { annotations.forEach(a => renderAnnotation(a)); }
+
 $('file-input').addEventListener('change', (e) => { if (e.target.files[0]) loadPDF(e.target.files[0]); });
 $('file-input-main').addEventListener('change', (e) => { if (e.target.files[0]) loadPDF(e.target.files[0]); });
 $('project-select').addEventListener('change', (e) => { localStorage.setItem('last_project', e.target.value); });
 
+window.loadFromNotionUrl = loadFromNotionUrl;
 window.setMode = setMode; window.saveNote = saveNote; window.deleteAnnotation = deleteAnnotation;
 window.openNotionSetup = openNotionSetup; window.closeModal = closeModal;
 window.saveNotionConfig = saveNotionConfig; window.saveToNotion = saveToNotion;
