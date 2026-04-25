@@ -1722,11 +1722,18 @@ async function submitPaper() {
   };
 
   showLoading('Saving paper...');
-  const { data, error } = await sb.from('papers').upsert(paperData, { onConflict: 'doi' });
+  let result;
+  if (paperData.doi) {
+    // If DOI exists, try upsert
+    result = await sb.from('papers').upsert(paperData, { onConflict: 'doi' });
+  } else {
+    // No DOI — just insert (avoid UNIQUE constraint issues with null/empty)
+    result = await sb.from('papers').insert(paperData);
+  }
   hideLoading();
 
-  if (error) {
-    toast('Save failed: ' + error.message, 'error');
+  if (result.error) {
+    toast('Save failed: ' + result.error.message, 'error');
     return;
   }
 
@@ -2281,11 +2288,16 @@ async function submitQuickUpload() {
   };
 
   showLoading('Saving paper...');
-  const { data, error } = await sb.from('papers').upsert(paperData, { onConflict: 'doi' });
+  let result;
+  if (paperData.doi) {
+    result = await sb.from('papers').upsert(paperData, { onConflict: 'doi' });
+  } else {
+    result = await sb.from('papers').insert(paperData);
+  }
   hideLoading();
 
-  if (error) {
-    toast('Error: ' + error.message, 'error');
+  if (result.error) {
+    toast('Error: ' + result.error.message, 'error');
     return;
   }
 
