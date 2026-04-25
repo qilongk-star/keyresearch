@@ -646,18 +646,24 @@ async function loadFromNotionUrl() {
   if (!url) { alert('Please enter a Notion PDF link'); return; }
   if (!url.includes('file.notion.so')) { alert('Please enter a valid file.notion.so link'); return; }
 
-  $('cors-notice').style.display = 'block';
-  updateStatus('Loading...', false);
+  updateStatus('Loading via proxy...', false);
 
   try {
+    // Download PDF through the Cloudflare Worker proxy to bypass CORS
+    const proxyUrl = PROXY_URL + '/pdf?url=' + encodeURIComponent(url);
+    const resp = await fetch(proxyUrl);
+    if (!resp.ok) throw new Error('Proxy returned ' + resp.status);
+    const blob = await resp.blob();
+    const arrayBuffer = await blob.arrayBuffer();
+
     const loadingTask = pdfjsLib.getDocument({
-      url, withCredentials: false,
+      data: arrayBuffer,
       cMapUrl: 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/cmaps/',
       cMapPacked: true
     });
     loadingTask.onProgress = ({ loaded, total }) => {
       const pct = total ? Math.round(loaded / total * 100) : 0;
-      updateStatus(`Loading ${pct}%...`, false);
+      updateStatus(`Rendering ${pct}%...`, false);
     };
     pdfDoc = await loadingTask.promise;
     totalPages = pdfDoc.numPages;
@@ -668,7 +674,7 @@ async function loadFromNotionUrl() {
     updateStatus(`${totalPages} pages loaded`, true);
   } catch (err) {
     updateStatus('Load failed', false);
-    alert('Load failed: ' + err.message + '\n\nPossible reasons:\n1. Link expired\n2. CORS restriction\n\nTip: Download the PDF and open with "Local PDF"');
+    alert('Load failed: ' + err.message + '\n\nPossible reasons:\n1. Proxy not working (check Status)\n2. Link expired\n\nTip: Download the PDF and open with "Local PDF"');
   }
 }
 
