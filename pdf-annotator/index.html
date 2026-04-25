@@ -428,7 +428,7 @@
 pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
 
 const DEFAULT_DB_ID = '34b3730d-690c-814a-b412-d8ea7186b88d';
-const NOTION_TOKEN = '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';
+const NOTION_TOKEN = new URLSearchParams(location.hash.slice(1)).get('token');
 
 // Annotation colors palette (for different users)
 const PALETTE = [
@@ -1020,6 +1020,10 @@ function deleteAnnotation(id) {
 // ─── Notion API (Direct) ───────────────────────────────────────────────────────
 
 async function checkNotion() {
+  if (!NOTION_TOKEN) {
+    updateStatus('Add #token=... to URL', false);
+    return;
+  }
   updateStatus('Connecting...', false);
   $('db-display').textContent = notionConfig.dbId;
   try {
