@@ -511,6 +511,64 @@
     }
     .color-swatch.selected { border-color: white; }
 
+    /* ─── Full-page Drag Overlay ─── */
+    .drag-overlay {
+      position: fixed; inset: 0; z-index: 600;
+      background: rgba(99,102,241,0.08);
+      border: 3px dashed var(--accent);
+      display: none; align-items: center; justify-content: center;
+      flex-direction: column; gap: 12px;
+      pointer-events: none;
+    }
+    .drag-overlay.active { display: flex; }
+    .drag-overlay .drag-icon {
+      font-size: 64px; opacity: 0.7;
+      animation: dragBounce 1s ease infinite;
+    }
+    .drag-overlay .drag-text {
+      font-size: 20px; font-weight: 600; color: var(--accent);
+    }
+    .drag-overlay .drag-hint {
+      font-size: 14px; color: var(--text-secondary);
+    }
+    @keyframes dragBounce {
+      0%, 100% { transform: translateY(0); }
+      50% { transform: translateY(-8px); }
+    }
+
+    /* Quick upload modal (after drag-drop) */
+    .quick-upload-modal {
+      position: fixed; inset: 0; z-index: 700;
+      background: rgba(0,0,0,0.7);
+      display: none; align-items: center; justify-content: center;
+    }
+    .quick-upload-modal.active { display: flex; }
+    .quick-upload-box {
+      background: var(--bg-secondary); border: 1px solid var(--border);
+      border-radius: 14px; padding: 24px; width: 420px; max-width: 92vw;
+    }
+    .quick-upload-box h3 { font-size: 16px; margin-bottom: 4px; }
+    .quick-upload-box .file-info {
+      font-size: 12px; color: var(--text-muted); margin-bottom: 16px;
+      display: flex; align-items: center; gap: 6px;
+    }
+    .quick-upload-box .file-info .size { color: var(--text-secondary); }
+    .quick-upload-box label {
+      display: block; font-size: 12px; color: var(--text-secondary);
+      margin-bottom: 4px; margin-top: 12px;
+    }
+    .quick-upload-box label:first-of-type { margin-top: 0; }
+    .quick-upload-box input, .quick-upload-box select {
+      width: 100%; padding: 8px 10px; border: 1px solid var(--border);
+      border-radius: 8px; background: var(--bg-tertiary); color: var(--text-primary);
+      font-size: 13px; font-family: inherit;
+    }
+    .quick-upload-box input:focus, .quick-upload-box select:focus {
+      border-color: var(--accent); outline: none;
+    }
+    .quick-upload-box .modal-actions { display: flex; gap: 8px; margin-top: 20px; }
+    .quick-upload-box .modal-actions button { flex: 1; }
+
     /* ─── Loading / Toast ─── */
     .loading-overlay {
       position: fixed; inset: 0; background: rgba(15,17,23,0.8);
@@ -796,6 +854,52 @@
   </div>
 </div>
 
+<!-- Drag Overlay (full page) -->
+<div class="drag-overlay" id="drag-overlay">
+  <div class="drag-icon">📄</div>
+  <div class="drag-text">Drop PDF here</div>
+  <div class="drag-hint">Release to add to library</div>
+</div>
+
+<!-- Quick Upload Modal (after drag-drop) -->
+<div class="quick-upload-modal" id="quick-upload-modal">
+  <div class="quick-upload-box">
+    <h3>📄 Quick Add Paper</h3>
+    <div class="file-info">
+      <span id="qu-file-icon">📄</span>
+      <span id="qu-file-name">paper.pdf</span>
+      <span class="size" id="qu-file-size"></span>
+    </div>
+
+    <label>Title *</label>
+    <input type="text" id="qu-title" placeholder="Paper title">
+
+    <div style="display:flex;gap:12px">
+      <div style="flex:1">
+        <label>Authors</label>
+        <input type="text" id="qu-authors" placeholder="Author1, Author2">
+      </div>
+      <div style="flex:1">
+        <label>Year</label>
+        <input type="number" id="qu-year" placeholder="2024">
+      </div>
+    </div>
+
+    <label>Folder</label>
+    <select id="qu-folder">
+      <option value="">-- No folder --</option>
+    </select>
+
+    <label>DOI</label>
+    <input type="text" id="qu-doi" placeholder="10.xxxx/xxxxx">
+
+    <div class="modal-actions">
+      <button class="topbar-btn secondary" onclick="cancelQuickUpload()">Cancel</button>
+      <button class="topbar-btn" onclick="submitQuickUpload()">Add to Library</button>
+    </div>
+  </div>
+</div>
+
 <!-- Loading Overlay -->
 <div class="loading-overlay" id="loading">
   <div class="loader"></div>
@@ -845,6 +949,7 @@ let annoFilter = 'all';
 let realtimeChannel = null;
 let pendingPdfBlob = null;
 let folderColorPick = COLORS[0];
+let quickUploadFile = null;  // file from drag-drop
 
 // ═══════════════════════════════════════════════════════════════════
 // INIT
@@ -883,6 +988,33 @@ let folderColorPick = COLORS[0];
   // Enter key for folder input
   $('folder-name-input').addEventListener('keydown', e => {
     if (e.key === 'Enter') saveFolder();
+  });
+
+  // ─── Full-page drag & drop for PDF ───
+  let dragCounter = 0;
+  document.addEventListener('dragenter', e => {
+    e.preventDefault();
+    dragCounter++;
+    if (dragCounter === 1) $('drag-overlay').classList.add('active');
+  });
+  document.addEventListener('dragleave', e => {
+    e.preventDefault();
+    dragCounter--;
+    if (dragCounter <= 0) { dragCounter = 0; $('drag-overlay').classList.remove('active'); }
+  });
+  document.addEventListener('dragover', e => e.preventDefault());
+  document.addEventListener('drop', e => {
+    e.preventDefault();
+    dragCounter = 0;
+    $('drag-overlay').classList.remove('active');
+    // Don't trigger if we're inside the upload modal's drop zone
+    if (e.target.closest('#drop-zone')) return;
+    // Check for PDF files
+    const files = Array.from(e.dataTransfer.files);
+    const pdfs = files.filter(f => f.type === 'application/pdf' || f.name.toLowerCase().endsWith('.pdf'));
+    if (pdfs.length > 0) {
+      openQuickUpload(pdfs[0]);
+    }
   });
 })();
 
@@ -1904,6 +2036,103 @@ function goBackToLibrary() {
 }
 
 // ═══════════════════════════════════════════════════════════════════
+// QUICK UPLOAD (drag & drop)
+// ═══════════════════════════════════════════════════════════════════
+function openQuickUpload(file) {
+  quickUploadFile = file;
+
+  // Populate folder select
+  const select = $('qu-folder');
+  select.innerHTML = '<option value="">-- No folder --</option>';
+  function addOpts(parentId, indent) {
+    folders.filter(f => f.parent_id === parentId).forEach(f => {
+      const opt = document.createElement('option');
+      opt.value = f.id;
+      opt.textContent = indent + f.name;
+      select.appendChild(opt);
+      addOpts(f.id, indent + '  ');
+    });
+  }
+  addOpts(null, '');
+
+  // Pre-select current folder
+  select.value = (currentFilter === 'folder' && currentFolderId) ? currentFolderId : '';
+
+  // Auto-fill title from filename
+  const name = file.name.replace(/\.pdf$/i, '').replace(/[-_]/g, ' ');
+  $('qu-title').value = name;
+  $('qu-file-name').textContent = file.name;
+  $('qu-file-size').textContent = formatFileSize(file.size);
+
+  // Reset other fields
+  $('qu-authors').value = '';
+  $('qu-year').value = '';
+  $('qu-doi').value = '';
+
+  $('quick-upload-modal').classList.add('active');
+  $('qu-title').focus();
+  $('qu-title').select();
+}
+
+function formatFileSize(bytes) {
+  if (bytes < 1024) return bytes + ' B';
+  if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB';
+  return (bytes / (1024 * 1024)).toFixed(1) + ' MB';
+}
+
+function cancelQuickUpload() {
+  quickUploadFile = null;
+  $('quick-upload-modal').classList.remove('active');
+}
+
+async function submitQuickUpload() {
+  const title = $('qu-title').value.trim();
+  if (!title) { toast('Title is required', 'error'); return; }
+  if (!quickUploadFile) return;
+
+  // Convert to base64
+  if (quickUploadFile.size > 5 * 1024 * 1024) {
+    toast('PDF too large (>5MB). Please use "Add Paper" with a URL instead.', 'error');
+    return;
+  }
+
+  showLoading('Uploading PDF...');
+
+  const buf = await quickUploadFile.arrayBuffer();
+  const bytes = new Uint8Array(buf);
+  let binary = '';
+  for (let i = 0; i < bytes.length; i++) binary += String.fromCharCode(bytes[i]);
+  const pdfBase64 = btoa(binary);
+
+  const folderId = $('qu-folder').value || '';
+
+  const paperData = {
+    title,
+    authors: $('qu-authors').value.trim() || null,
+    year: parseInt($('qu-year').value) || null,
+    doi: $('qu-doi').value.trim() || null,
+    tags: [],
+    pdf_path: '',
+    pdf_base64: pdfBase64,
+    folder: folderId,
+    uploaded_by: currentUser.name
+  };
+
+  const { data, error } = await sb.from('papers').upsert(paperData, { onConflict: 'doi' });
+  hideLoading();
+
+  if (error) {
+    toast('Error: ' + error.message, 'error');
+    return;
+  }
+
+  toast('Paper added: ' + title, 'success');
+  quickUploadFile = null;
+  $('quick-upload-modal').classList.remove('active');
+  loadPapers();
+}
+
+// ═══════════════════════════════════════════════════════════════════
 // UTILITIES
 // ═══════════════════════════════════════════════════════════════════
 function esc(s) {
@@ -1933,15 +2162,19 @@ function toast(msg, type = 'info') {
 }
 
 // Close modals on overlay click
-document.querySelectorAll('.modal-overlay').forEach(m => {
+document.querySelectorAll('.modal-overlay, .quick-upload-modal').forEach(m => {
   m.addEventListener('click', e => { if (e.target === m) m.classList.remove('active'); });
 });
 
 // ESC key
 document.addEventListener('keydown', e => {
   if (e.key === 'Escape') {
-    document.querySelectorAll('.modal-overlay.active').forEach(m => m.classList.remove('active'));
+    document.querySelectorAll('.modal-overlay.active, .quick-upload-modal.active').forEach(m => m.classList.remove('active'));
     document.querySelectorAll('.note-popup').forEach(p => p.remove());
+  }
+  // Enter key for quick upload
+  if (e.key === 'Enter' && $('quick-upload-modal').classList.contains('active') && e.target.tagName !== 'TEXTAREA') {
+    submitQuickUpload();
   }
 });
 </script>
