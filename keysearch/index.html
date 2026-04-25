@@ -840,6 +840,9 @@
                         <button class="btn btn-primary" onclick="exportLibrary()" style="margin-left: 8px;">
                             <span data-zh="导出" data-en="Export"></span>
                         </button>
+                        <button class="btn btn-primary" onclick="importToPapersHub()" id="import-papershub-btn" style="margin-left: 8px; background: #8b5cf6;">
+                            📤 <span data-zh="导入 PapersHub" data-en="Import to PapersHub"></span>
+                        </button>
                     </div>
                 </div>
                 <div class="paper-list" id="libraryList">
@@ -2356,6 +2359,79 @@
             storage.library = storage.library.filter(p => p.paperId !== paperId);
             storage.saveLibrary();
             renderLibrary();
+        }
+
+        // ═══════════ Import to PapersHub ═══════════
+        const PAPERSHUB_URL = 'https://hhgundxzxiqeglzbatmd.supabase.co';
+        const PAPERSHUB_KEY = 'sb_publishable_U2qfHiGyIWB9QZtsU6K0QA_a2U4bxDH';
+
+        async function importToPapersHub() {
+            if (storage.library.length === 0) {
+                alert(i18n.currentLang === 'zh' ? '文献库为空，无法导入' : 'Library is empty');
+                return;
+            }
+
+            const btn = document.getElementById('import-papershub-btn');
+            const originalHTML = btn.innerHTML;
+            btn.disabled = true;
+            btn.style.opacity = '0.7';
+
+            let imported = 0, skipped = 0, failed = 0;
+
+            for (const p of storage.library) {
+                btn.innerHTML = `📤 ${imported + skipped + failed}/${storage.library.length}...`;
+
+                try {
+                    const row = {
+                        title: p.title || 'Untitled',
+                        authors: Array.isArray(p.authors) ? p.authors.join(', ') : (p.authors || ''),
+                        year: p.year ? parseInt(p.year) : null,
+                        journal: p.venue || p.sourceName || '',
+                        doi: p.doi || '',
+                        abstract: p.abstract || '',
+                        tags: [p.sourceName || p.source || 'KeySearch'],
+                        pdf_path: p.pdfUrl || '',
+                        uploaded_by: 'KeySearch'
+                    };
+
+                    const resp = await fetch(`${PAPERSHUB_URL}/rest/v1/papers`, {
+                        method: 'POST',
+                        headers: {
+                            'apikey': PAPERSHUB_KEY,
+                            'Authorization': `Bearer ${PAPERSHUB_KEY}`,
+                            'Content-Type': 'application/json',
+                            'Prefer': 'resolution=merge-duplicates'
+                        },
+                        body: JSON.stringify(row)
+                    });
+
+                    if (resp.ok || resp.status === 201) {
+                        imported++;
+                    } else if (resp.status === 409) {
+                        // duplicate DOI
+                        skipped++;
+                    } else {
+                        // try upsert by doi
+                        const errData = await resp.json().catch(() => ({}));
+                        if (errData.message && errData.message.includes('duplicate')) {
+                            skipped++;
+                        } else {
+                            failed++;
+                        }
+                    }
+                } catch (e) {
+                    failed++;
+                }
+            }
+
+            btn.innerHTML = originalHTML;
+            btn.disabled = false;
+            btn.style.opacity = '1';
+
+            const msg = i18n.currentLang === 'zh'
+                ? `导入完成！\n✅ 成功: ${imported}\n⏭ 跳过(已存在): ${skipped}\n❌ 失败: ${failed}`
+                : `Done!\n✅ Imported: ${imported}\n⏭ Skipped: ${skipped}\n❌ Failed: ${failed}`;
+            alert(msg);
         }
 
         function clearLibrary() {
