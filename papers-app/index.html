@@ -241,6 +241,83 @@
       padding: 1px 5px; border-radius: 3px;
     }
 
+    /* ─── List View ─── */
+    .view-toggle { display: flex; gap: 4px; }
+    .view-btn {
+      width: 30px; height: 30px; border: 1px solid var(--border); border-radius: 6px;
+      background: var(--bg-tertiary); color: var(--text-secondary); cursor: pointer;
+      display: flex; align-items: center; justify-content: center; font-size: 14px;
+      transition: all 0.15s;
+    }
+    .view-btn:hover { border-color: var(--accent); color: var(--accent); }
+    .view-btn.active { background: var(--accent); border-color: var(--accent); color: white; }
+
+    .paper-list {
+      display: flex; flex-direction: column; gap: 4px;
+    }
+    .paper-list-item {
+      display: flex; align-items: center; gap: 12px; padding: 10px 14px;
+      background: var(--bg-secondary); border: 1px solid var(--border);
+      border-radius: 8px; cursor: pointer; transition: all 0.15s; position: relative;
+    }
+    .paper-list-item:hover { border-color: var(--accent); background: var(--bg-hover); }
+    .paper-list-item .pli-title { flex: 1; font-size: 13px; font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .paper-list-item .pli-authors { width: 200px; font-size: 12px; color: var(--text-secondary); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; flex-shrink: 0; }
+    .paper-list-item .pli-year { width: 50px; font-size: 12px; color: var(--text-muted); text-align: center; flex-shrink: 0; }
+    .paper-list-item .pli-journal { width: 180px; font-size: 11px; color: var(--text-muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; flex-shrink: 0; }
+    .paper-list-item .pli-folder { font-size: 10px; color: var(--text-muted); flex-shrink: 0; }
+    .paper-list-item .pli-actions { display: flex; gap: 4px; opacity: 0; transition: opacity 0.15s; flex-shrink: 0; }
+    .paper-list-item:hover .pli-actions { opacity: 1; }
+    .paper-list-item .pli-actions button {
+      width: 26px; height: 26px; border: 1px solid var(--border); border-radius: 5px;
+      background: var(--bg-tertiary); color: var(--text-secondary); cursor: pointer;
+      display: flex; align-items: center; justify-content: center; font-size: 12px;
+    }
+    .paper-list-item .pli-actions button:hover { border-color: var(--accent); color: var(--accent); }
+
+    /* ─── Context Menu ─── */
+    .context-menu {
+      position: fixed; z-index: 400; background: var(--bg-secondary);
+      border: 1px solid var(--border); border-radius: 8px;
+      padding: 4px; min-width: 180px; box-shadow: 0 8px 32px rgba(0,0,0,0.5);
+      display: none;
+    }
+    .context-menu.show { display: block; }
+    .context-menu-item {
+      padding: 7px 12px; border-radius: 5px; cursor: pointer;
+      font-size: 12px; color: var(--text-secondary); display: flex; align-items: center; gap: 8px;
+    }
+    .context-menu-item:hover { background: var(--bg-hover); color: var(--text-primary); }
+    .context-menu-sep { height: 1px; background: var(--border); margin: 3px 0; }
+    .context-menu-item.danger { color: var(--danger); }
+    .context-menu-item.danger:hover { background: rgba(239,68,68,0.1); }
+    .context-sub { position: relative; }
+    .context-sub > .sub-menu {
+      display: none; position: absolute; left: 100%; top: -4px;
+      background: var(--bg-secondary); border: 1px solid var(--border); border-radius: 8px;
+      padding: 4px; min-width: 160px; box-shadow: 0 8px 32px rgba(0,0,0,0.5);
+    }
+    .context-sub:hover > .sub-menu { display: block; }
+    .sub-folder-item { padding: 6px 12px; border-radius: 5px; cursor: pointer; font-size: 12px; color: var(--text-secondary); display: flex; align-items: center; gap: 6px; }
+    .sub-folder-item:hover { background: var(--bg-hover); color: var(--text-primary); }
+
+    /* ─── PDF Single Page Viewer ─── */
+    .page-wrapper-single {
+      position: relative; box-shadow: 0 4px 20px rgba(0,0,0,0.4);
+      border-radius: 4px; overflow: hidden; background: white; display: inline-block;
+    }
+    .page-nav-btn {
+      position: absolute; top: 50%; transform: translateY(-50%);
+      width: 48px; height: 80px; border: none; border-radius: 8px;
+      background: rgba(0,0,0,0.5); color: white; font-size: 24px;
+      cursor: pointer; display: flex; align-items: center; justify-content: center;
+      z-index: 50; transition: background 0.2s; opacity: 0; transition: opacity 0.3s;
+    }
+    .pdf-scroll:hover .page-nav-btn { opacity: 1; }
+    .page-nav-btn:hover { background: rgba(0,0,0,0.7); }
+    .page-nav-btn.prev { left: 10px; }
+    .page-nav-btn.next { right: 10px; }
+
     .empty-state {
       text-align: center; padding: 60px 20px; color: var(--text-muted);
     }
@@ -771,14 +848,21 @@
         <div class="breadcrumb" id="breadcrumb"></div>
         <h2 id="content-title">All Papers</h2>
       </div>
-      <select class="sort-select" id="sort-select" onchange="loadPapers()">
-        <option value="newest">Newest first</option>
-        <option value="oldest">Oldest first</option>
-        <option value="title">Title A-Z</option>
-        <option value="most-annotated">Most annotated</option>
-      </select>
+      <div style="display:flex;gap:8px;align-items:center">
+        <div class="view-toggle">
+          <button class="view-btn active" id="view-grid-btn" onclick="setView('grid')" title="Grid view">▦</button>
+          <button class="view-btn" id="view-list-btn" onclick="setView('list')" title="List view">☰</button>
+        </div>
+        <select class="sort-select" id="sort-select" onchange="loadPapers()">
+          <option value="newest">Newest first</option>
+          <option value="oldest">Oldest first</option>
+          <option value="title">Title A-Z</option>
+          <option value="most-annotated">Most annotated</option>
+        </select>
+      </div>
     </div>
     <div class="paper-grid" id="paper-grid"></div>
+    <div class="paper-list" id="paper-list" style="display:none"></div>
     <div class="empty-state" id="empty-state" style="display:none">
       <div class="icon">📄</div>
       <p>No papers here</p>
@@ -877,7 +961,10 @@
     </div>
 
     <label>Title *</label>
-    <input type="text" id="paper-title" placeholder="Paper title" required>
+    <div style="display:flex;gap:6px">
+      <input type="text" id="paper-title" placeholder="Paper title" required style="flex:1">
+      <button type="button" class="topbar-btn secondary" onclick="searchCrossRefByTitle()" title="Search CrossRef by title" style="white-space:nowrap">🔍 Search</button>
+    </div>
 
     <div class="row">
       <div>
@@ -967,7 +1054,10 @@
     </div>
 
     <label>Title *</label>
-    <input type="text" id="qu-title" placeholder="Paper title">
+    <div style="display:flex;gap:6px">
+      <input type="text" id="qu-title" placeholder="Paper title" style="flex:1">
+      <button type="button" class="topbar-btn secondary" onclick="searchCrossRefByTitleQU()" title="Search CrossRef by title" style="white-space:nowrap">🔍</button>
+    </div>
 
     <div style="display:flex;gap:12px">
       <div style="flex:1">
@@ -988,11 +1078,32 @@
     <label>DOI</label>
     <input type="text" id="qu-doi" placeholder="10.xxxx/xxxxx">
 
+    <label>Journal</label>
+    <input type="text" id="qu-journal" placeholder="Journal name">
+
+    <label>Abstract</label>
+    <textarea id="qu-abstract" rows="2" placeholder="Paper abstract..."></textarea>
+
     <div class="modal-actions">
       <button class="topbar-btn secondary" onclick="cancelQuickUpload()">Cancel</button>
       <button class="topbar-btn" onclick="submitQuickUpload()">Add to Library</button>
     </div>
   </div>
+</div>
+
+<!-- Context Menu (right-click on papers) -->
+<div class="context-menu" id="context-menu">
+  <div class="context-menu-item" onclick="openPaper(contextTargetId)">📖 Open PDF</div>
+  <div class="context-menu-item" onclick="openAttachPdfModal(contextTargetId)">📎 Attach PDF</div>
+  <div class="context-menu-sep"></div>
+  <div class="context-menu-item" onclick="openEditPaperModal(contextTargetId)">✏️ Edit Details</div>
+  <div class="context-sub">
+    <div class="context-menu-item">📁 Move to ▸</div>
+    <div class="sub-menu" id="ctx-folder-menu"></div>
+  </div>
+  <div class="context-menu-item" onclick="movePaperToFolder(contextTargetId, null)">📂 Remove from folder</div>
+  <div class="context-menu-sep"></div>
+  <div class="context-menu-item danger" onclick="deletePaper(contextTargetId)">🗑️ Delete Paper</div>
 </div>
 
 <!-- Loading Overlay -->
@@ -1048,6 +1159,9 @@ let realtimeChannel = null;
 let pendingPdfBlob = null;
 let folderColorPick = COLORS[0];
 let quickUploadFile = null;  // file from drag-drop
+let currentView = 'grid';   // 'grid' or 'list'
+let contextTargetId = null;  // paper id for context menu
+let currentViewerPage = 1;   // single-page viewer current page
 
 // ═══════════════════════════════════════════════════════════════════
 // INIT
@@ -1423,18 +1537,21 @@ function updateFolderCounts(allPapers) {
 
 function renderPaperGrid(papers) {
   const grid = $('paper-grid');
+  const list = $('paper-list');
   const empty = $('empty-state');
   if (!papers.length) {
     grid.innerHTML = '';
+    list.innerHTML = '';
     empty.style.display = 'block';
     return;
   }
   empty.style.display = 'none';
 
+  // Grid view
   grid.innerHTML = papers.map(p => {
     const folder = folders.find(f => f.id === p.folder);
     return `
-    <div class="paper-card" onclick="openPaper('${p.id}')">
+    <div class="paper-card" onclick="openPaper('${p.id}')" oncontextmenu="showContextMenu(event,'${p.id}')">
       <div class="thumb">
         ${p.pdf_base64 ? `<canvas data-base64="true" data-pid="${p.id}"></canvas>` :
           p.pdf_path ? `<canvas data-pdf="${p.pdf_path}" data-pid="${p.id}"></canvas>` :
@@ -1454,16 +1571,38 @@ function renderPaperGrid(papers) {
     </div>
   `}).join('');
 
-  // Render first page thumbnails
-  grid.querySelectorAll('canvas[data-pdf]').forEach(canvas => {
-    renderThumb(canvas, canvas.dataset.pdf);
-  });
-  grid.querySelectorAll('canvas[data-base64]').forEach(canvas => {
-    const pid = canvas.dataset.pid;
-    const allP = grid.closest ? [] : [];
-    // Find paper data from DOM - we need the base64 from DB
-    renderThumbFromBase64(canvas, pid);
-  });
+  // List view
+  list.innerHTML = papers.map(p => {
+    const folder = folders.find(f => f.id === p.folder);
+    return `
+    <div class="paper-list-item" onclick="openPaper('${p.id}')" oncontextmenu="showContextMenu(event,'${p.id}')">
+      <div class="pli-title">${esc(p.title)}</div>
+      <div class="pli-authors">${esc(p.authors || '')}</div>
+      <div class="pli-year">${p.year || ''}</div>
+      <div class="pli-journal">${esc(p.journal || '')}</div>
+      <div class="pli-folder">${folder ? `<span style="color:${folder.color || COLORS[0]}">📁 ${esc(folder.name)}</span>` : ''}</div>
+      <div class="pli-actions">
+        ${!p.pdf_path && !p.pdf_base64 ? `<button onclick="event.stopPropagation();openAttachPdfModal('${p.id}')" title="Attach PDF">📎</button>` : ''}
+        ${p._annoCount ? `<button title="Annotations">🖍️ ${p._annoCount}</button>` : ''}
+        <button onclick="event.stopPropagation();showContextMenu(event,'${p.id}')" title="More options">⋮</button>
+      </div>
+    </div>
+  `}).join('');
+
+  // Apply current view
+  grid.style.display = currentView === 'grid' ? 'grid' : 'none';
+  list.style.display = currentView === 'list' ? 'flex' : 'none';
+
+  // Render first page thumbnails (grid only)
+  if (currentView === 'grid') {
+    grid.querySelectorAll('canvas[data-pdf]').forEach(canvas => {
+      renderThumb(canvas, canvas.dataset.pdf);
+    });
+    grid.querySelectorAll('canvas[data-base64]').forEach(canvas => {
+      const pid = canvas.dataset.pid;
+      renderThumbFromBase64(canvas, pid);
+    });
+  }
 }
 
 async function renderThumbFromBase64(canvas, paperId) {
@@ -1572,6 +1711,7 @@ function filterByTag(tag) {
 // ═══════════════════════════════════════════════════════════════════
 function openUploadModal() {
   $('upload-modal').classList.add('active');
+  resetUploadModal();
   // Reset form
   ['paper-title','paper-authors','paper-year','paper-journal','paper-doi','paper-abstract','paper-tags','pdf-url-input'].forEach(id => $(id).value = '');
   $('upload-pdf-path').value = '';
@@ -1800,6 +1940,7 @@ async function openPaper(paperId) {
   totalPages = pdfDoc.numPages;
   annotations = [];
   pages = [];
+  currentViewerPage = 1;
 
   // Switch view
   $('library-view').style.display = 'none';
@@ -1809,8 +1950,8 @@ async function openPaper(paperId) {
   $('page-input').value = 1;
   $('zoom-val').textContent = Math.round(scale * 100) + '%';
 
-  // Render all pages
-  await renderAllPages();
+  // Render single page
+  await renderSinglePage(1);
 
   // Load annotations from DB
   await loadAnnotations(paperId);
@@ -1822,61 +1963,103 @@ async function openPaper(paperId) {
   setMode('select');
 }
 
-async function renderAllPages() {
+async function renderSinglePage(pageNum) {
   const container = $('pdf-scroll');
   container.innerHTML = '';
-  pages = [];
+  currentViewerPage = pageNum;
+  $('page-input').value = pageNum;
 
-  for (let i = 1; i <= totalPages; i++) {
-    const page = await pdfDoc.getPage(i);
-    const viewport = page.getViewport({ scale });
+  const page = await pdfDoc.getPage(pageNum);
+  const viewport = page.getViewport({ scale });
 
-    const wrapper = document.createElement('div');
-    wrapper.className = 'page-wrapper';
-    wrapper.dataset.page = i;
-    wrapper.style.width = viewport.width + 'px';
-    wrapper.style.height = viewport.height + 'px';
+  // Center wrapper
+  const center = document.createElement('div');
+  center.style.cssText = 'display:flex;justify-content:center;align-items:center;position:relative;width:100%;height:100%;';
 
-    const canvas = document.createElement('canvas');
-    canvas.width = viewport.width;
-    canvas.height = viewport.height;
-    const ctx = canvas.getContext('2d');
+  const wrapper = document.createElement('div');
+  wrapper.className = 'page-wrapper-single';
+  wrapper.dataset.page = pageNum;
+  wrapper.style.width = viewport.width + 'px';
+  wrapper.style.height = viewport.height + 'px';
 
-    const textLayer = document.createElement('div');
-    textLayer.className = 'text-layer';
+  const canvas = document.createElement('canvas');
+  canvas.width = viewport.width;
+  canvas.height = viewport.height;
+  const ctx = canvas.getContext('2d');
 
-    const hlLayer = document.createElement('div');
-    hlLayer.className = 'highlight-layer';
+  const textLayer = document.createElement('div');
+  textLayer.className = 'text-layer';
 
-    const noteLayer = document.createElement('div');
-    noteLayer.className = 'note-layer';
+  const hlLayer = document.createElement('div');
+  hlLayer.className = 'highlight-layer';
 
-    wrapper.appendChild(canvas);
-    wrapper.appendChild(textLayer);
-    wrapper.appendChild(hlLayer);
-    wrapper.appendChild(noteLayer);
-    container.appendChild(wrapper);
+  const noteLayer = document.createElement('div');
+  noteLayer.className = 'note-layer';
 
-    await page.render({ canvasContext: ctx, viewport }).promise;
+  wrapper.appendChild(canvas);
+  wrapper.appendChild(textLayer);
+  wrapper.appendChild(hlLayer);
+  wrapper.appendChild(noteLayer);
+  center.appendChild(wrapper);
+  container.appendChild(center);
 
-    const textContent = await page.getTextContent();
-    renderTextLayer(textContent, textLayer, viewport);
+  // Nav buttons
+  const prevBtn = document.createElement('button');
+  prevBtn.className = 'page-nav-btn prev';
+  prevBtn.textContent = '❮';
+  prevBtn.style.opacity = pageNum > 1 ? '' : '0';
+  prevBtn.onclick = () => goToPrevPage();
+  center.appendChild(prevBtn);
 
-    const pageInfo = { page, canvas, viewport, wrapper, textLayer, hlLayer, noteLayer, pageNum: i, textContent };
-    pages.push(pageInfo);
+  const nextBtn = document.createElement('button');
+  nextBtn.className = 'page-nav-btn next';
+  nextBtn.textContent = '❯';
+  nextBtn.style.opacity = pageNum < totalPages ? '' : '0';
+  nextBtn.onclick = () => goToNextPage();
+  center.appendChild(nextBtn);
 
-    // Note click handler
-    noteLayer.addEventListener('click', e => {
-      if (mode !== 'note') return;
-      const rect = noteLayer.getBoundingClientRect();
-      pendingNotePos = { pageNum: i, x: e.clientX - rect.left, y: e.clientY - rect.top };
-      $('note-text-input').value = '';
-      $('note-modal').classList.add('active');
-      $('note-text-input').focus();
-    });
-  }
+  await page.render({ canvasContext: ctx, viewport }).promise;
+
+  const textContent = await page.getTextContent();
+  renderTextLayer(textContent, textLayer, viewport);
+
+  // Update or add page info
+  const pageInfo = { page, canvas, viewport, wrapper, textLayer, hlLayer, noteLayer, pageNum, textContent };
+  // Replace existing page entry if any
+  const existIdx = pages.findIndex(p => p.pageNum === pageNum);
+  if (existIdx >= 0) pages[existIdx] = pageInfo;
+  else pages.push(pageInfo);
+
+  // Re-render annotations for this page
+  const pageAnnos = annotations.filter(a => a.page_num === pageNum);
+  pageAnnos.forEach(a => {
+    if (a.type === 'highlight') renderHighlight(a);
+    else renderNotePin(a);
+  });
+
+  // Note click handler
+  noteLayer.addEventListener('click', e => {
+    if (mode !== 'note') return;
+    const rect = noteLayer.getBoundingClientRect();
+    pendingNotePos = { pageNum, x: e.clientX - rect.left, y: e.clientY - rect.top };
+    $('note-text-input').value = '';
+    $('note-modal').classList.add('active');
+    $('note-text-input').focus();
+  });
 
   setupTextSelection();
+}
+
+function goToPrevPage() {
+  if (currentViewerPage > 1) {
+    renderSinglePage(currentViewerPage - 1);
+  }
+}
+
+function goToNextPage() {
+  if (currentViewerPage < totalPages) {
+    renderSinglePage(currentViewerPage + 1);
+  }
 }
 
 function renderTextLayer(textContent, container, viewport) {
@@ -1900,19 +2083,12 @@ function renderTextLayer(textContent, container, viewport) {
 function changeZoom(delta) {
   scale = Math.max(0.5, Math.min(3, scale + delta));
   $('zoom-val').textContent = Math.round(scale * 100) + '%';
-  renderAllPages().then(() => {
-    annotations.forEach(a => {
-      if (a.type === 'highlight') renderHighlight(a);
-      else renderNotePin(a);
-    });
-  });
+  renderSinglePage(currentViewerPage);
 }
 
 function goToPage(n) {
   n = Math.max(1, Math.min(totalPages, parseInt(n) || 1));
-  $('page-input').value = n;
-  const el = document.querySelector(`[data-page="${n}"]`);
-  if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  renderSinglePage(n);
 }
 
 // ─── Mode ───
@@ -2235,6 +2411,8 @@ function openQuickUpload(file) {
   $('qu-authors').value = '';
   $('qu-year').value = '';
   $('qu-doi').value = '';
+  if ($('qu-journal')) $('qu-journal').value = '';
+  if ($('qu-abstract')) $('qu-abstract').value = '';
 
   $('quick-upload-modal').classList.add('active');
   $('qu-title').focus();
@@ -2280,6 +2458,8 @@ async function submitQuickUpload() {
     authors: $('qu-authors').value.trim() || null,
     year: parseInt($('qu-year').value) || null,
     doi: $('qu-doi').value.trim() || null,
+    journal: $('qu-journal')?.value?.trim() || null,
+    abstract: $('qu-abstract')?.value?.trim() || null,
     tags: [],
     pdf_path: pdfPath,
     pdf_base64: null,
@@ -2347,10 +2527,16 @@ document.addEventListener('keydown', e => {
   if (e.key === 'Escape') {
     document.querySelectorAll('.modal-overlay.active, .quick-upload-modal.active').forEach(m => m.classList.remove('active'));
     document.querySelectorAll('.note-popup').forEach(p => p.remove());
+    $('context-menu').classList.remove('show');
   }
   // Enter key for quick upload
   if (e.key === 'Enter' && $('quick-upload-modal').classList.contains('active') && e.target.tagName !== 'TEXTAREA') {
     submitQuickUpload();
+  }
+  // PDF viewer page navigation with arrow keys
+  if (pdfDoc && $('viewer-view').classList.contains('active')) {
+    if (e.key === 'ArrowLeft' || e.key === 'ArrowUp') { e.preventDefault(); goToPrevPage(); }
+    if (e.key === 'ArrowRight' || e.key === 'ArrowDown') { e.preventDefault(); goToNextPage(); }
   }
 });
 
@@ -2506,6 +2692,186 @@ async function submitAttachPdf() {
 
   btn.disabled = false;
   btn.textContent = 'Upload';
+}
+
+// ═══════════════════════════════════════════════════════════════════
+// VIEW TOGGLE (Grid / List)
+// ═══════════════════════════════════════════════════════════════════
+function setView(v) {
+  currentView = v;
+  $('view-grid-btn').classList.toggle('active', v === 'grid');
+  $('view-list-btn').classList.toggle('active', v === 'list');
+  $('paper-grid').style.display = v === 'grid' ? 'grid' : 'none';
+  $('paper-list').style.display = v === 'list' ? 'flex' : 'none';
+  loadPapers();
+}
+
+// ═══════════════════════════════════════════════════════════════════
+// CONTEXT MENU (right-click on papers)
+// ═══════════════════════════════════════════════════════════════════
+function showContextMenu(e, paperId) {
+  e.preventDefault();
+  e.stopPropagation();
+  contextTargetId = paperId;
+
+  // Build folder submenu
+  const menu = $('ctx-folder-menu');
+  menu.innerHTML = folders.map(f => `
+    <div class="sub-folder-item" onclick="event.stopPropagation();movePaperToFolder('${paperId}','${f.id}');$('context-menu').classList.remove('show')">
+      <span class="folder-color" style="background:${f.color || COLORS[0]};width:8px;height:8px;border-radius:3px;display:inline-block"></span>
+      ${esc(f.name)}
+    </div>
+  `).join('');
+
+  const ctx = $('context-menu');
+  ctx.classList.add('show');
+  // Position
+  let x = e.clientX, y = e.clientY;
+  ctx.style.left = x + 'px';
+  ctx.style.top = y + 'px';
+  // Adjust if overflowing
+  requestAnimationFrame(() => {
+    const rect = ctx.getBoundingClientRect();
+    if (rect.right > window.innerWidth) ctx.style.left = (x - rect.width) + 'px';
+    if (rect.bottom > window.innerHeight) ctx.style.top = (y - rect.height) + 'px';
+  });
+}
+
+// Close context menu on click elsewhere
+document.addEventListener('click', e => {
+  if (!e.target.closest('.context-menu')) {
+    $('context-menu').classList.remove('show');
+  }
+});
+
+async function movePaperToFolder(paperId, folderId) {
+  const { error } = await sb.from('papers').update({ folder: folderId }).eq('id', paperId);
+  if (error) { toast('Move failed: ' + error.message, 'error'); return; }
+  toast('Paper moved' + (folderId ? '' : ' out of folder'), 'success');
+  loadPapers();
+}
+
+async function deletePaper(paperId) {
+  const paper = await sb.from('papers').select('title').eq('id', paperId).single();
+  if (!confirm(`Delete paper "${paper?.title || ''}"? This cannot be undone.`)) return;
+
+  const { error } = await sb.from('papers').delete().eq('id', paperId);
+  if (error) { toast('Delete failed: ' + error.message, 'error'); return; }
+  // Also delete annotations
+  await sb.from('annotations').delete().eq('paper_id', paperId);
+  toast('Paper deleted', 'success');
+  loadPapers();
+}
+
+// ═══════════════════════════════════════════════════════════════════
+// EDIT PAPER MODAL
+// ═══════════════════════════════════════════════════════════════════
+function openEditPaperModal(paperId) {
+  $('context-menu').classList.remove('show');
+  // Reuse upload modal for editing
+  $('upload-modal').classList.add('active');
+  $('folder-modal-title'); // not needed
+  // Fetch paper data and fill form
+  sb.from('papers').select('*').eq('id', paperId).single().then(({ data: p }) => {
+    if (!p) return;
+    $('paper-title').value = p.title || '';
+    $('paper-authors').value = p.authors || '';
+    $('paper-year').value = p.year || '';
+    $('paper-journal').value = p.journal || '';
+    $('paper-doi').value = p.doi || '';
+    $('paper-abstract').value = p.abstract || '';
+    $('paper-tags').value = (p.tags || []).join(', ');
+    $('paper-folder').value = p.folder || '';
+    updateFolderSelects();
+    $('paper-folder').value = p.folder || '';
+    // Change submit button behavior
+    $('paper-title').closest('.modal-box').querySelector('.modal-actions button:last-child').textContent = 'Save Changes';
+    $('paper-title').closest('.modal-box').querySelector('.modal-actions button:last-child').onclick = () => saveEditPaper(paperId);
+  });
+}
+
+async function saveEditPaper(paperId) {
+  const title = $('paper-title').value.trim();
+  if (!title) { toast('Title is required', 'error'); return; }
+  const folderId = $('paper-folder').value || null;
+  const data = {
+    title,
+    authors: $('paper-authors').value.trim() || null,
+    year: parseInt($('paper-year').value) || null,
+    journal: $('paper-journal').value.trim() || null,
+    doi: $('paper-doi').value.trim() || null,
+    abstract: $('paper-abstract').value.trim() || null,
+    tags: $('paper-tags').value.split(',').map(t => t.trim()).filter(Boolean),
+    folder: folderId
+  };
+  const { error } = await sb.from('papers').update(data).eq('id', paperId);
+  if (error) { toast('Update failed: ' + error.message, 'error'); return; }
+  toast('Paper updated', 'success');
+  closeModal('upload-modal');
+  loadPapers();
+  // Reset submit button
+  resetUploadModal();
+}
+
+function resetUploadModal() {
+  const btn = $('upload-modal').querySelector('.modal-actions button:last-child');
+  if (btn) { btn.textContent = 'Add to Library'; btn.onclick = submitPaper; }
+}
+
+// ═══════════════════════════════════════════════════════════════════
+// CROSSREF SEARCH BY TITLE
+// ═══════════════════════════════════════════════════════════════════
+async function searchCrossRefByTitle() {
+  const title = $('paper-title').value.trim();
+  if (!title || title.length < 5) { toast('Enter at least 5 characters to search', 'info'); return; }
+
+  showLoading('Searching CrossRef...');
+  try {
+    const resp = await fetch(`https://api.crossref.org/works?query=${encodeURIComponent(title)}&rows=5`);
+    const data = await resp.json();
+    const items = data.message?.items || [];
+    if (!items.length) { hideLoading(); toast('No results found on CrossRef', 'info'); return; }
+
+    // Use first result
+    const m = items[0];
+    if (m.title?.[0]) $('paper-title').value = m.title[0];
+    if (m.author) $('paper-authors').value = m.author.map(a => `${a.given||''} ${a.family||''}`.trim()).join(', ');
+    if (m['container-title']?.[0]) $('paper-journal').value = m['container-title'][0];
+    if (m.published?.['date-parts']?.[0]) $('paper-year').value = m.published['date-parts'][0][0];
+    if (m.DOI) $('paper-doi').value = m.DOI;
+    if (m.abstract) $('paper-abstract').value = m.abstract.replace(/<[^>]*>/g, '');
+    hideLoading();
+    toast('Metadata auto-filled from CrossRef', 'success');
+  } catch (e) {
+    hideLoading();
+    toast('Search failed: ' + e.message, 'error');
+  }
+}
+
+async function searchCrossRefByTitleQU() {
+  const title = $('qu-title').value.trim();
+  if (!title || title.length < 5) { toast('Enter at least 5 characters to search', 'info'); return; }
+
+  showLoading('Searching CrossRef...');
+  try {
+    const resp = await fetch(`https://api.crossref.org/works?query=${encodeURIComponent(title)}&rows=5`);
+    const data = await resp.json();
+    const items = data.message?.items || [];
+    if (!items.length) { hideLoading(); toast('No results found', 'info'); return; }
+
+    const m = items[0];
+    if (m.title?.[0]) $('qu-title').value = m.title[0];
+    if (m.author) $('qu-authors').value = m.author.map(a => `${a.given||''} ${a.family||''}`.trim()).join(', ');
+    if (m['container-title']?.[0]) $('qu-journal').value = m['container-title'][0];
+    if (m.published?.['date-parts']?.[0]) $('qu-year').value = m.published['date-parts'][0][0];
+    if (m.DOI) $('qu-doi').value = m.DOI;
+    if (m.abstract && $('qu-abstract')) $('qu-abstract').value = m.abstract.replace(/<[^>]*>/g, '');
+    hideLoading();
+    toast('Metadata auto-filled from CrossRef', 'success');
+  } catch (e) {
+    hideLoading();
+    toast('Search failed: ' + e.message, 'error');
+  }
 }
 </script>
 <!-- ═══ Attach PDF Modal ═══ -->
