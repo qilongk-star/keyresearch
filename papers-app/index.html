@@ -209,6 +209,30 @@
       margin-left: auto; background: var(--accent); color: white;
       padding: 1px 6px; border-radius: 10px; font-size: 10px; font-weight: 600;
     }
+    .no-pdf-badge {
+      margin-left: auto; background: var(--warning); color: #000;
+      padding: 2px 8px; border-radius: 10px; font-size: 10px; font-weight: 600;
+      cursor: pointer; transition: background 0.2s;
+    }
+    .no-pdf-badge:hover { background: #fbbf24; }
+    .attach-modal-overlay {
+      position: fixed; inset: 0; z-index: 500;
+      background: rgba(0,0,0,0.6); display: flex; align-items: center; justify-content: center;
+    }
+    .attach-modal {
+      background: var(--bg-secondary); border: 1px solid var(--border);
+      border-radius: 16px; padding: 24px; width: 440px; max-width: 90vw;
+    }
+    .attach-modal h3 { margin-bottom: 16px; font-size: 16px; }
+    .attach-modal .drop-area {
+      border: 2px dashed var(--border); border-radius: 12px;
+      padding: 32px; text-align: center; cursor: pointer;
+      transition: border-color 0.2s; margin-bottom: 12px;
+    }
+    .attach-modal .drop-area:hover, .attach-modal .drop-area.dragover { border-color: var(--accent); }
+    .attach-modal .drop-area .icon { font-size: 32px; margin-bottom: 8px; }
+    .attach-modal .attach-actions { display: flex; gap: 8px; justify-content: flex-end; margin-top: 16px; }
+    .attach-modal .status { font-size: 12px; color: var(--text-secondary); margin-top: 8px; min-height: 16px; }
     .paper-card .tag-dot {
       width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0;
     }
@@ -1424,6 +1448,7 @@ function renderPaperGrid(papers) {
           ${p.year ? `<span>${p.year}</span>` : ''}
           ${p.journal ? `<span>· ${esc(p.journal)}</span>` : ''}
           ${p._annoCount ? `<span class="anno-count">${p._annoCount}</span>` : ''}
+          ${!p.pdf_path && !p.pdf_base64 ? `<span class="no-pdf-badge" onclick="event.stopPropagation();openAttachPdfModal('${p.id}')" title="Attach PDF">📎 Add PDF</span>` : ''}
         </div>
       </div>
     </div>
@@ -2251,6 +2276,160 @@ document.addEventListener('keydown', e => {
     submitQuickUpload();
   }
 });
+
+// ═══════════ Attach PDF to existing paper + auto metadata ═══════════
+let attachTargetId = null;
+let attachFile = null;
+
+function openAttachPdfModal(paperId) {
+  attachTargetId = paperId;
+  attachFile = null;
+  $('attach-file-input').value = '';
+  $('attach-status').textContent = '';
+  $('attach-submit-btn').disabled = true;
+  $('attach-drop-area').querySelector('.icon').textContent = '📄';
+  $('attach-drop-area').querySelector('div:last-child').textContent = 'Click or drag a PDF file here';
+  $('attach-pdf-modal').style.display = 'flex';
+}
+
+// Drag support for attach modal
+(function() {
+  const area = $('attach-drop-area');
+  if (!area) return;
+  area.addEventListener('dragover', e => { e.preventDefault(); area.classList.add('dragover'); });
+  area.addEventListener('dragleave', () => area.classList.remove('dragover'));
+  area.addEventListener('drop', e => {
+    e.preventDefault(); area.classList.remove('dragover');
+    const f = e.dataTransfer.files[0];
+    if (f && f.type === 'application/pdf') handleAttachFile(f);
+  });
+})();
+
+function handleAttachFile(file) {
+  if (!file || file.type !== 'application/pdf') return;
+  attachFile = file;
+  $('attach-drop-area').querySelector('.icon').textContent = '✅';
+  $('attach-drop-area').querySelector('div:last-child').textContent = file.name + ' (' + (file.size/1024/1024).toFixed(1) + ' MB)';
+  $('attach-submit-btn').disabled = false;
+  $('attach-status').textContent = 'Ready to upload';
+}
+
+async function submitAttachPdf() {
+  if (!attachFile || !attachTargetId) return;
+  const btn = $('attach-submit-btn');
+  const status = $('attach-status');
+  btn.disabled = true;
+  btn.textContent = 'Processing...';
+  status.textContent = 'Reading PDF...';
+
+  try {
+    // 1) Read file as base64
+    const buf = await attachFile.arrayBuffer();
+    const bytes = new Uint8Array(buf);
+    let binary = '';
+    for (let i = 0; i < bytes.length; i++) binary += String.fromCharCode(bytes[i]);
+    const pdfBase64 = btoa(binary);
+
+    // 2) Try to extract metadata from PDF first page text
+    status.textContent = 'Identifying metadata...';
+    let meta = {};
+    try {
+      const pdfDoc = await pdfjsLib.getDocument({ data: buf.slice(0) }).promise;
+      const page = await pdfDoc.getPage(1);
+      const textContent = await page.getTextContent();
+      const firstPageText = textContent.items.map(i => i.str).join(' ').trim();
+
+      // Extract DOI from text
+      const doiMatch = firstPageText.match(/10\.\d{4,}\/[^\s]+/);
+      if (doiMatch) meta.doi = doiMatch[0].replace(/[,\s;]+$/, '');
+
+      // If no DOI, try to search CrossRef by title from filename
+      const filenameTitle = attachFile.name.replace(/\.pdf$/i, '').replace(/[_-]/g, ' ').trim();
+      if (!meta.doi && filenameTitle.length > 10) {
+        status.textContent = 'Searching CrossRef...';
+        try {
+          const crResp = await fetch(`https://api.crossref.org/works?query=${encodeURIComponent(filenameTitle)}&rows=1`);
+          const crData = await crResp.json();
+          const item = crData.message?.items?.[0];
+          if (item) {
+            meta.doi = item.DOI || '';
+            if (item.title?.[0]) meta.title = item.title[0];
+            if (item.author) meta.authors = item.author.map(a => `${a.given||''} ${a.family||''}`.trim()).join(', ');
+            if (item['container-title']?.[0]) meta.journal = item['container-title'][0];
+            const yParts = item.published?.['date-parts']?.[0];
+            if (yParts) meta.year = yParts[0];
+            if (item.abstract) meta.abstract = item.abstract.replace(/<[^>]*>/g, '');
+          }
+        } catch(e) {}
+      }
+
+      // If found DOI, get full metadata from CrossRef
+      if (meta.doi && !meta.title) {
+        status.textContent = 'Fetching metadata from DOI...';
+        try {
+          const doiResp = await fetch(`https://api.crossref.org/works/${encodeURIComponent(meta.doi)}`);
+          const doiData = await doiResp.json();
+          const m = doiData.message;
+          if (m.title?.[0]) meta.title = m.title[0];
+          if (m.author) meta.authors = m.author.map(a => `${a.given||''} ${a.family||''}`.trim()).join(', ');
+          if (m['container-title']?.[0]) meta.journal = m['container-title'][0];
+          const yp = m.published?.['date-parts']?.[0];
+          if (yp) meta.year = yp[0];
+          if (m.abstract) meta.abstract = m.abstract.replace(/<[^>]*>/g, '');
+        } catch(e) {}
+      }
+    } catch(e) {
+      console.log('PDF metadata extraction failed:', e);
+    }
+
+    // 3) Update paper in Supabase
+    status.textContent = 'Uploading to database...';
+    const updateFields = { pdf_base64: pdfBase64 };
+    if (meta.title) updateFields.title = meta.title;
+    if (meta.authors) updateFields.authors = meta.authors;
+    if (meta.year) updateFields.year = meta.year;
+    if (meta.journal) updateFields.journal = meta.journal;
+    if (meta.abstract) updateFields.abstract = meta.abstract;
+    if (meta.doi) updateFields.doi = meta.doi;
+
+    const { error } = await sb.from('papers').update(updateFields).eq('id', attachTargetId);
+    if (error) throw error;
+
+    // 4) Done
+    $('attach-pdf-modal').style.display = 'none';
+    const found = Object.keys(meta).length > 0;
+    if (found) {
+      toast('PDF attached + metadata updated!', 'success');
+    } else {
+      toast('PDF attached successfully', 'success');
+    }
+    loadPapers();
+
+  } catch (e) {
+    status.textContent = 'Error: ' + e.message;
+    toast('Upload failed: ' + e.message, 'error');
+  }
+
+  btn.disabled = false;
+  btn.textContent = 'Upload';
+}
 </script>
+<!-- ═══ Attach PDF Modal ═══ -->
+<div id="attach-pdf-modal" class="attach-modal-overlay" style="display:none;" onclick="if(event.target===this)this.style.display='none'">
+  <div class="attach-modal">
+    <h3>📎 Attach PDF</h3>
+    <div id="attach-drop-area" class="drop-area" onclick="document.getElementById('attach-file-input').click()">
+      <div class="icon">📄</div>
+      <div>Click or drag a PDF file here</div>
+    </div>
+    <input type="file" id="attach-file-input" accept=".pdf" style="display:none" onchange="handleAttachFile(this.files[0])">
+    <div class="status" id="attach-status"></div>
+    <div class="attach-actions">
+      <button class="topbar-btn" onclick="$('attach-pdf-modal').style.display='none'">Cancel</button>
+      <button class="topbar-btn" style="background:var(--accent)" id="attach-submit-btn" onclick="submitAttachPdf()" disabled>Upload</button>
+    </div>
+  </div>
+</div>
+
 </body>
 </html>
