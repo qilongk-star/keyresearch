@@ -1468,15 +1468,39 @@ function renderPaperGrid(papers) {
 
 async function renderThumbFromBase64(canvas, paperId) {
   try {
-    const { data: paper } = await sb.from('papers').select('pdf_base64').eq('id', paperId).single();
-    if (!paper || !paper.pdf_base64) {
+    // For legacy papers with pdf_base64, download and create a temp object URL
+    // Only do this for small files to avoid memory issues
+    toast('Loading legacy PDF thumbnail...', 'info');
+    const { data: paper } = await sb.from('papers').select('pdf_path, pdf_base64').eq('id', paperId).single();
+    if (!paper) {
       canvas.parentElement.innerHTML = '<span class="no-cover">📄</span>';
       return;
     }
-    const binary = atob(paper.pdf_base64);
-    const bytes = new Uint8Array(binary.length);
-    for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
-    const pdf = await pdfjsLib.getDocument({ data: bytes.buffer }).promise;
+    let arrayBuffer;
+    if (paper.pdf_path) {
+      // Even legacy base64 papers might have been migrated; try URL first
+      try {
+        const resp = await fetch(paper.pdf_path);
+        arrayBuffer = await resp.arrayBuffer();
+      } catch(e) {
+        // URL failed, ignore
+      }
+    }
+    if (!arrayBuffer && paper.pdf_base64) {
+      try {
+        const binary = atob(paper.pdf_base64);
+        const bytes = new Uint8Array(binary.length);
+        for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
+        arrayBuffer = bytes.buffer;
+      } catch(e) {
+        // base64 decode failed
+      }
+    }
+    if (!arrayBuffer) {
+      canvas.parentElement.innerHTML = '<span class="no-cover">📄</span>';
+      return;
+    }
+    const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
     const page = await pdf.getPage(1);
     const vp = page.getViewport({ scale: 0.4 });
     canvas.width = vp.width;
@@ -1484,6 +1508,7 @@ async function renderThumbFromBase64(canvas, paperId) {
     const ctx = canvas.getContext('2d');
     await page.render({ canvasContext: ctx, viewport: vp }).promise;
   } catch (e) {
+    console.warn('Thumb render failed:', e);
     canvas.parentElement.innerHTML = '<span class="no-cover">📄</span>';
   }
 }
@@ -1634,25 +1659,49 @@ async function fetchPdfFromUrl() {
   }
 }
 
+// Upload PDF to Supabase Storage, return public URL
+async function uploadPdfToStorage(file, paperId) {
+  const ext = file.name?.split('.').pop()?.toLowerCase() || 'pdf';
+  const storagePath = `${paperId}/${Date.now()}.${ext}`;
+  const buf = await file.arrayBuffer();
+
+  // Check file size (Supabase Storage free plan limit: 50MB)
+  if (buf.byteLength > 50 * 1024 * 1024) {
+    throw new Error('PDF too large (>50MB). Please use a smaller file or provide a URL.');
+  }
+
+  showLoading('Uploading PDF to server...');
+  const { data, error } = await sb.storage.from('pdfs').upload(storagePath, buf, {
+    contentType: 'application/pdf',
+    upsert: true,
+    cacheControl: '31536000'
+  });
+
+  if (error) throw new Error('Storage upload failed: ' + error.message);
+
+  const { data: urlData } = sb.storage.from('pdfs').getPublicUrl(storagePath);
+  return urlData.publicUrl;
+}
+
 async function submitPaper() {
   const title = $('paper-title').value.trim();
   if (!title) { toast('Title is required', 'error'); return; }
 
-  // Build pdf_path: if user provided URL, use it; if local file, we'd need to upload somewhere
-  const pdfPath = $('upload-pdf-path').value.trim() || $('pdf-url-input').value.trim() || '';
+  // Build pdf_path: if user provided URL, use it; if local file, upload to Storage
+  const urlPath = $('upload-pdf-path').value.trim() || $('pdf-url-input').value.trim() || '';
+  let pdfPath = urlPath;
 
-  // If local file, convert to base64 and store
-  let pdfBase64 = '';
   if (pendingPdfBlob && !pdfPath) {
-    if (pendingPdfBlob.size > 5 * 1024 * 1024) {
-      toast('PDF too large for direct storage. Please upload to GitHub and paste the raw URL.', 'error');
+    // Generate a temp ID for storage path
+    const tempId = crypto.randomUUID ? crypto.randomUUID() : 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g,c=>{const r=Math.random()*16|0;return(c==='x'?r:r&0x3|0x8).toString(16)});
+    try {
+      pdfPath = await uploadPdfToStorage(pendingPdfBlob, tempId);
+    } catch (e) {
+      hideLoading();
+      toast('PDF upload failed: ' + e.message, 'error');
+      setTimeout(() => toast('Tip: Make sure "pdfs" bucket exists in Supabase Storage (set to Public)', 'info'), 500);
       return;
     }
-    const buf = await pendingPdfBlob.arrayBuffer();
-    const bytes = new Uint8Array(buf);
-    let binary = '';
-    for (let i = 0; i < bytes.length; i++) binary += String.fromCharCode(bytes[i]);
-    pdfBase64 = btoa(binary);
   }
 
   const tags = $('paper-tags').value.split(',').map(t => t.trim()).filter(Boolean);
@@ -1667,17 +1716,17 @@ async function submitPaper() {
     abstract: $('paper-abstract').value.trim(),
     tags,
     pdf_path: pdfPath,
-    pdf_base64: pdfBase64 || null,
+    pdf_base64: null,
     folder: folderId,
     uploaded_by: currentUser.name
   };
 
-  showLoading('Adding paper...');
+  showLoading('Saving paper...');
   const { data, error } = await sb.from('papers').upsert(paperData, { onConflict: 'doi' });
   hideLoading();
 
   if (error) {
-    toast('Error: ' + error.message, 'error');
+    toast('Save failed: ' + error.message, 'error');
     return;
   }
 
@@ -1697,27 +1746,39 @@ async function openPaper(paperId) {
   if (error || !paper) { hideLoading(); toast('Paper not found', 'error'); return; }
   currentPaper = paper;
 
-  // Get PDF data
+  // Get PDF data - try pdf_path first (Storage URL), then pdf_base64 (legacy)
   let pdfArrayBuffer;
   if (paper.pdf_path) {
     try {
+      showLoading('Downloading PDF...');
       const resp = await fetch(paper.pdf_path);
+      if (!resp.ok) throw new Error('HTTP ' + resp.status);
       pdfArrayBuffer = await resp.arrayBuffer();
     } catch (e) {
+      console.warn('pdf_path fetch failed, trying base64 fallback:', e);
       if (paper.pdf_base64) {
-        const binary = atob(paper.pdf_base64);
-        const bytes = new Uint8Array(binary.length);
-        for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
-        pdfArrayBuffer = bytes.buffer;
+        try {
+          const binary = atob(paper.pdf_base64);
+          const bytes = new Uint8Array(binary.length);
+          for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
+          pdfArrayBuffer = bytes.buffer;
+        } catch(e2) {
+          hideLoading(); toast('Cannot load PDF: ' + e2.message, 'error'); return;
+        }
       } else {
-        hideLoading(); toast('Cannot load PDF', 'error'); return;
+        hideLoading(); toast('Cannot load PDF from: ' + paper.pdf_path, 'error'); return;
       }
     }
   } else if (paper.pdf_base64) {
-    const binary = atob(paper.pdf_base64);
-    const bytes = new Uint8Array(binary.length);
-    for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
-    pdfArrayBuffer = bytes.buffer;
+    try {
+      showLoading('Decoding PDF...');
+      const binary = atob(paper.pdf_base64);
+      const bytes = new Uint8Array(binary.length);
+      for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
+      pdfArrayBuffer = bytes.buffer;
+    } catch (e) {
+      hideLoading(); toast('PDF decode error: ' + e.message, 'error'); return;
+    }
   } else {
     hideLoading(); toast('No PDF attached', 'error'); return;
   }
@@ -2189,21 +2250,23 @@ async function submitQuickUpload() {
   if (!title) { toast('Title is required', 'error'); return; }
   if (!quickUploadFile) return;
 
-  // Convert to base64
-  if (quickUploadFile.size > 5 * 1024 * 1024) {
-    toast('PDF too large (>5MB). Please use "Add Paper" with a URL instead.', 'error');
+  if (quickUploadFile.size > 50 * 1024 * 1024) {
+    toast('PDF too large (>50MB). Please use "Add Paper" with a URL instead.', 'error');
     return;
   }
 
-  showLoading('Uploading PDF...');
-
-  const buf = await quickUploadFile.arrayBuffer();
-  const bytes = new Uint8Array(buf);
-  let binary = '';
-  for (let i = 0; i < bytes.length; i++) binary += String.fromCharCode(bytes[i]);
-  const pdfBase64 = btoa(binary);
-
   const folderId = $('qu-folder').value || '';
+  const tempId = crypto.randomUUID ? crypto.randomUUID() : 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g,c=>{const r=Math.random()*16|0;return(c==='x'?r:r&0x3|0x8).toString(16)});
+  let pdfPath = '';
+
+  try {
+    pdfPath = await uploadPdfToStorage(quickUploadFile, tempId);
+  } catch (e) {
+    hideLoading();
+    toast('PDF upload failed: ' + e.message, 'error');
+    setTimeout(() => toast('Tip: Make sure "pdfs" bucket exists in Supabase Storage (set to Public)', 'info'), 500);
+    return;
+  }
 
   const paperData = {
     title,
@@ -2211,12 +2274,13 @@ async function submitQuickUpload() {
     year: parseInt($('qu-year').value) || null,
     doi: $('qu-doi').value.trim() || null,
     tags: [],
-    pdf_path: '',
-    pdf_base64: pdfBase64,
+    pdf_path: pdfPath,
+    pdf_base64: null,
     folder: folderId,
     uploaded_by: currentUser.name
   };
 
+  showLoading('Saving paper...');
   const { data, error } = await sb.from('papers').upsert(paperData, { onConflict: 'doi' });
   hideLoading();
 
@@ -2257,7 +2321,8 @@ function toast(msg, type = 'info') {
   t.className = 'toast ' + type;
   t.textContent = msg;
   $('toasts').appendChild(t);
-  setTimeout(() => t.remove(), 3500);
+  const duration = type === 'error' ? 8000 : (type === 'success' ? 4000 : 3500);
+  setTimeout(() => t.remove(), duration);
 }
 
 // Close modals on overlay click
@@ -2323,17 +2388,31 @@ async function submitAttachPdf() {
   status.textContent = 'Reading PDF...';
 
   try {
-    // 1) Read file as base64
-    const buf = await attachFile.arrayBuffer();
-    const bytes = new Uint8Array(buf);
-    let binary = '';
-    for (let i = 0; i < bytes.length; i++) binary += String.fromCharCode(bytes[i]);
-    const pdfBase64 = btoa(binary);
+    // 1) Upload PDF to Storage
+    status.textContent = 'Uploading PDF to server...';
+    let pdfPath = '';
+    try {
+      pdfPath = await uploadPdfToStorage(attachFile, attachTargetId);
+    } catch (e) {
+      // Fallback: try base64 for small files
+      if (attachFile.size > 1 * 1024 * 1024) {
+        throw e; // re-throw for larger files
+      }
+      status.textContent = 'Storage unavailable, using direct storage...';
+      const buf = await attachFile.arrayBuffer();
+      const bytes = new Uint8Array(buf);
+      let binary = '';
+      for (let i = 0; i < bytes.length; i++) binary += String.fromCharCode(bytes[i]);
+      // We'll store as pdf_path with data URI for small files only
+      // Actually, let's just throw to tell user to set up storage
+      throw new Error('Supabase Storage not configured. Please create a "pdfs" bucket in Supabase Dashboard → Storage.');
+    }
 
     // 2) Try to extract metadata from PDF first page text
     status.textContent = 'Identifying metadata...';
     let meta = {};
     try {
+      const buf = await attachFile.arrayBuffer();
       const pdfDoc = await pdfjsLib.getDocument({ data: buf.slice(0) }).promise;
       const page = await pdfDoc.getPage(1);
       const textContent = await page.getTextContent();
@@ -2383,8 +2462,8 @@ async function submitAttachPdf() {
     }
 
     // 3) Update paper in Supabase
-    status.textContent = 'Uploading to database...';
-    const updateFields = { pdf_base64: pdfBase64 };
+    status.textContent = 'Saving to database...';
+    const updateFields = { pdf_path: pdfPath, pdf_base64: null };
     if (meta.title) updateFields.title = meta.title;
     if (meta.authors) updateFields.authors = meta.authors;
     if (meta.year) updateFields.year = meta.year;
@@ -2396,6 +2475,7 @@ async function submitAttachPdf() {
     if (error) throw error;
 
     // 4) Done
+    hideLoading();
     $('attach-pdf-modal').style.display = 'none';
     const found = Object.keys(meta).length > 0;
     if (found) {
@@ -2406,8 +2486,10 @@ async function submitAttachPdf() {
     loadPapers();
 
   } catch (e) {
+    hideLoading();
     status.textContent = 'Error: ' + e.message;
     toast('Upload failed: ' + e.message, 'error');
+    setTimeout(() => toast('Make sure "pdfs" bucket exists in Supabase Storage (set to Public)', 'info'), 600);
   }
 
   btn.disabled = false;
