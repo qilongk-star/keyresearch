@@ -625,6 +625,12 @@ function setMode(m) {
   document.querySelectorAll('.note-layer').forEach(layer => {
     layer.classList.toggle('active', m === 'note');
   });
+  // Enable text selection in highlight mode; disable in other modes
+  document.querySelectorAll('.text-layer').forEach(layer => {
+    layer.style.pointerEvents = (m === 'highlight') ? 'auto' : 'none';
+  });
+  const container = $('pdf-container');
+  if (container) container.style.cursor = (m === 'highlight') ? 'text' : 'default';
   selectedHighlight = null;
   document.querySelectorAll('.highlight-box').forEach(h => h.classList.remove('selected'));
 }
@@ -724,9 +730,10 @@ async function renderPdfPages() {
 
     pages.push({ page, canvas, viewport, wrapper, textLayer, highlightLayer, noteLayer, pageNum: i, textContent });
 
-    setupTextSelection(textLayer, i);
     setupNoteLayer(noteLayer, i);
   }
+
+  setupTextSelection();
 
   setMode('select');
   updateAnnotationList();
@@ -750,7 +757,7 @@ function renderTextLayer(textContent, container, viewport) {
 
 // ─── Text Selection / Highlight ───────────────────────────────────────────────
 
-function setupTextSelection(textLayer, pageNum) {
+function setupTextSelection() {
   document.addEventListener('mouseup', () => {
     if (mode !== 'highlight') return;
     const selection = window.getSelection();
@@ -763,7 +770,7 @@ function setupTextSelection(textLayer, pageNum) {
     for (const p of pages) {
       if (p.textLayer.contains(range.commonAncestorContainer)) { targetPage = p; break; }
     }
-    if (!targetPage || targetPage.pageNum !== pageNum) return;
+    if (!targetPage) return;
 
     const rects = range.getClientRects();
     const pageRect = targetPage.wrapper.getBoundingClientRect();
@@ -776,7 +783,7 @@ function setupTextSelection(textLayer, pageNum) {
     const highlight = {
       id: 'hl_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9),
       type: 'highlight',
-      pageNum,
+      pageNum: targetPage.pageNum,
       text: selectedText,
       color: currentUser.color,
       author: currentUser.name,
