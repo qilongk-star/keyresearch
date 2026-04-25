@@ -674,31 +674,8 @@
 </head>
 <body>
 
-<!-- ═══ Login Screen ═══ -->
-<div class="login-screen" id="login-screen">
-  <div class="login-card">
-    <div class="login-logo">📚</div>
-    <h2>PapersHub</h2>
-    <p class="login-subtitle">Research Team Library</p>
-    <label>Team Access Password</label>
-    <input type="password" id="login-password" placeholder="Enter password..." autocomplete="off">
-    <button class="login-btn" id="login-btn" onclick="handleLogin()">Sign In</button>
-    <div class="login-error" id="login-error">Wrong password. Please try again.</div>
-    <div class="login-hint">Contact your team lead for the password.</div>
-    <div class="team-avatars">
-      <div class="avatar" style="background:#6366f1">Q</div>
-      <div class="avatar" style="background:#22c55e">S1</div>
-      <div class="avatar" style="background:#f59e0b">S2</div>
-      <div class="avatar" style="background:#ef4444">S3</div>
-      <div class="avatar" style="background:#ec4899">S4</div>
-      <div class="avatar" style="background:#06b6d4">S5</div>
-      <div class="avatar" style="background:#8b5cf6">+</div>
-    </div>
-  </div>
-</div>
-
-<!-- ═══ Main App (hidden until login) ═══ -->
-<div id="main-app" style="display:none">
+<!-- ═══ Main App ═══ -->
+<div id="main-app">
 
 <!-- ═══ Top Bar ═══ -->
 <div class="topbar">
@@ -723,7 +700,7 @@
       <div class="user-avatar" id="user-avatar" style="background:var(--accent)">?</div>
       <span id="user-name-display">Set name</span>
     </div>
-    <button class="logout-btn" onclick="handleLogout()" title="Sign out">↪ Sign Out</button>
+    <a href="../" class="logout-btn" title="Back to portal">← Portal</a>
     <button class="topbar-btn" onclick="openUploadModal()">+ Add Paper</button>
   </div>
 </div>
@@ -1021,72 +998,6 @@ pdfjsLib.GlobalWorkerOptions.workerSrc =
   'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
 
 // ═══════════════════════════════════════════════════════════════════
-// AUTH
-// ═══════════════════════════════════════════════════════════════════
-function checkAuth() {
-  // Simple session check: token in sessionStorage
-  const token = sessionStorage.getItem('ph_auth');
-  if (token) {
-    $('login-screen').classList.add('hidden');
-    $('main-app').style.display = '';
-    return true;
-  }
-  $('login-screen').classList.remove('hidden');
-  $('main-app').style.display = 'none';
-  return false;
-}
-
-async function handleLogin() {
-  const pwd = $('login-password').value;
-  const btn = $('login-btn');
-  const err = $('login-error');
-  if (!pwd) { err.textContent = 'Please enter a password.'; err.classList.add('show'); return; }
-
-  btn.disabled = true;
-  btn.textContent = 'Verifying...';
-  err.classList.remove('show');
-
-  try {
-    const { data, error } = await sb.from('app_settings')
-      .select('value')
-      .eq('key', 'access_password')
-      .single();
-
-    if (error || !data) {
-      err.textContent = 'Configuration error. Contact admin.';
-      err.classList.add('show');
-      btn.disabled = false;
-      btn.textContent = 'Sign In';
-      return;
-    }
-
-    if (data.value === pwd) {
-      sessionStorage.setItem('ph_auth', '1');
-      $('login-screen').classList.add('hidden');
-      $('main-app').style.display = '';
-      initApp();
-    } else {
-      err.textContent = 'Wrong password. Please try again.';
-      err.classList.add('show');
-      $('login-password').value = '';
-      $('login-password').focus();
-    }
-  } catch (e) {
-    err.textContent = 'Network error. Check your connection.';
-    err.classList.add('show');
-  }
-
-  btn.disabled = false;
-  btn.textContent = 'Sign In';
-}
-
-function handleLogout() {
-  if (!confirm('Sign out of PapersHub?')) return;
-  sessionStorage.removeItem('ph_auth');
-  location.reload();
-}
-
-// ═══════════════════════════════════════════════════════════════════
 // STATE
 // ═══════════════════════════════════════════════════════════════════
 const COLORS = ['#6366f1','#22c55e','#f59e0b','#ef4444','#ec4899','#06b6d4','#8b5cf6','#f97316','#14b8a6','#e11d48'];
@@ -1117,19 +1028,7 @@ let quickUploadFile = null;  // file from drag-drop
 // ═══════════════════════════════════════════════════════════════════
 // INIT
 // ═══════════════════════════════════════════════════════════════════
-(function boot() {
-  // Check login first
-  if (checkAuth()) {
-    initApp();
-  }
-  // Enter key for login
-  $('login-password').addEventListener('keydown', e => {
-    if (e.key === 'Enter') handleLogin();
-  });
-  $('login-password').focus();
-})();
-
-async function initApp() {
+(async function init() {
   if (!currentUser.name) {
     openNameModal();
   } else {
