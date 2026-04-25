@@ -626,8 +626,12 @@ function setMode(m) {
     layer.classList.toggle('active', m === 'note');
   });
   // Enable text selection in highlight mode; disable in other modes
+  // Must set pointer-events on both the text-layer AND its span children
+  // because CSS has .text-layer span { pointer-events: none }
+  const pe = (m === 'highlight') ? 'auto' : 'none';
   document.querySelectorAll('.text-layer').forEach(layer => {
-    layer.style.pointerEvents = (m === 'highlight') ? 'auto' : 'none';
+    layer.style.pointerEvents = pe;
+    layer.querySelectorAll('span').forEach(s => { s.style.pointerEvents = pe; });
   });
   const container = $('pdf-container');
   if (container) container.style.cursor = (m === 'highlight') ? 'text' : 'default';
