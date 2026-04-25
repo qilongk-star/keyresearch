@@ -7,22 +7,22 @@
   <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
   <style>
     * { box-sizing: border-box; margin: 0; padding: 0; }
-    body { 
-      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; 
-      background: #191919; 
-      color: #fff; 
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      background: #191919;
+      color: #fff;
       min-height: 100vh;
       overflow-x: hidden;
     }
-    
+
     .toolbar {
       position: fixed; top: 0; left: 0; right: 0; height: 56px;
       background: #2d2d2d; display: flex; align-items: center; gap: 10px;
       padding: 0 16px; z-index: 1000; border-bottom: 1px solid #404040;
       flex-wrap: nowrap; overflow-x: auto;
     }
-    .toolbar button { 
-      padding: 8px 14px; border: none; border-radius: 6px; cursor: pointer; 
+    .toolbar button {
+      padding: 8px 14px; border: none; border-radius: 6px; cursor: pointer;
       font-size: 13px; font-weight: 500; transition: all 0.2s; white-space: nowrap;
     }
     .toolbar button:hover { transform: translateY(-1px); }
@@ -32,7 +32,7 @@
     .btn-highlight { background: linear-gradient(135deg, #ffd700, #ffb700); color: #000; }
     .btn-note { background: linear-gradient(135deg, #e74c3c, #c0392b); color: white; }
     .btn-active { box-shadow: 0 0 0 3px rgba(0,120,212,0.5); }
-    
+
     .user-badge {
       display: flex; align-items: center; gap: 6px;
       background: #353535; border-radius: 20px;
@@ -49,9 +49,9 @@
       font-size: 11px; font-weight: 700; color: white;
       flex-shrink: 0;
     }
-    
+
     .main { margin-top: 56px; padding: 20px; }
-    
+
     #upload-section { text-align: center; padding: 40px 20px; }
     #upload-section.hidden { display: none; }
     .upload-box {
@@ -67,7 +67,7 @@
     }
     .upload-box label:hover { background: #106ebe; }
     .upload-box p { margin-top: 16px; color: #888; font-size: 13px; }
-    
+
     .url-input-box {
       max-width: 600px; margin: 0 auto;
       background: #252525; border-radius: 12px; padding: 20px;
@@ -81,19 +81,19 @@
     .url-input-box input:focus { border-color: #0078d4; outline: none; }
     .url-input-box button { width: 100%; }
     .url-input-box .hint { font-size: 11px; color: #888; margin-top: 10px; }
-    
+
     #pdf-section { display: none; }
     #pdf-section.active { display: block; }
-    
+
     #pdf-container { max-width: 1000px; margin: 0 auto; }
-    
+
     .page-wrapper {
-      position: relative; margin-bottom: 24px; 
+      position: relative; margin-bottom: 24px;
       box-shadow: 0 4px 20px rgba(0,0,0,0.4); border-radius: 8px; overflow: hidden;
       background: white;
     }
     .page-wrapper canvas { display: block; }
-    
+
     .text-layer {
       position: absolute;
       top: 0; left: 0; right: 0; bottom: 0;
@@ -106,8 +106,10 @@
     .text-layer span {
       position: absolute; white-space: pre; cursor: text;
       transform-origin: 0% 0%; color: transparent;
+      line-height: 1.25;
+      pointer-events: none;
     }
-    
+
     .highlight-layer {
       position: absolute; top: 0; left: 0; right: 0; bottom: 0;
       pointer-events: none; z-index: 10;
@@ -135,17 +137,17 @@
       opacity: 0; transition: opacity 0.2s;
     }
     .highlight-box:hover .author-label { opacity: 1; }
-    
+
     .note-layer {
       position: absolute; top: 0; left: 0; right: 0; bottom: 0;
       pointer-events: none; z-index: 20;
     }
     .note-layer.active { pointer-events: auto; cursor: crosshair; }
-    
+
     .note-marker {
-      position: absolute; width: 28px; height: 28px; 
+      position: absolute; width: 28px; height: 28px;
       border-radius: 50% 50% 50% 0;
-      cursor: pointer; display: flex; align-items: center; justify-content: center; 
+      cursor: pointer; display: flex; align-items: center; justify-content: center;
       font-size: 12px; color: white; font-weight: bold;
       box-shadow: 0 2px 8px rgba(0,0,0,0.4);
       pointer-events: auto; transition: transform 0.2s;
@@ -153,7 +155,7 @@
     }
     .note-marker span { transform: rotate(45deg); }
     .note-marker:hover { transform: rotate(-45deg) scale(1.1); }
-    
+
     .note-popup {
       position: fixed; background: #fff; color: #333;
       padding: 16px; border-radius: 12px; width: 300px; max-width: 90vw;
@@ -169,14 +171,14 @@
     }
     .note-popup-content { margin-bottom: 12px; white-space: pre-wrap; word-break: break-word; }
     .note-popup-buttons { display: flex; gap: 8px; }
-    .note-popup button { 
+    .note-popup button {
       flex: 1; padding: 8px 14px; border: none; border-radius: 6px;
       cursor: pointer; font-weight: 500; font-size: 13px;
     }
     .note-popup .btn-save { background: #0078d4; color: white; }
     .note-popup .btn-delete { background: #e74c3c; color: white; }
     .note-popup .btn-cancel { background: #666; color: white; }
-    
+
     .sidebar {
       position: fixed; top: 56px; right: 0; width: 320px;
       height: calc(100vh - 56px); background: #252525;
@@ -185,7 +187,7 @@
     }
     .sidebar.active { display: block; }
     .sidebar h3 { font-size: 15px; margin-bottom: 12px; color: #fff; }
-    
+
     .annotation-item {
       background: #353535; border-radius: 8px; padding: 12px;
       margin-bottom: 10px; cursor: pointer;
@@ -210,7 +212,7 @@
       opacity: 0; transition: opacity 0.2s; cursor: pointer;
     }
     .annotation-item:hover .delete-icon { opacity: 1; }
-    
+
     .modal {
       position: fixed; top: 0; left: 0; right: 0; bottom: 0;
       background: rgba(0,0,0,0.85); display: none;
@@ -223,7 +225,7 @@
       box-shadow: 0 20px 60px rgba(0,0,0,0.5);
     }
     .modal-content h3 { margin-bottom: 16px; font-size: 17px; }
-    .modal-content input, .modal-content select, .modal-content textarea { 
+    .modal-content input, .modal-content select, .modal-content textarea {
       width: 100%; padding: 10px; margin-bottom: 12px;
       border: 2px solid #404040; background: #1a1a1a; color: #fff;
       border-radius: 8px; font-size: 13px; font-family: inherit;
@@ -231,7 +233,7 @@
     .modal-content input:focus, .modal-content select:focus, .modal-content textarea:focus {
       border-color: #0078d4; outline: none;
     }
-    .modal-content button { 
+    .modal-content button {
       width: 100%; padding: 12px; background: #0078d4; color: white;
       border: none; border-radius: 8px; cursor: pointer; font-weight: 600;
     }
@@ -249,21 +251,21 @@
       border: 3px solid transparent; transition: border-color 0.2s;
     }
     .color-swatch.selected { border-color: white; }
-    
-    .status { 
+
+    .status {
       font-size: 12px; padding: 6px 10px; background: #353535;
       border-radius: 6px; display: flex; align-items: center; gap: 6px; white-space: nowrap;
     }
     .status.connected { background: #107c10; }
     .status-dot { width: 7px; height: 7px; border-radius: 50%; background: #888; }
     .status.connected .status-dot { background: #4caf50; }
-    
+
     .project-select {
       padding: 6px 10px; border-radius: 6px; background: #1a1a1a; color: #fff;
       border: 1px solid #404040; font-size: 12px; max-width: 160px;
     }
     .project-select:focus { border-color: #0078d4; outline: none; }
-    
+
     .saved-list { max-height: 300px; overflow-y: auto; margin-bottom: 12px; }
     .saved-item {
       background: #353535; border-radius: 8px; padding: 10px 12px;
@@ -272,7 +274,7 @@
     .saved-item:hover { border-color: #0078d4; }
     .saved-item .name { font-weight: 600; margin-bottom: 4px; }
     .saved-item .meta { font-size: 11px; color: #888; }
-    
+
     .cors-notice {
       background: #3d2914; border: 1px solid #8b6914;
       border-radius: 8px; padding: 12px; margin-top: 12px;
@@ -286,19 +288,21 @@
   <div class="toolbar">
     <input type="file" id="file-input" accept=".pdf" style="display:none">
     <button class="btn-primary" onclick="document.getElementById('file-input').click()">📁 Local PDF</button>
-    
+
     <select class="project-select" id="project-select">
       <option value="">Project...</option>
     </select>
-    
+
     <div style="flex:1"></div>
-    
+
     <button class="btn-secondary btn-highlight" id="btn-highlight" onclick="setMode('highlight')">🖍️ Highlight</button>
     <button class="btn-secondary btn-note" id="btn-note" onclick="setMode('note')">📝 Note</button>
     <button class="btn-secondary" id="btn-select" onclick="setMode('select')">↖️ Select</button>
-    
+
     <div style="flex:1"></div>
-    
+
+    <button id="settings-btn" class="btn-secondary" onclick="toggleSettings()" title="Highlight Settings" style="font-size:16px;">⚙️</button>
+
     <div class="status" id="status"><span class="status-dot"></span>Connecting...</div>
     <div class="user-badge" id="user-badge" onclick="openNicknameModal(true)" title="Click to change name">
       <div class="user-avatar" id="user-avatar" style="background:#0078d4">?</div>
@@ -307,7 +311,7 @@
     <button class="btn-primary" onclick="saveToNotion()">💾 Save</button>
     <button class="btn-secondary" onclick="loadFromNotion()">📂 Load</button>
   </div>
-  
+
   <div class="main">
     <div id="upload-section">
       <div class="upload-box">
@@ -315,7 +319,7 @@
         <label for="file-input-main">📁 Select Local PDF</label>
         <p>Or paste a Notion PDF link below to load directly</p>
       </div>
-      
+
       <div class="url-input-box">
         <h4>🔗 Load from Notion PDF Link</h4>
         <input type="text" id="notion-url-input" placeholder="Paste Notion PDF link (https://file.notion.so/...)">
@@ -327,12 +331,12 @@
         </div>
       </div>
     </div>
-    
+
     <div id="pdf-section">
       <div id="pdf-container"></div>
     </div>
   </div>
-  
+
   <div class="sidebar" id="sidebar">
     <h3>📋 Annotations (<span id="anno-count">0</span>)</h3>
     <div id="annotation-list"></div>
@@ -349,8 +353,29 @@
       <button onclick="confirmNickname()">Start Annotating</button>
     </div>
   </div>
-  
-  <div class="modal" id="notion-modal">
+
+  <div class="modal" id="settings-panel">
+    <div class="modal-content">
+      <h3>⚙️ Highlight Settings</h3>
+      <div style="margin-bottom:20px">
+        <label style="color:#aaa;display:block;margin-bottom:12px;font-size:13px;">Highlight Thickness</label>
+        <div style="display:flex;align-items:center;gap:12px;margin-bottom:16px;">
+          <span style="color:#888;font-size:12px;">Thin</span>
+          <input type="range" id="height-slider" min="0.5" max="2.0" step="0.1" value="1.0" style="flex:1;cursor:pointer;-webkit-appearance:none;background:#444;border-radius:4px;height:6px;" oninput="updateHeightPreview(this.value)">
+          <span style="color:#888;font-size:12px;">Thick</span>
+        </div>
+        <div style="background:#1a1a1a;border-radius:8px;padding:16px;text-align:center;">
+          <div style="font-size:12px;color:#888;margin-bottom:10px;">Preview</div>
+          <div id="preview-bar" style="display:inline-block;width:120px;background:rgba(255,200,0,0.4);border-bottom:2px solid rgba(255,200,0,0.8);transition:all 0.15s;height:12px;"></div>
+        </div>
+        <div style="text-align:center;margin-top:8px;color:#666;font-size:12px;" id="height-val">100%</div>
+      </div>
+      <div style="color:#555;font-size:11px;text-align:center;margin-top:8px;">Changes apply to new highlights only</div>
+      <button onclick="closeModal('settings-panel')" style="margin-top:12px;width:100%;">Done</button>
+    </div>
+  </div>
+
+
     <div class="modal-content">
       <h3>⚙️ System Info</h3>
       <p style="margin-bottom:12px;color:#aaa;font-size:14px">Notion Token is configured server-side. No input needed.</p>
@@ -363,7 +388,7 @@
       <button onclick="closeModal('notion-modal')">Close</button>
     </div>
   </div>
-  
+
   <div class="modal" id="note-modal">
     <div class="modal-content">
       <h3>📝 Add Note</h3>
@@ -374,7 +399,7 @@
       </div>
     </div>
   </div>
-  
+
   <div class="modal" id="save-modal">
     <div class="modal-content">
       <h3>💾 Save to Notion</h3>
@@ -387,7 +412,7 @@
       <button class="secondary" onclick="closeModal('save-modal')">Cancel</button>
     </div>
   </div>
-  
+
   <div class="modal" id="load-modal">
     <div class="modal-content">
       <h3>📂 Load Annotations</h3>
@@ -486,9 +511,40 @@ function confirmNickname() {
   closeModal('nickname-modal');
 }
 
-function updateUserBadge() {
-  const initial = currentUser.name ? currentUser.name.charAt(0).toUpperCase() : '?';
-  $('user-avatar').textContent = initial;
+let highlightHeightScale = parseFloat(localStorage.getItem('highlightHeightScale')) || 1.0;
+
+function toggleSettings() {
+  const panel = $('settings-panel');
+  const isHidden = panel.classList.contains('modal') && !panel.classList.contains('active');
+  if (isHidden) {
+    panel.classList.add('active');
+    $('height-slider').value = highlightHeightScale;
+    updateHeightPreview(highlightHeightScale);
+  } else {
+    panel.classList.remove('active');
+  }
+}
+
+function updateHeightPreview(val) {
+  const scale = parseFloat(val);
+  $('height-val').textContent = Math.round(scale * 100) + '%';
+  const preview = $('preview-bar');
+  if (preview) preview.style.height = (12 * scale) + 'px';
+}
+
+function setHeightScale(val) {
+  highlightHeightScale = parseFloat(val);
+  localStorage.setItem('highlightHeightScale', highlightHeightScale);
+}
+
+$('height-slider').addEventListener('input', (e) => {
+  updateHeightPreview(e.target.value);
+});
+$('height-slider').addEventListener('change', (e) => {
+  setHeightScale(e.target.value);
+});
+
+
   $('user-avatar').style.background = currentUser.color;
   $('user-name-display').textContent = currentUser.name || 'Set name';
 }
@@ -571,10 +627,10 @@ async function loadFromNotionUrl() {
   const url = $('notion-url-input').value.trim();
   if (!url) { alert('Please enter a Notion PDF link'); return; }
   if (!url.includes('file.notion.so')) { alert('Please enter a valid file.notion.so link'); return; }
-  
+
   $('cors-notice').style.display = 'block';
   updateStatus('Loading...', false);
-  
+
   try {
     const loadingTask = pdfjsLib.getDocument({
       url, withCredentials: false,
@@ -621,49 +677,49 @@ async function renderPdfPages() {
   $('sidebar').classList.add('active');
   $('pdf-container').innerHTML = '';
   pages = [];
-  
+
   for (let i = 1; i <= totalPages; i++) {
     const page = await pdfDoc.getPage(i);
     const viewport = page.getViewport({ scale });
-    
+
     const wrapper = document.createElement('div');
     wrapper.className = 'page-wrapper';
     wrapper.dataset.page = i;
     wrapper.style.width = viewport.width + 'px';
     wrapper.style.height = viewport.height + 'px';
     wrapper.style.margin = '0 auto 24px';
-    
+
     const canvas = document.createElement('canvas');
     canvas.width = viewport.width;
     canvas.height = viewport.height;
     const ctx = canvas.getContext('2d');
-    
+
     const textLayer = document.createElement('div');
     textLayer.className = 'text-layer';
-    
+
     const highlightLayer = document.createElement('div');
     highlightLayer.className = 'highlight-layer';
-    
+
     const noteLayer = document.createElement('div');
     noteLayer.className = 'note-layer';
-    
+
     wrapper.appendChild(canvas);
     wrapper.appendChild(textLayer);
     wrapper.appendChild(highlightLayer);
     wrapper.appendChild(noteLayer);
     $('pdf-container').appendChild(wrapper);
-    
+
     await page.render({ canvasContext: ctx, viewport }).promise;
-    
+
     const textContent = await page.getTextContent();
     renderTextLayer(textContent, textLayer, viewport);
-    
+
     pages.push({ page, canvas, viewport, wrapper, textLayer, highlightLayer, noteLayer, pageNum: i, textContent });
-    
+
     setupTextSelection(textLayer, i);
     setupNoteLayer(noteLayer, i);
   }
-  
+
   setMode('select');
   updateAnnotationList();
 }
@@ -694,13 +750,13 @@ function setupTextSelection(textLayer, pageNum) {
     const range = selection.getRangeAt(0);
     const selectedText = selection.toString().trim();
     if (!selectedText) return;
-    
+
     let targetPage = null;
     for (const p of pages) {
       if (p.textLayer.contains(range.commonAncestorContainer)) { targetPage = p; break; }
     }
     if (!targetPage || targetPage.pageNum !== pageNum) return;
-    
+
     const rects = range.getClientRects();
     const pageRect = targetPage.wrapper.getBoundingClientRect();
     const highlightRects = [];
@@ -708,7 +764,7 @@ function setupTextSelection(textLayer, pageNum) {
       const r = rects[i];
       highlightRects.push({ x: r.left - pageRect.left, y: r.top - pageRect.top, width: r.width, height: r.height });
     }
-    
+
     const highlight = {
       id: 'hl_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9),
       type: 'highlight',
@@ -718,7 +774,7 @@ function setupTextSelection(textLayer, pageNum) {
       author: currentUser.name,
       rects: highlightRects
     };
-    
+
     annotations.push(highlight);
     renderHighlight(highlight, targetPage);
     updateAnnotationList();
@@ -729,10 +785,10 @@ function setupTextSelection(textLayer, pageNum) {
 function renderHighlight(highlight, page) {
   if (!page) page = pages.find(p => p.pageNum === highlight.pageNum);
   if (!page) return;
-  
+
   const color = highlight.color || getAuthorColor(highlight.author || '');
   const isOwn = highlight.author === currentUser.name;
-  
+
   highlight.rects.forEach((r, idx) => {
     const box = document.createElement('div');
     box.className = 'highlight-box';
@@ -741,18 +797,19 @@ function renderHighlight(highlight, page) {
     box.style.left = r.x + 'px';
     box.style.top = r.y + 'px';
     box.style.width = r.width + 'px';
-    box.style.height = r.height + 'px';
+    box.style.height = (r.height * highlightHeightScale) + 'px';
     box.style.background = hexToRgba(color, 0.35);
-    box.style.borderBottom = `2px solid ${hexToRgba(color, 0.8)}`;
-    
+    box.style.borderBottomStyle = 'solid';
+    box.style.borderBottomColor = hexToRgba(color, 0.8);
+
     if (idx === 0) {
       // Author label (shows on hover)
       const authorLabel = document.createElement('span');
       authorLabel.className = 'author-label';
       authorLabel.textContent = highlight.author || 'Unknown';
       box.appendChild(authorLabel);
-      
-      // Delete button — only for own annotations
+
+      // Delete button - only for own annotations
       if (isOwn) {
         const deleteBtn = document.createElement('span');
         deleteBtn.className = 'delete-btn';
@@ -761,7 +818,7 @@ function renderHighlight(highlight, page) {
         box.appendChild(deleteBtn);
       }
     }
-    
+
     box.onclick = (e) => { e.stopPropagation(); selectHighlight(highlight.id); };
     page.highlightLayer.appendChild(box);
   });
@@ -819,7 +876,7 @@ function renderNote(note) {
   const page = pages.find(p => p.pageNum === note.pageNum);
   if (!page) return;
   const color = note.color || getAuthorColor(note.author || '');
-  
+
   const marker = document.createElement('div');
   marker.className = 'note-marker';
   marker.dataset.noteId = note.id;
@@ -836,7 +893,7 @@ function showNotePopup(note, marker) {
   document.querySelectorAll('.note-popup').forEach(p => p.remove());
   const isOwn = note.author === currentUser.name;
   const color = note.color || getAuthorColor(note.author || '');
-  
+
   const popup = document.createElement('div');
   popup.className = 'note-popup';
   popup.innerHTML = `
@@ -850,12 +907,12 @@ function showNotePopup(note, marker) {
       <button class="btn-cancel" onclick="this.closest('.note-popup').remove()">Close</button>
     </div>
   `;
-  
+
   const mr = marker.getBoundingClientRect();
   popup.style.left = Math.min(mr.left, window.innerWidth - 320) + 'px';
   popup.style.top = (mr.bottom + 10) + 'px';
   document.body.appendChild(popup);
-  
+
   setTimeout(() => {
     document.addEventListener('click', function handler(e) {
       if (!popup.contains(e.target) && !marker.contains(e.target)) {
@@ -887,7 +944,7 @@ function updateAnnotationList() {
   const list = $('annotation-list');
   $('anno-count').textContent = annotations.length;
   list.innerHTML = '';
-  
+
   if (annotations.length === 0) {
     list.innerHTML = `
       <div class="empty-state">
@@ -897,13 +954,13 @@ function updateAnnotationList() {
       </div>`;
     return;
   }
-  
+
   const grouped = {};
   annotations.forEach(a => {
     if (!grouped[a.pageNum]) grouped[a.pageNum] = [];
     grouped[a.pageNum].push(a);
   });
-  
+
   Object.keys(grouped).sort((a, b) => a - b).forEach(pg => {
     grouped[pg].forEach(a => {
       const isOwn = a.author === currentUser.name;
@@ -963,7 +1020,7 @@ function saveToNotion() {
   if (!notionConfig.dbId) { alert('Database not configured.'); return; }
   if (annotations.length === 0) { alert('No annotations to save.'); return; }
   if (!currentUser.name) { openNicknameModal(false); return; }
-  
+
   $('save-project').value = $('project-select').value;
   $('pdf-name-input').value = currentPdfSource.name || '';
   $('pdf-source-url').value = currentPdfSource.url || '';
@@ -975,7 +1032,7 @@ async function confirmSave() {
   const pdfName = $('pdf-name-input').value.trim() || currentPdfSource.name || 'PDF-' + new Date().toISOString().slice(0, 10);
   const sourceUrl = $('pdf-source-url').value;
   closeModal('save-modal');
-  
+
   const data = JSON.stringify({
     pdf_name: pdfName,
     project,
@@ -985,11 +1042,11 @@ async function confirmSave() {
     source_type: currentPdfSource.type,
     created_at: new Date().toISOString()
   });
-  
+
   const chunks = [];
   for (let i = 0; i < data.length; i += 2000) chunks.push(data.slice(i, i + 2000));
   const richTextParts = chunks.map(c => ({ text: { content: c } }));
-  
+
   try {
     const resp = await fetch(PROXY_URL + '/api/notion', {
       method: 'POST',
@@ -1019,11 +1076,11 @@ async function confirmSave() {
 
 async function loadFromNotion() {
   if (!proxyReady || !notionConfig.dbId) { alert('Service not connected.'); return; }
-  
+
   try {
     const project = $('project-select').value;
     const body = project ? { filter: { property: 'Project', rich_text: { equals: project } } } : {};
-    
+
     const resp = await fetch(PROXY_URL + '/api/notion', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -1033,13 +1090,13 @@ async function loadFromNotion() {
         body: { ...body, page_size: 50 }
       })
     });
-    
+
     const result = await resp.json();
     if (result.object === 'error') { alert('Load failed: ' + result.message); return; }
-    
+
     const list = result.results || [];
     if (list.length === 0) { alert('No saved annotations found.'); return; }
-    
+
     const container = $('saved-list');
     container.innerHTML = '';
     list.forEach((page) => {
@@ -1061,12 +1118,12 @@ async function loadFromNotion() {
 async function loadAnnotations(page) {
   const dataStr = (page.properties.Annotations?.rich_text || []).map(rt => rt.plain_text).join('');
   if (!dataStr) { alert('No annotation data found.'); return; }
-  
+
   try {
     const data = JSON.parse(dataStr);
     annotations = data.annotations || [];
     currentPdfSource = { type: data.source_type || 'local', name: data.pdf_name, url: data.source_url || '' };
-    
+
     if (currentPdfSource.url && currentPdfSource.url.includes('file.notion.so')) {
       $('notion-url-input').value = currentPdfSource.url;
       await loadFromNotionUrl();
@@ -1075,15 +1132,15 @@ async function loadAnnotations(page) {
       $('upload-section').classList.remove('hidden');
       $('pdf-section').classList.remove('active');
     }
-    
+
     annotations.forEach(a => {
       if (a.type === 'highlight') renderHighlight(a);
       else renderNote(a);
     });
-    
+
     updateAnnotationList();
     closeModal('load-modal');
-    
+
     const myCount = annotations.filter(a => a.author === currentUser.name).length;
     const othersCount = annotations.length - myCount;
     alert(`✅ Loaded: ${data.pdf_name}\n${annotations.length} annotations total\n• Yours: ${myCount}\n• Others: ${othersCount}`);
