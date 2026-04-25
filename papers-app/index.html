@@ -511,6 +511,73 @@
     }
     .color-swatch.selected { border-color: white; }
 
+    /* ─── Login Screen ─── */
+    .login-screen {
+      position: fixed; inset: 0; z-index: 1000;
+      background: var(--bg-primary);
+      display: flex; align-items: center; justify-content: center;
+      flex-direction: column; gap: 24px;
+    }
+    .login-screen.hidden { display: none; }
+    .login-card {
+      background: var(--bg-secondary); border: 1px solid var(--border);
+      border-radius: 16px; padding: 40px; width: 380px; max-width: 90vw;
+      text-align: center;
+    }
+    .login-card .login-logo {
+      font-size: 36px; margin-bottom: 8px;
+    }
+    .login-card h2 {
+      font-size: 22px; font-weight: 700; margin-bottom: 6px;
+    }
+    .login-card .login-subtitle {
+      font-size: 13px; color: var(--text-muted); margin-bottom: 24px;
+    }
+    .login-card label {
+      display: block; font-size: 12px; color: var(--text-secondary);
+      margin-bottom: 6px; text-align: left;
+    }
+    .login-card input {
+      width: 100%; padding: 10px 14px; border: 1px solid var(--border);
+      border-radius: 8px; background: var(--bg-tertiary); color: var(--text-primary);
+      font-size: 14px; font-family: inherit; outline: none;
+      transition: border-color 0.2s;
+    }
+    .login-card input:focus { border-color: var(--accent); }
+    .login-card .login-btn {
+      width: 100%; padding: 11px; margin-top: 16px;
+      background: var(--accent); color: white; border: none;
+      border-radius: 8px; font-size: 14px; font-weight: 600;
+      cursor: pointer; transition: background 0.2s;
+    }
+    .login-card .login-btn:hover { background: var(--accent-hover); }
+    .login-card .login-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+    .login-card .login-error {
+      color: var(--danger); font-size: 12px; margin-top: 10px;
+      display: none;
+    }
+    .login-card .login-error.show { display: block; }
+    .login-card .login-hint {
+      font-size: 11px; color: var(--text-muted); margin-top: 16px;
+    }
+    .login-card .team-avatars {
+      display: flex; justify-content: center; gap: 8px; margin-top: 20px;
+    }
+    .login-card .team-avatars .avatar {
+      width: 32px; height: 32px; border-radius: 50%;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 12px; font-weight: 700; color: white;
+      border: 2px solid var(--bg-secondary);
+    }
+
+    /* ─── Logout Button ─── */
+    .logout-btn {
+      padding: 4px 10px; border: 1px solid var(--border); border-radius: 6px;
+      background: var(--bg-tertiary); color: var(--text-muted); cursor: pointer;
+      font-size: 11px; transition: all 0.2s;
+    }
+    .logout-btn:hover { border-color: var(--danger); color: var(--danger); }
+
     /* ─── Full-page Drag Overlay ─── */
     .drag-overlay {
       position: fixed; inset: 0; z-index: 600;
@@ -607,6 +674,32 @@
 </head>
 <body>
 
+<!-- ═══ Login Screen ═══ -->
+<div class="login-screen" id="login-screen">
+  <div class="login-card">
+    <div class="login-logo">📚</div>
+    <h2>PapersHub</h2>
+    <p class="login-subtitle">Research Team Library</p>
+    <label>Team Access Password</label>
+    <input type="password" id="login-password" placeholder="Enter password..." autocomplete="off">
+    <button class="login-btn" id="login-btn" onclick="handleLogin()">Sign In</button>
+    <div class="login-error" id="login-error">Wrong password. Please try again.</div>
+    <div class="login-hint">Contact your team lead for the password.</div>
+    <div class="team-avatars">
+      <div class="avatar" style="background:#6366f1">Q</div>
+      <div class="avatar" style="background:#22c55e">S1</div>
+      <div class="avatar" style="background:#f59e0b">S2</div>
+      <div class="avatar" style="background:#ef4444">S3</div>
+      <div class="avatar" style="background:#ec4899">S4</div>
+      <div class="avatar" style="background:#06b6d4">S5</div>
+      <div class="avatar" style="background:#8b5cf6">+</div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══ Main App (hidden until login) ═══ -->
+<div id="main-app" style="display:none">
+
 <!-- ═══ Top Bar ═══ -->
 <div class="topbar">
   <div class="logo">
@@ -630,6 +723,7 @@
       <div class="user-avatar" id="user-avatar" style="background:var(--accent)">?</div>
       <span id="user-name-display">Set name</span>
     </div>
+    <button class="logout-btn" onclick="handleLogout()" title="Sign out">↪ Sign Out</button>
     <button class="topbar-btn" onclick="openUploadModal()">+ Add Paper</button>
   </div>
 </div>
@@ -909,6 +1003,9 @@
 <!-- Toast Container -->
 <div class="toast-container" id="toasts"></div>
 
+<!-- Close main-app wrapper -->
+</div>
+
 <script>
 // ═══════════════════════════════════════════════════════════════════
 // CONFIGURATION
@@ -922,6 +1019,72 @@ const sb = supabase.createClient(SUPABASE_URL, SUPABASE_KEY, {
 
 pdfjsLib.GlobalWorkerOptions.workerSrc =
   'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+
+// ═══════════════════════════════════════════════════════════════════
+// AUTH
+// ═══════════════════════════════════════════════════════════════════
+function checkAuth() {
+  // Simple session check: token in sessionStorage
+  const token = sessionStorage.getItem('ph_auth');
+  if (token) {
+    $('login-screen').classList.add('hidden');
+    $('main-app').style.display = '';
+    return true;
+  }
+  $('login-screen').classList.remove('hidden');
+  $('main-app').style.display = 'none';
+  return false;
+}
+
+async function handleLogin() {
+  const pwd = $('login-password').value;
+  const btn = $('login-btn');
+  const err = $('login-error');
+  if (!pwd) { err.textContent = 'Please enter a password.'; err.classList.add('show'); return; }
+
+  btn.disabled = true;
+  btn.textContent = 'Verifying...';
+  err.classList.remove('show');
+
+  try {
+    const { data, error } = await sb.from('app_settings')
+      .select('value')
+      .eq('key', 'access_password')
+      .single();
+
+    if (error || !data) {
+      err.textContent = 'Configuration error. Contact admin.';
+      err.classList.add('show');
+      btn.disabled = false;
+      btn.textContent = 'Sign In';
+      return;
+    }
+
+    if (data.value === pwd) {
+      sessionStorage.setItem('ph_auth', '1');
+      $('login-screen').classList.add('hidden');
+      $('main-app').style.display = '';
+      initApp();
+    } else {
+      err.textContent = 'Wrong password. Please try again.';
+      err.classList.add('show');
+      $('login-password').value = '';
+      $('login-password').focus();
+    }
+  } catch (e) {
+    err.textContent = 'Network error. Check your connection.';
+    err.classList.add('show');
+  }
+
+  btn.disabled = false;
+  btn.textContent = 'Sign In';
+}
+
+function handleLogout() {
+  if (!confirm('Sign out of PapersHub?')) return;
+  sessionStorage.removeItem('ph_auth');
+  location.reload();
+}
 
 // ═══════════════════════════════════════════════════════════════════
 // STATE
@@ -954,7 +1117,19 @@ let quickUploadFile = null;  // file from drag-drop
 // ═══════════════════════════════════════════════════════════════════
 // INIT
 // ═══════════════════════════════════════════════════════════════════
-(async function init() {
+(function boot() {
+  // Check login first
+  if (checkAuth()) {
+    initApp();
+  }
+  // Enter key for login
+  $('login-password').addEventListener('keydown', e => {
+    if (e.key === 'Enter') handleLogin();
+  });
+  $('login-password').focus();
+})();
+
+async function initApp() {
   if (!currentUser.name) {
     openNameModal();
   } else {
