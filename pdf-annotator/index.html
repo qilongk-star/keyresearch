@@ -552,10 +552,10 @@ $('height-slider').addEventListener('change', (e) => {
   setHeightScale(e.target.value);
 });
 
-
-  $('user-avatar').style.background = currentUser.color;
-  $('user-name-display').textContent = currentUser.name || 'Set name';
-}
+  function updateUserBadge() {
+    $('user-avatar').style.background = currentUser.color;
+    $('user-name-display').textContent = currentUser.name || 'Set name';
+  }
 
 // Show nickname modal on load if no name saved
 if (!currentUser.name) {
