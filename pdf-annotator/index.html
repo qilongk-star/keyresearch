@@ -33,6 +33,23 @@
     .btn-note { background: linear-gradient(135deg, #e74c3c, #c0392b); color: white; }
     .btn-active { box-shadow: 0 0 0 3px rgba(0,120,212,0.5); }
     
+    .user-badge {
+      display: flex; align-items: center; gap: 6px;
+      background: #353535; border-radius: 20px;
+      padding: 4px 12px 4px 6px;
+      font-size: 12px; cursor: pointer;
+      border: 1px solid #505050;
+      transition: border-color 0.2s;
+      white-space: nowrap;
+    }
+    .user-badge:hover { border-color: #0078d4; }
+    .user-avatar {
+      width: 22px; height: 22px; border-radius: 50%;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 11px; font-weight: 700; color: white;
+      flex-shrink: 0;
+    }
+    
     .main { margin-top: 56px; padding: 20px; }
     
     #upload-section { text-align: center; padding: 40px 20px; }
@@ -77,7 +94,6 @@
     }
     .page-wrapper canvas { display: block; }
     
-    /* Text layer for accurate text selection */
     .text-layer {
       position: absolute;
       top: 0; left: 0; right: 0; bottom: 0;
@@ -86,333 +102,228 @@
       user-select: text;
       -webkit-user-select: text;
     }
-    .text-layer ::selection {
-      background: rgba(0, 120, 212, 0.3);
-    }
+    .text-layer ::selection { background: rgba(0, 120, 212, 0.3); }
     .text-layer span {
-      position: absolute;
-      white-space: pre;
-      cursor: text;
-      transform-origin: 0% 0%;
-      color: transparent;
+      position: absolute; white-space: pre; cursor: text;
+      transform-origin: 0% 0%; color: transparent;
     }
     
-    /* Highlight layer */
     .highlight-layer {
-      position: absolute;
-      top: 0; left: 0; right: 0; bottom: 0;
-      pointer-events: none;
-      z-index: 10;
+      position: absolute; top: 0; left: 0; right: 0; bottom: 0;
+      pointer-events: none; z-index: 10;
     }
     .highlight-box {
-      position: absolute;
-      background: rgba(255, 215, 0, 0.4);
-      border-radius: 2px;
-      pointer-events: auto;
-      cursor: pointer;
-      transition: background 0.2s;
+      position: absolute; border-radius: 2px;
+      pointer-events: auto; cursor: pointer; transition: opacity 0.2s;
     }
-    .highlight-box:hover {
-      background: rgba(255, 215, 0, 0.6);
-    }
-    .highlight-box.selected {
-      box-shadow: 0 0 0 2px #0078d4;
-    }
+    .highlight-box:hover { opacity: 0.85; }
+    .highlight-box.selected { box-shadow: 0 0 0 2px #0078d4; }
     .highlight-box .delete-btn {
-      position: absolute;
-      top: -8px; right: -8px;
-      width: 16px; height: 16px;
-      background: #e74c3c;
-      border-radius: 50%;
-      color: white;
-      font-size: 10px;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      cursor: pointer;
-      opacity: 0;
-      transition: opacity 0.2s;
+      position: absolute; top: -8px; right: -8px;
+      width: 16px; height: 16px; background: #e74c3c;
+      border-radius: 50%; color: white; font-size: 10px;
+      display: flex; align-items: center; justify-content: center;
+      cursor: pointer; opacity: 0; transition: opacity 0.2s; z-index: 20;
     }
-    .highlight-box:hover .delete-btn {
-      opacity: 1;
+    .highlight-box:hover .delete-btn { opacity: 1; }
+    /* Author label on highlight */
+    .highlight-box .author-label {
+      position: absolute; bottom: calc(100% + 2px); left: 0;
+      background: rgba(0,0,0,0.75); color: #fff;
+      font-size: 10px; padding: 2px 5px; border-radius: 3px;
+      white-space: nowrap; pointer-events: none;
+      opacity: 0; transition: opacity 0.2s;
     }
+    .highlight-box:hover .author-label { opacity: 1; }
     
-    /* Note layer */
     .note-layer {
-      position: absolute;
-      top: 0; left: 0; right: 0; bottom: 0;
-      pointer-events: none;
-      z-index: 20;
+      position: absolute; top: 0; left: 0; right: 0; bottom: 0;
+      pointer-events: none; z-index: 20;
     }
-    .note-layer.active {
-      pointer-events: auto;
-      cursor: crosshair;
-    }
+    .note-layer.active { pointer-events: auto; cursor: crosshair; }
     
     .note-marker {
-      position: absolute;
-      width: 28px; height: 28px; 
-      background: linear-gradient(135deg, #e74c3c, #c0392b);
+      position: absolute; width: 28px; height: 28px; 
       border-radius: 50% 50% 50% 0;
-      cursor: pointer; 
-      display: flex;
-      align-items: center;
-      justify-content: center; 
-      font-size: 12px;
-      color: white;
-      font-weight: bold;
-      box-shadow: 0 2px 8px rgba(231,76,60,0.4);
-      pointer-events: auto;
-      transition: transform 0.2s;
+      cursor: pointer; display: flex; align-items: center; justify-content: center; 
+      font-size: 12px; color: white; font-weight: bold;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.4);
+      pointer-events: auto; transition: transform 0.2s;
       transform: rotate(-45deg);
     }
-    .note-marker span {
-      transform: rotate(45deg);
-    }
-    .note-marker:hover { 
-      transform: rotate(-45deg) scale(1.1); 
-    }
+    .note-marker span { transform: rotate(45deg); }
+    .note-marker:hover { transform: rotate(-45deg) scale(1.1); }
     
     .note-popup {
-      position: fixed;
-      background: #fff;
-      color: #333;
-      padding: 16px;
-      border-radius: 12px;
-      width: 300px;
-      max-width: 90vw;
-      box-shadow: 0 8px 32px rgba(0,0,0,0.3);
-      z-index: 1000;
-      font-size: 14px;
-      line-height: 1.5;
+      position: fixed; background: #fff; color: #333;
+      padding: 16px; border-radius: 12px; width: 300px; max-width: 90vw;
+      box-shadow: 0 8px 32px rgba(0,0,0,0.3); z-index: 1000;
+      font-size: 14px; line-height: 1.5;
     }
-    .note-popup-content {
-      margin-bottom: 12px;
-      white-space: pre-wrap;
-      word-break: break-word;
+    .note-popup-author {
+      font-size: 11px; color: #888; margin-bottom: 8px;
+      display: flex; align-items: center; gap: 5px;
     }
-    .note-popup-buttons { 
-      display: flex;
-      gap: 8px;
+    .note-popup-author .dot {
+      width: 8px; height: 8px; border-radius: 50%; display: inline-block;
     }
+    .note-popup-content { margin-bottom: 12px; white-space: pre-wrap; word-break: break-word; }
+    .note-popup-buttons { display: flex; gap: 8px; }
     .note-popup button { 
-      flex: 1;
-      padding: 8px 14px;
-      border: none;
-      border-radius: 6px;
-      cursor: pointer;
-      font-weight: 500;
-      font-size: 13px;
+      flex: 1; padding: 8px 14px; border: none; border-radius: 6px;
+      cursor: pointer; font-weight: 500; font-size: 13px;
     }
     .note-popup .btn-save { background: #0078d4; color: white; }
     .note-popup .btn-delete { background: #e74c3c; color: white; }
     .note-popup .btn-cancel { background: #666; color: white; }
     
     .sidebar {
-      position: fixed;
-      top: 56px;
-      right: 0;
-      width: 320px;
-      height: calc(100vh - 56px);
-      background: #252525;
-      border-left: 1px solid #404040;
-      overflow-y: auto;
-      padding: 16px;
-      display: none;
+      position: fixed; top: 56px; right: 0; width: 320px;
+      height: calc(100vh - 56px); background: #252525;
+      border-left: 1px solid #404040; overflow-y: auto;
+      padding: 16px; display: none;
     }
     .sidebar.active { display: block; }
     .sidebar h3 { font-size: 15px; margin-bottom: 12px; color: #fff; }
     
     .annotation-item {
-      background: #353535;
-      border-radius: 8px;
-      padding: 12px;
-      margin-bottom: 10px;
-      cursor: pointer;
-      border: 2px solid transparent;
-      transition: all 0.2s;
-      position: relative;
+      background: #353535; border-radius: 8px; padding: 12px;
+      margin-bottom: 10px; cursor: pointer;
+      border: 2px solid transparent; transition: all 0.2s; position: relative;
     }
     .annotation-item:hover { border-color: #0078d4; }
-    .annotation-item.highlight { border-left: 3px solid #ffd700; }
-    .annotation-item.note { border-left: 3px solid #e74c3c; }
-    .annotation-item .page { font-size: 11px; color: #888; margin-bottom: 4px; }
+    .annotation-item .item-header {
+      display: flex; align-items: center; gap: 6px; margin-bottom: 5px;
+    }
+    .annotation-item .item-author {
+      font-size: 11px; font-weight: 600; padding: 1px 6px;
+      border-radius: 10px; color: white;
+    }
+    .annotation-item .item-page { font-size: 11px; color: #888; }
+    .annotation-item .item-type { font-size: 11px; color: #888; }
     .annotation-item .text { font-size: 13px; color: #ddd; line-height: 1.4; }
     .annotation-item .delete-icon {
-      position: absolute;
-      top: 8px;
-      right: 8px;
-      width: 20px;
-      height: 20px;
-      background: #e74c3c;
-      border-radius: 50%;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      font-size: 12px;
-      opacity: 0;
-      transition: opacity 0.2s;
+      position: absolute; top: 8px; right: 8px;
+      width: 20px; height: 20px; background: #e74c3c;
+      border-radius: 50%; display: flex; align-items: center;
+      justify-content: center; font-size: 12px;
+      opacity: 0; transition: opacity 0.2s; cursor: pointer;
     }
-    .annotation-item:hover .delete-icon {
-      opacity: 1;
-    }
+    .annotation-item:hover .delete-icon { opacity: 1; }
     
     .modal {
-      position: fixed;
-      top: 0;
-      left: 0;
-      right: 0;
-      bottom: 0;
-      background: rgba(0,0,0,0.85);
-      display: none;
-      align-items: center;
-      justify-content: center;
-      z-index: 2000;
+      position: fixed; top: 0; left: 0; right: 0; bottom: 0;
+      background: rgba(0,0,0,0.85); display: none;
+      align-items: center; justify-content: center; z-index: 2000;
     }
     .modal.active { display: flex; }
     .modal-content {
-      background: #2d2d2d;
-      padding: 28px;
-      border-radius: 14px;
-      width: 420px;
-      max-width: 90%;
+      background: #2d2d2d; padding: 28px; border-radius: 14px;
+      width: 420px; max-width: 90%;
       box-shadow: 0 20px 60px rgba(0,0,0,0.5);
     }
     .modal-content h3 { margin-bottom: 16px; font-size: 17px; }
     .modal-content input, .modal-content select, .modal-content textarea { 
-      width: 100%;
-      padding: 10px;
-      margin-bottom: 12px;
-      border: 2px solid #404040;
-      background: #1a1a1a;
-      color: #fff;
-      border-radius: 8px;
-      font-size: 13px;
-      font-family: inherit;
+      width: 100%; padding: 10px; margin-bottom: 12px;
+      border: 2px solid #404040; background: #1a1a1a; color: #fff;
+      border-radius: 8px; font-size: 13px; font-family: inherit;
     }
     .modal-content input:focus, .modal-content select:focus, .modal-content textarea:focus {
-      border-color: #0078d4;
-      outline: none;
+      border-color: #0078d4; outline: none;
     }
     .modal-content button { 
-      width: 100%;
-      padding: 12px;
-      background: #0078d4;
-      color: white;
-      border: none;
-      border-radius: 8px;
-      cursor: pointer;
-      font-weight: 600;
+      width: 100%; padding: 12px; background: #0078d4; color: white;
+      border: none; border-radius: 8px; cursor: pointer; font-weight: 600;
     }
     .modal-content button:hover { background: #106ebe; }
-    .modal-content button.secondary {
-      background: #404040;
-      margin-top: 8px;
+    .modal-content button.secondary { background: #404040; margin-top: 8px; }
+
+    /* Nickname modal special styles */
+    #nickname-modal .modal-content { max-width: 360px; }
+    .nickname-hint { font-size: 13px; color: #aaa; margin-bottom: 16px; line-height: 1.5; }
+    .color-picker-row {
+      display: flex; gap: 8px; margin-bottom: 16px; flex-wrap: wrap;
     }
+    .color-swatch {
+      width: 28px; height: 28px; border-radius: 50%; cursor: pointer;
+      border: 3px solid transparent; transition: border-color 0.2s;
+    }
+    .color-swatch.selected { border-color: white; }
     
     .status { 
-      font-size: 12px;
-      padding: 6px 10px;
-      background: #353535;
-      border-radius: 6px;
-      display: flex;
-      align-items: center;
-      gap: 6px;
-      white-space: nowrap;
+      font-size: 12px; padding: 6px 10px; background: #353535;
+      border-radius: 6px; display: flex; align-items: center; gap: 6px; white-space: nowrap;
     }
     .status.connected { background: #107c10; }
     .status-dot { width: 7px; height: 7px; border-radius: 50%; background: #888; }
     .status.connected .status-dot { background: #4caf50; }
     
     .project-select {
-      padding: 6px 10px;
-      border-radius: 6px;
-      background: #1a1a1a;
-      color: #fff;
-      border: 1px solid #404040;
-      font-size: 12px;
-      max-width: 160px;
+      padding: 6px 10px; border-radius: 6px; background: #1a1a1a; color: #fff;
+      border: 1px solid #404040; font-size: 12px; max-width: 160px;
     }
     .project-select:focus { border-color: #0078d4; outline: none; }
     
-    .saved-list {
-      max-height: 300px;
-      overflow-y: auto;
-      margin-bottom: 12px;
-    }
+    .saved-list { max-height: 300px; overflow-y: auto; margin-bottom: 12px; }
     .saved-item {
-      background: #353535;
-      border-radius: 8px;
-      padding: 10px 12px;
-      margin-bottom: 8px;
-      cursor: pointer;
-      border: 2px solid transparent;
-      transition: all 0.2s;
+      background: #353535; border-radius: 8px; padding: 10px 12px;
+      margin-bottom: 8px; cursor: pointer; border: 2px solid transparent; transition: all 0.2s;
     }
     .saved-item:hover { border-color: #0078d4; }
     .saved-item .name { font-weight: 600; margin-bottom: 4px; }
     .saved-item .meta { font-size: 11px; color: #888; }
     
     .cors-notice {
-      background: #3d2914;
-      border: 1px solid #8b6914;
-      border-radius: 8px;
-      padding: 12px;
-      margin-top: 12px;
-      font-size: 12px;
-      color: #d4a84b;
+      background: #3d2914; border: 1px solid #8b6914;
+      border-radius: 8px; padding: 12px; margin-top: 12px;
+      font-size: 12px; color: #d4a84b;
     }
-    
-    .empty-state {
-      text-align: center;
-      padding: 40px 20px;
-      color: #666;
-    }
-    .empty-state-icon {
-      font-size: 48px;
-      margin-bottom: 16px;
-    }
+    .empty-state { text-align: center; padding: 40px 20px; color: #666; }
+    .empty-state-icon { font-size: 48px; margin-bottom: 16px; }
   </style>
 </head>
 <body>
   <div class="toolbar">
     <input type="file" id="file-input" accept=".pdf" style="display:none">
-    <button class="btn-primary" onclick="document.getElementById('file-input').click()">📁 本地PDF</button>
+    <button class="btn-primary" onclick="document.getElementById('file-input').click()">📁 Local PDF</button>
     
     <select class="project-select" id="project-select">
-      <option value="">选项目...</option>
+      <option value="">Project...</option>
     </select>
     
     <div style="flex:1"></div>
     
-    <button class="btn-secondary btn-highlight" id="btn-highlight" onclick="setMode('highlight')">🖍️ 高亮</button>
-    <button class="btn-secondary btn-note" id="btn-note" onclick="setMode('note')">📝 批注</button>
-    <button class="btn-secondary" id="btn-select" onclick="setMode('select')">↖️ 选择</button>
+    <button class="btn-secondary btn-highlight" id="btn-highlight" onclick="setMode('highlight')">🖍️ Highlight</button>
+    <button class="btn-secondary btn-note" id="btn-note" onclick="setMode('note')">📝 Note</button>
+    <button class="btn-secondary" id="btn-select" onclick="setMode('select')">↖️ Select</button>
     
     <div style="flex:1"></div>
     
-    <div class="status" id="status"><span class="status-dot"></span>未连接</div>
-    <button class="btn-primary" onclick="openNotionSetup()" style="padding:6px 10px;font-size:11px">⚙️</button>
-    <button class="btn-primary" onclick="saveToNotion()">💾 保存</button>
-    <button class="btn-secondary" onclick="loadFromNotion()">📂 加载</button>
+    <div class="status" id="status"><span class="status-dot"></span>Connecting...</div>
+    <div class="user-badge" id="user-badge" onclick="openNicknameModal(true)" title="Click to change name">
+      <div class="user-avatar" id="user-avatar" style="background:#0078d4">?</div>
+      <span id="user-name-display">Set name</span>
+    </div>
+    <button class="btn-primary" onclick="saveToNotion()">💾 Save</button>
+    <button class="btn-secondary" onclick="loadFromNotion()">📂 Load</button>
   </div>
   
   <div class="main">
     <div id="upload-section">
       <div class="upload-box">
         <input type="file" id="file-input-main" accept=".pdf">
-        <label for="file-input-main">📁 选择本地 PDF 文件</label>
-        <p>或粘贴 Notion PDF 链接直接加载</p>
+        <label for="file-input-main">📁 Select Local PDF</label>
+        <p>Or paste a Notion PDF link below to load directly</p>
       </div>
       
       <div class="url-input-box">
-        <h4>🔗 从 Notion PDF 链接加载</h4>
-        <input type="text" id="notion-url-input" placeholder="粘贴 Notion PDF 链接 (https://file.notion.so/...)">
-        <button class="btn-primary" onclick="loadFromNotionUrl()">加载 PDF</button>
-        <div class="hint">支持 file.notion.so 链接，需要链接包含有效的下载 token</div>
+        <h4>🔗 Load from Notion PDF Link</h4>
+        <input type="text" id="notion-url-input" placeholder="Paste Notion PDF link (https://file.notion.so/...)">
+        <button class="btn-primary" onclick="loadFromNotionUrl()">Load PDF</button>
+        <div class="hint">Supports file.notion.so links with valid download token</div>
         <div class="cors-notice" id="cors-notice" style="display:none">
-          ⚠️ 由于浏览器安全限制，直接加载 Notion 链接可能失败。<br>
-          如果失败，请在 Notion 中点击 PDF → 下载到本地 → 用「本地PDF」打开
+          ⚠️ Direct loading of Notion links may fail due to browser security (CORS).<br>
+          If it fails, download the PDF from Notion and open it with "Local PDF".
         </div>
       </div>
     </div>
@@ -423,53 +334,65 @@
   </div>
   
   <div class="sidebar" id="sidebar">
-    <h3>📋 批注列表 (<span id="anno-count">0</span>)</h3>
+    <h3>📋 Annotations (<span id="anno-count">0</span>)</h3>
     <div id="annotation-list"></div>
+  </div>
+
+  <!-- Nickname Modal -->
+  <div class="modal active" id="nickname-modal">
+    <div class="modal-content">
+      <h3>👤 Who are you?</h3>
+      <p class="nickname-hint">Enter your name or nickname. It will be shown on all your highlights and notes so teammates know who annotated what.</p>
+      <input type="text" id="nickname-input" placeholder="e.g. Alice, Bob, Prof. Zhang..." maxlength="30">
+      <p style="font-size:12px;color:#aaa;margin-bottom:10px">Pick a color for your annotations:</p>
+      <div class="color-picker-row" id="color-picker-row"></div>
+      <button onclick="confirmNickname()">Start Annotating</button>
+    </div>
   </div>
   
   <div class="modal" id="notion-modal">
     <div class="modal-content">
-      <h3>⚙️ 系统信息</h3>
-      <p style="margin-bottom:12px;color:#aaa;font-size:14px">Notion Token 已在服务端配置，学生无需输入。</p>
+      <h3>⚙️ System Info</h3>
+      <p style="margin-bottom:12px;color:#aaa;font-size:14px">Notion Token is configured server-side. No input needed.</p>
       <div style="background:#1a1a1a;border-radius:8px;padding:12px;margin-bottom:16px">
-        <div style="font-size:12px;color:#888">连接状态</div>
-        <div style="font-size:14px;color:#4caf50">✅ 已连接 (代理服务)</div>
-        <div style="font-size:12px;color:#888;margin-top:8px">数据库 ID</div>
+        <div style="font-size:12px;color:#888">Connection</div>
+        <div style="font-size:14px;color:#4caf50">✅ Connected (proxy)</div>
+        <div style="font-size:12px;color:#888;margin-top:8px">Database ID</div>
         <div style="font-size:13px;color:#ddd;font-family:monospace;word-break:break-all" id="db-display"></div>
       </div>
-      <button onclick="closeModal('notion-modal')">关闭</button>
+      <button onclick="closeModal('notion-modal')">Close</button>
     </div>
   </div>
   
   <div class="modal" id="note-modal">
     <div class="modal-content">
-      <h3>📝 添加批注</h3>
-      <textarea id="note-text" rows="4" placeholder="输入批注内容..."></textarea>
+      <h3>📝 Add Note</h3>
+      <textarea id="note-text" rows="4" placeholder="Type your note..."></textarea>
       <div style="display:flex;gap:10px;margin-top:12px">
-        <button onclick="saveNote()" style="flex:1">保存</button>
-        <button class="secondary" onclick="closeModal('note-modal')" style="flex:1">取消</button>
+        <button onclick="saveNote()" style="flex:1">Save</button>
+        <button class="secondary" onclick="closeModal('note-modal')" style="flex:1">Cancel</button>
       </div>
     </div>
   </div>
   
   <div class="modal" id="save-modal">
     <div class="modal-content">
-      <h3>💾 保存到 Notion</h3>
+      <h3>💾 Save to Notion</h3>
       <select id="save-project">
-        <option value="">选择项目...</option>
+        <option value="">Select project...</option>
       </select>
-      <input type="text" id="pdf-name-input" placeholder="PDF 名称（如：Smith2023-AI_Ethics）">
+      <input type="text" id="pdf-name-input" placeholder="PDF name (e.g. Smith2023-AI_Ethics)">
       <input type="hidden" id="pdf-source-url">
-      <button onclick="confirmSave()">保存</button>
-      <button class="secondary" onclick="closeModal('save-modal')">取消</button>
+      <button onclick="confirmSave()">Save</button>
+      <button class="secondary" onclick="closeModal('save-modal')">Cancel</button>
     </div>
   </div>
   
   <div class="modal" id="load-modal">
     <div class="modal-content">
-      <h3>📂 加载标注</h3>
+      <h3>📂 Load Annotations</h3>
       <div class="saved-list" id="saved-list"></div>
-      <button class="secondary" onclick="closeModal('load-modal')">关闭</button>
+      <button class="secondary" onclick="closeModal('load-modal')">Close</button>
     </div>
   </div>
 
@@ -479,13 +402,30 @@ pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs
 const DEFAULT_DB_ID = '34b3730d-690c-814a-b412-d8ea7186b88d';
 const PROXY_URL = 'https://notion-proxy.keyresearch.workers.dev';
 
+// Annotation colors palette (for different users)
+const PALETTE = [
+  '#f59e0b', // amber
+  '#10b981', // emerald
+  '#3b82f6', // blue
+  '#ec4899', // pink
+  '#8b5cf6', // violet
+  '#ef4444', // red
+  '#06b6d4', // cyan
+  '#84cc16', // lime
+];
+
 let pdfDoc = null, totalPages = 0, mode = 'select', scale = 1.5;
 let annotations = [], pages = [], pendingNotePosition = null;
 let currentPdfSource = { type: 'local', name: '', url: '' };
 let selectedHighlight = null;
 let proxyReady = false;
 
-// DB ID can still be customized by admin via URL hash
+// Current user
+let currentUser = {
+  name: localStorage.getItem('annotator_name') || '',
+  color: localStorage.getItem('annotator_color') || PALETTE[0]
+};
+
 let notionConfig = {
   dbId: new URLSearchParams(location.hash.slice(1)).get('db') || DEFAULT_DB_ID
 };
@@ -500,16 +440,95 @@ const PROJECTS = [
 
 function $(id) { return document.getElementById(id); }
 
-function updateStatus(text, connected = false) {
-  const s = $('status');
-  s.innerHTML = `<span class="status-dot"></span>${text}`;
-  s.className = 'status' + (connected ? ' connected' : '');
+// ─── Nickname / User Setup ───────────────────────────────────────────────────
+
+function initColorPicker() {
+  const row = $('color-picker-row');
+  row.innerHTML = '';
+  PALETTE.forEach(color => {
+    const sw = document.createElement('div');
+    sw.className = 'color-swatch' + (color === currentUser.color ? ' selected' : '');
+    sw.style.background = color;
+    sw.onclick = () => {
+      document.querySelectorAll('.color-swatch').forEach(s => s.classList.remove('selected'));
+      sw.classList.add('selected');
+      currentUser.color = color;
+    };
+    row.appendChild(sw);
+  });
 }
+
+function openNicknameModal(allowCancel = false) {
+  $('nickname-input').value = currentUser.name;
+  initColorPicker();
+  $('nickname-modal').classList.add('active');
+
+  // If user already has a name, allow closing by clicking outside
+  if (allowCancel && currentUser.name) {
+    const modal = $('nickname-modal');
+    const handler = (e) => {
+      if (e.target === modal) {
+        modal.classList.remove('active');
+        modal.removeEventListener('click', handler);
+      }
+    };
+    modal.addEventListener('click', handler);
+  }
+}
+
+function confirmNickname() {
+  const name = $('nickname-input').value.trim();
+  if (!name) { alert('Please enter a name.'); return; }
+  currentUser.name = name;
+  localStorage.setItem('annotator_name', name);
+  localStorage.setItem('annotator_color', currentUser.color);
+  updateUserBadge();
+  closeModal('nickname-modal');
+}
+
+function updateUserBadge() {
+  const initial = currentUser.name ? currentUser.name.charAt(0).toUpperCase() : '?';
+  $('user-avatar').textContent = initial;
+  $('user-avatar').style.background = currentUser.color;
+  $('user-name-display').textContent = currentUser.name || 'Set name';
+}
+
+// Show nickname modal on load if no name saved
+if (!currentUser.name) {
+  openNicknameModal(false);
+} else {
+  $('nickname-modal').classList.remove('active');
+  updateUserBadge();
+}
+
+// ─── Color helpers ────────────────────────────────────────────────────────────
+
+// Assign a consistent color to a given author name
+const authorColorCache = {};
+function getAuthorColor(authorName) {
+  if (authorName === currentUser.name) return currentUser.color;
+  if (authorColorCache[authorName]) return authorColorCache[authorName];
+  // Hash the name to pick a palette color
+  let hash = 0;
+  for (let i = 0; i < authorName.length; i++) hash = (hash * 31 + authorName.charCodeAt(i)) & 0xffffffff;
+  const color = PALETTE[Math.abs(hash) % PALETTE.length];
+  authorColorCache[authorName] = color;
+  return color;
+}
+
+function hexToRgba(hex, alpha) {
+  const r = parseInt(hex.slice(1,3),16);
+  const g = parseInt(hex.slice(3,5),16);
+  const b = parseInt(hex.slice(5,7),16);
+  return `rgba(${r},${g},${b},${alpha})`;
+}
+
+// ─── Projects ─────────────────────────────────────────────────────────────────
 
 function initProjects() {
   ['project-select', 'save-project'].forEach(id => {
     const sel = $(id);
-    sel.innerHTML = '<option value="">选项目...</option>';
+    sel.innerHTML = `<option value="">${id === 'project-select' ? 'Project...' : 'Select project...'}</option>`;
     PROJECTS.forEach(p => {
       const opt = document.createElement('option');
       opt.value = p; opt.textContent = p;
@@ -521,78 +540,80 @@ function initProjects() {
 }
 initProjects();
 
+// ─── Status ───────────────────────────────────────────────────────────────────
+
+function updateStatus(text, connected = false) {
+  const s = $('status');
+  s.innerHTML = `<span class="status-dot"></span>${text}`;
+  s.className = 'status' + (connected ? ' connected' : '');
+}
+
 checkProxy();
+
+// ─── Mode ─────────────────────────────────────────────────────────────────────
 
 function setMode(m) {
   mode = m;
-  
-  // Update button states
   ['highlight','note','select'].forEach(id => {
     const btn = $('btn-' + id);
     if (btn) btn.classList.toggle('btn-active', id === m);
   });
-  
-  // Update note layer
   document.querySelectorAll('.note-layer').forEach(layer => {
     layer.classList.toggle('active', m === 'note');
   });
-  
-  // Clear selection
   selectedHighlight = null;
   document.querySelectorAll('.highlight-box').forEach(h => h.classList.remove('selected'));
 }
 
-// Load PDF from Notion URL
+// ─── Load PDF ─────────────────────────────────────────────────────────────────
+
 async function loadFromNotionUrl() {
   const url = $('notion-url-input').value.trim();
-  if (!url) { alert('请输入 Notion PDF 链接'); return; }
-  if (!url.includes('file.notion.so')) { alert('请输入有效的 Notion file.notion.so 链接'); return; }
+  if (!url) { alert('Please enter a Notion PDF link'); return; }
+  if (!url.includes('file.notion.so')) { alert('Please enter a valid file.notion.so link'); return; }
   
   $('cors-notice').style.display = 'block';
-  updateStatus('加载中...', false);
+  updateStatus('Loading...', false);
   
   try {
     const loadingTask = pdfjsLib.getDocument({
-      url: url,
-      withCredentials: false,
+      url, withCredentials: false,
       cMapUrl: 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/cmaps/',
       cMapPacked: true
     });
-    
     loadingTask.onProgress = ({ loaded, total }) => {
       const pct = total ? Math.round(loaded / total * 100) : 0;
-      updateStatus(`加载中 ${pct}%...`, false);
+      updateStatus(`Loading ${pct}%...`, false);
     };
-    
     pdfDoc = await loadingTask.promise;
     totalPages = pdfDoc.numPages;
-    
     const urlObj = new URL(url);
     const nameMatch = urlObj.searchParams.get('downloadName') || url.split('/').pop().split('?')[0];
-    currentPdfSource = { type: 'notion', name: decodeURIComponent(nameMatch || 'Notion-PDF'), url: url };
-    
+    currentPdfSource = { type: 'notion', name: decodeURIComponent(nameMatch || 'Notion-PDF'), url };
     renderPdfPages();
-    updateStatus(`${totalPages} 页已加载`, true);
-    
+    updateStatus(`${totalPages} pages loaded`, true);
   } catch (err) {
-    console.error('Load error:', err);
-    updateStatus('加载失败', false);
-    alert('加载失败: ' + err.message + '\n\n可能原因：\n1. 链接已过期（Notion 链接有时效性）\n2. 浏览器安全限制（CORS）\n\n建议：下载 PDF 后用「本地PDF」打开');
+    updateStatus('Load failed', false);
+    alert('Load failed: ' + err.message + '\n\nPossible reasons:\n1. Link expired\n2. CORS restriction\n\nTip: Download the PDF and open with "Local PDF"');
   }
 }
 
-// Load PDF from local file
 async function loadPDF(file) {
   if (!file) return;
-  
+  if (!currentUser.name) {
+    openNicknameModal(false);
+    alert('Please set your name first, then re-open the file.');
+    return;
+  }
   const arrayBuffer = await file.arrayBuffer();
   pdfDoc = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
   totalPages = pdfDoc.numPages;
   currentPdfSource = { type: 'local', name: file.name.replace('.pdf', ''), url: '' };
-  
   renderPdfPages();
-  updateStatus(`${totalPages} 页已加载`, true);
+  updateStatus(`${totalPages} pages loaded`, true);
 }
+
+// ─── Render PDF ───────────────────────────────────────────────────────────────
 
 async function renderPdfPages() {
   $('upload-section').classList.add('hidden');
@@ -612,21 +633,17 @@ async function renderPdfPages() {
     wrapper.style.height = viewport.height + 'px';
     wrapper.style.margin = '0 auto 24px';
     
-    // Canvas for rendering
     const canvas = document.createElement('canvas');
     canvas.width = viewport.width;
     canvas.height = viewport.height;
     const ctx = canvas.getContext('2d');
     
-    // Text layer for accurate text selection
     const textLayer = document.createElement('div');
     textLayer.className = 'text-layer';
     
-    // Highlight layer
     const highlightLayer = document.createElement('div');
     highlightLayer.className = 'highlight-layer';
     
-    // Note layer
     const noteLayer = document.createElement('div');
     noteLayer.className = 'note-layer';
     
@@ -636,24 +653,12 @@ async function renderPdfPages() {
     wrapper.appendChild(noteLayer);
     $('pdf-container').appendChild(wrapper);
     
-    // Render page
     await page.render({ canvasContext: ctx, viewport }).promise;
     
-    // Render text layer
     const textContent = await page.getTextContent();
     renderTextLayer(textContent, textLayer, viewport);
     
-    pages.push({
-      page,
-      canvas,
-      viewport,
-      wrapper,
-      textLayer,
-      highlightLayer,
-      noteLayer,
-      pageNum: i,
-      textContent
-    });
+    pages.push({ page, canvas, viewport, wrapper, textLayer, highlightLayer, noteLayer, pageNum: i, textContent });
     
     setupTextSelection(textLayer, i);
     setupNoteLayer(noteLayer, i);
@@ -668,7 +673,6 @@ function renderTextLayer(textContent, container, viewport) {
     const tx = pdfjsLib.Util.transform(viewport.transform, item.transform);
     const fontHeight = Math.hypot(tx[0], tx[1]);
     const fontWidth = Math.hypot(tx[2], tx[3]);
-    
     const el = document.createElement('span');
     el.textContent = item.str;
     el.style.left = tx[4] + 'px';
@@ -676,63 +680,48 @@ function renderTextLayer(textContent, container, viewport) {
     el.style.fontSize = fontHeight + 'px';
     el.style.fontFamily = item.fontName;
     el.style.transform = `scaleX(${fontWidth / fontHeight})`;
-    
     container.appendChild(el);
   });
 }
 
+// ─── Text Selection / Highlight ───────────────────────────────────────────────
+
 function setupTextSelection(textLayer, pageNum) {
-  // Handle text selection for highlighting
   document.addEventListener('mouseup', () => {
     if (mode !== 'highlight') return;
-    
     const selection = window.getSelection();
     if (!selection.rangeCount || selection.isCollapsed) return;
-    
     const range = selection.getRangeAt(0);
     const selectedText = selection.toString().trim();
     if (!selectedText) return;
     
-    // Find which page this selection belongs to
     let targetPage = null;
     for (const p of pages) {
-      if (p.textLayer.contains(range.commonAncestorContainer)) {
-        targetPage = p;
-        break;
-      }
+      if (p.textLayer.contains(range.commonAncestorContainer)) { targetPage = p; break; }
     }
     if (!targetPage || targetPage.pageNum !== pageNum) return;
     
-    // Get selection rectangles
     const rects = range.getClientRects();
     const pageRect = targetPage.wrapper.getBoundingClientRect();
-    
     const highlightRects = [];
     for (let i = 0; i < rects.length; i++) {
       const r = rects[i];
-      highlightRects.push({
-        x: r.left - pageRect.left,
-        y: r.top - pageRect.top,
-        width: r.width,
-        height: r.height
-      });
+      highlightRects.push({ x: r.left - pageRect.left, y: r.top - pageRect.top, width: r.width, height: r.height });
     }
     
-    // Create highlight
     const highlight = {
       id: 'hl_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9),
       type: 'highlight',
-      pageNum: pageNum,
+      pageNum,
       text: selectedText,
-      color: '#ffd700',
+      color: currentUser.color,
+      author: currentUser.name,
       rects: highlightRects
     };
     
     annotations.push(highlight);
     renderHighlight(highlight, targetPage);
     updateAnnotationList();
-    
-    // Clear selection
     selection.removeAllRanges();
   });
 }
@@ -740,6 +729,9 @@ function setupTextSelection(textLayer, pageNum) {
 function renderHighlight(highlight, page) {
   if (!page) page = pages.find(p => p.pageNum === highlight.pageNum);
   if (!page) return;
+  
+  const color = highlight.color || getAuthorColor(highlight.author || '');
+  const isOwn = highlight.author === currentUser.name;
   
   highlight.rects.forEach((r, idx) => {
     const box = document.createElement('div');
@@ -750,26 +742,27 @@ function renderHighlight(highlight, page) {
     box.style.top = r.y + 'px';
     box.style.width = r.width + 'px';
     box.style.height = r.height + 'px';
-    box.style.background = (highlight.color || '#ffd700') + '66';
+    box.style.background = hexToRgba(color, 0.35);
+    box.style.borderBottom = `2px solid ${hexToRgba(color, 0.8)}`;
     
-    // Add delete button to first rect only
     if (idx === 0) {
-      const deleteBtn = document.createElement('span');
-      deleteBtn.className = 'delete-btn';
-      deleteBtn.textContent = '×';
-      deleteBtn.onclick = (e) => {
-        e.stopPropagation();
-        deleteHighlight(highlight.id);
-      };
-      box.appendChild(deleteBtn);
+      // Author label (shows on hover)
+      const authorLabel = document.createElement('span');
+      authorLabel.className = 'author-label';
+      authorLabel.textContent = highlight.author || 'Unknown';
+      box.appendChild(authorLabel);
+      
+      // Delete button — only for own annotations
+      if (isOwn) {
+        const deleteBtn = document.createElement('span');
+        deleteBtn.className = 'delete-btn';
+        deleteBtn.textContent = '×';
+        deleteBtn.onclick = (e) => { e.stopPropagation(); deleteHighlight(highlight.id); };
+        box.appendChild(deleteBtn);
+      }
     }
     
-    // Click to select
-    box.onclick = (e) => {
-      e.stopPropagation();
-      selectHighlight(highlight.id);
-    };
-    
+    box.onclick = (e) => { e.stopPropagation(); selectHighlight(highlight.id); };
     page.highlightLayer.appendChild(box);
   });
 }
@@ -782,22 +775,20 @@ function selectHighlight(id) {
 }
 
 function deleteHighlight(id) {
+  const anno = annotations.find(a => a.id === id);
+  if (anno && anno.author !== currentUser.name) { alert("You can only delete your own annotations."); return; }
   annotations = annotations.filter(a => a.id !== id);
   document.querySelectorAll(`[data-highlight-id="${id}"]`).forEach(el => el.remove());
   updateAnnotationList();
 }
 
+// ─── Notes ────────────────────────────────────────────────────────────────────
+
 function setupNoteLayer(noteLayer, pageNum) {
   noteLayer.addEventListener('click', (e) => {
     if (mode !== 'note') return;
-    
     const rect = noteLayer.getBoundingClientRect();
-    pendingNotePosition = {
-      pageNum,
-      x: e.clientX - rect.left,
-      y: e.clientY - rect.top
-    };
-    
+    pendingNotePosition = { pageNum, x: e.clientX - rect.left, y: e.clientY - rect.top };
     $('note-text').value = '';
     $('note-modal').classList.add('active');
     $('note-text').focus();
@@ -807,16 +798,16 @@ function setupNoteLayer(noteLayer, pageNum) {
 function saveNote() {
   const text = $('note-text').value.trim();
   if (!text || !pendingNotePosition) return;
-  
   const note = {
     id: 'note_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9),
     type: 'note',
     pageNum: pendingNotePosition.pageNum,
-    text: text,
+    text,
     x: pendingNotePosition.x,
-    y: pendingNotePosition.y
+    y: pendingNotePosition.y,
+    author: currentUser.name,
+    color: currentUser.color
   };
-  
   annotations.push(note);
   renderNote(note);
   updateAnnotationList();
@@ -827,43 +818,44 @@ function saveNote() {
 function renderNote(note) {
   const page = pages.find(p => p.pageNum === note.pageNum);
   if (!page) return;
+  const color = note.color || getAuthorColor(note.author || '');
   
   const marker = document.createElement('div');
   marker.className = 'note-marker';
   marker.dataset.noteId = note.id;
   marker.style.left = note.x + 'px';
   marker.style.top = note.y + 'px';
+  marker.style.background = `linear-gradient(135deg, ${color}, ${color}cc)`;
+  marker.style.boxShadow = `0 2px 8px ${hexToRgba(color, 0.4)}`;
   marker.innerHTML = '<span>📝</span>';
-  
-  marker.addEventListener('click', (e) => {
-    e.stopPropagation();
-    showNotePopup(note, marker);
-  });
-  
+  marker.addEventListener('click', (e) => { e.stopPropagation(); showNotePopup(note, marker); });
   page.noteLayer.appendChild(marker);
 }
 
 function showNotePopup(note, marker) {
-  // Remove existing popups
   document.querySelectorAll('.note-popup').forEach(p => p.remove());
+  const isOwn = note.author === currentUser.name;
+  const color = note.color || getAuthorColor(note.author || '');
   
   const popup = document.createElement('div');
   popup.className = 'note-popup';
   popup.innerHTML = `
+    <div class="note-popup-author">
+      <span class="dot" style="background:${color}"></span>
+      ${escapeHtml(note.author || 'Unknown')}
+    </div>
     <div class="note-popup-content">${escapeHtml(note.text)}</div>
     <div class="note-popup-buttons">
-      <button class="btn-delete" onclick="deleteNote('${note.id}')">删除</button>
-      <button class="btn-cancel" onclick="this.closest('.note-popup').remove()">关闭</button>
+      ${isOwn ? `<button class="btn-delete" onclick="deleteNote('${note.id}')">Delete</button>` : ''}
+      <button class="btn-cancel" onclick="this.closest('.note-popup').remove()">Close</button>
     </div>
   `;
   
   const mr = marker.getBoundingClientRect();
   popup.style.left = Math.min(mr.left, window.innerWidth - 320) + 'px';
   popup.style.top = (mr.bottom + 10) + 'px';
-  
   document.body.appendChild(popup);
   
-  // Close on click outside
   setTimeout(() => {
     document.addEventListener('click', function handler(e) {
       if (!popup.contains(e.target) && !marker.contains(e.target)) {
@@ -875,6 +867,8 @@ function showNotePopup(note, marker) {
 }
 
 function deleteNote(id) {
+  const anno = annotations.find(a => a.id === id);
+  if (anno && anno.author !== currentUser.name) { alert("You can only delete your own annotations."); return; }
   annotations = annotations.filter(a => a.id !== id);
   document.querySelectorAll(`[data-note-id="${id}"]`).forEach(el => el.remove());
   document.querySelectorAll('.note-popup').forEach(p => p.remove());
@@ -887,6 +881,8 @@ function escapeHtml(text) {
   return div.innerHTML;
 }
 
+// ─── Annotation List (Sidebar) ────────────────────────────────────────────────
+
 function updateAnnotationList() {
   const list = $('annotation-list');
   $('anno-count').textContent = annotations.length;
@@ -896,14 +892,12 @@ function updateAnnotationList() {
     list.innerHTML = `
       <div class="empty-state">
         <div class="empty-state-icon">📝</div>
-        <p>暂无批注</p>
-        <p style="font-size:12px;margin-top:8px">选择「🖍️ 高亮」或「📝 批注」开始标注</p>
-      </div>
-    `;
+        <p>No annotations yet</p>
+        <p style="font-size:12px;margin-top:8px">Use 🖍️ Highlight or 📝 Note to start</p>
+      </div>`;
     return;
   }
   
-  // Group by page
   const grouped = {};
   annotations.forEach(a => {
     if (!grouped[a.pageNum]) grouped[a.pageNum] = [];
@@ -912,12 +906,18 @@ function updateAnnotationList() {
   
   Object.keys(grouped).sort((a, b) => a - b).forEach(pg => {
     grouped[pg].forEach(a => {
+      const isOwn = a.author === currentUser.name;
+      const color = a.color || getAuthorColor(a.author || '');
       const item = document.createElement('div');
-      item.className = `annotation-item ${a.type}`;
+      item.className = 'annotation-item';
       item.innerHTML = `
-        <div class="page">第 ${a.pageNum} 页</div>
+        <div class="item-header">
+          <span class="item-author" style="background:${color}">${escapeHtml(a.author || '?')}</span>
+          <span class="item-page">p.${a.pageNum}</span>
+          <span class="item-type">${a.type === 'highlight' ? '🖍️' : '📝'}</span>
+        </div>
         <div class="text">${a.type === 'highlight' ? (a.text.substring(0, 100) + (a.text.length > 100 ? '...' : '')) : a.text}</div>
-        <span class="delete-icon" onclick="event.stopPropagation();deleteAnnotation('${a.id}')">×</span>
+        ${isOwn ? `<span class="delete-icon" onclick="event.stopPropagation();deleteAnnotation('${a.id}')">×</span>` : ''}
       `;
       item.onclick = () => {
         const pageEl = document.querySelector(`[data-page="${a.pageNum}"]`);
@@ -932,57 +932,37 @@ function updateAnnotationList() {
 function deleteAnnotation(id) {
   const anno = annotations.find(a => a.id === id);
   if (!anno) return;
-  
-  if (anno.type === 'highlight') {
-    deleteHighlight(id);
-  } else {
-    deleteNote(id);
-  }
+  if (anno.type === 'highlight') deleteHighlight(id);
+  else deleteNote(id);
 }
 
+// ─── Proxy / Notion ───────────────────────────────────────────────────────────
+
 async function checkProxy() {
-  updateStatus('检查连接...', false);
+  updateStatus('Connecting...', false);
   $('db-display').textContent = notionConfig.dbId;
   try {
     const resp = await fetch(PROXY_URL + '/health');
-    if (resp.ok) {
-      proxyReady = true;
-      updateStatus('已连接', true);
-    } else {
-      updateStatus('连接失败', false);
-    }
+    if (resp.ok) { proxyReady = true; updateStatus('Connected', true); }
+    else updateStatus('Connection failed', false);
   } catch (e) {
-    updateStatus('未连接', false);
+    updateStatus('Offline', false);
   }
 }
 
 function openNotionSetup() {
-  // No token setup needed - token is stored server-side
-  alert('Notion Token 已在服务端配置，学生无需输入。\n\n如需更换数据库，请联系管理员修改 URL 中的 db 参数。\n当前数据库: ' + notionConfig.dbId);
+  $('notion-modal').classList.add('active');
 }
 
 function closeModal(id) {
   $(id).classList.remove('active');
 }
 
-function saveNotionConfig() {
-  // No-op for student-facing version
-  closeModal('notion-modal');
-}
-
 function saveToNotion() {
-  if (!proxyReady) {
-    alert('服务未连接，请稍后重试或联系管理员');
-    return;
-  }
-  if (!notionConfig.dbId) {
-    alert('数据库未配置，请联系管理员');
-    return;
-  }
-  if (annotations.length === 0) {
-    alert('没有批注可保存');
-    return;
-  }
+  if (!proxyReady) { alert('Service not connected. Please try again later.'); return; }
+  if (!notionConfig.dbId) { alert('Database not configured.'); return; }
+  if (annotations.length === 0) { alert('No annotations to save.'); return; }
+  if (!currentUser.name) { openNicknameModal(false); return; }
   
   $('save-project').value = $('project-select').value;
   $('pdf-name-input').value = currentPdfSource.name || '';
@@ -1006,11 +986,8 @@ async function confirmSave() {
     created_at: new Date().toISOString()
   });
   
-  // Split into chunks for Notion's 2000 char limit per rich_text item
   const chunks = [];
-  for (let i = 0; i < data.length; i += 2000) {
-    chunks.push(data.slice(i, i + 2000));
-  }
+  for (let i = 0; i < data.length; i += 2000) chunks.push(data.slice(i, i + 2000));
   const richTextParts = chunks.map(c => ({ text: { content: c } }));
   
   try {
@@ -1033,21 +1010,15 @@ async function confirmSave() {
       })
     });
     const result = await resp.json();
-    if (result.object === 'error') {
-      alert('保存失败: ' + result.message);
-    } else {
-      alert('✅ 已保存: ' + pdfName + ' → ' + project);
-    }
+    if (result.object === 'error') alert('Save failed: ' + result.message);
+    else alert('✅ Saved: ' + pdfName + ' → ' + project);
   } catch (e) {
-    alert('保存失败: ' + e.message);
+    alert('Save failed: ' + e.message);
   }
 }
 
 async function loadFromNotion() {
-  if (!proxyReady || !notionConfig.dbId) {
-    alert('服务未连接，请稍后重试或联系管理员');
-    return;
-  }
+  if (!proxyReady || !notionConfig.dbId) { alert('Service not connected.'); return; }
   
   try {
     const project = $('project-select').value;
@@ -1064,16 +1035,10 @@ async function loadFromNotion() {
     });
     
     const result = await resp.json();
-    if (result.object === 'error') {
-      alert('加载失败: ' + result.message);
-      return;
-    }
+    if (result.object === 'error') { alert('Load failed: ' + result.message); return; }
     
     const list = result.results || [];
-    if (list.length === 0) {
-      alert('没有找到标注记录');
-      return;
-    }
+    if (list.length === 0) { alert('No saved annotations found.'); return; }
     
     const container = $('saved-list');
     container.innerHTML = '';
@@ -1089,67 +1054,50 @@ async function loadFromNotion() {
     });
     $('load-modal').classList.add('active');
   } catch (e) {
-    alert('加载失败: ' + e.message);
+    alert('Load failed: ' + e.message);
   }
 }
 
 async function loadAnnotations(page) {
   const dataStr = (page.properties.Annotations?.rich_text || []).map(rt => rt.plain_text).join('');
-  if (!dataStr) {
-    alert('无标注数据');
-    return;
-  }
+  if (!dataStr) { alert('No annotation data found.'); return; }
   
   try {
     const data = JSON.parse(dataStr);
     annotations = data.annotations || [];
-    currentPdfSource = {
-      type: data.source_type || 'local',
-      name: data.pdf_name,
-      url: data.source_url || ''
-    };
+    currentPdfSource = { type: data.source_type || 'local', name: data.pdf_name, url: data.source_url || '' };
     
-    // If source URL exists, try to reload the PDF
     if (currentPdfSource.url && currentPdfSource.url.includes('file.notion.so')) {
       $('notion-url-input').value = currentPdfSource.url;
       await loadFromNotionUrl();
     } else if (currentPdfSource.type === 'local') {
-      alert('这是本地 PDF 的标注，请重新选择相同的 PDF 文件');
+      alert('This is a local PDF annotation. Please re-open the same PDF file.');
       $('upload-section').classList.remove('hidden');
       $('pdf-section').classList.remove('active');
     }
     
-    // Render loaded annotations
     annotations.forEach(a => {
-      if (a.type === 'highlight') {
-        renderHighlight(a);
-      } else {
-        renderNote(a);
-      }
+      if (a.type === 'highlight') renderHighlight(a);
+      else renderNote(a);
     });
     
     updateAnnotationList();
     closeModal('load-modal');
-    alert('✅ 已加载: ' + data.pdf_name + ' (' + annotations.length + ' 条批注)');
+    
+    const myCount = annotations.filter(a => a.author === currentUser.name).length;
+    const othersCount = annotations.length - myCount;
+    alert(`✅ Loaded: ${data.pdf_name}\n${annotations.length} annotations total\n• Yours: ${myCount}\n• Others: ${othersCount}`);
   } catch (e) {
-    alert('数据解析失败: ' + e.message);
+    alert('Parse error: ' + e.message);
   }
 }
 
-// Event listeners
-$('file-input').addEventListener('change', (e) => {
-  if (e.target.files[0]) loadPDF(e.target.files[0]);
-});
+// ─── Event Listeners ──────────────────────────────────────────────────────────
 
-$('file-input-main').addEventListener('change', (e) => {
-  if (e.target.files[0]) loadPDF(e.target.files[0]);
-});
+$('file-input').addEventListener('change', (e) => { if (e.target.files[0]) loadPDF(e.target.files[0]); });
+$('file-input-main').addEventListener('change', (e) => { if (e.target.files[0]) loadPDF(e.target.files[0]); });
+$('project-select').addEventListener('change', (e) => { localStorage.setItem('last_project', e.target.value); });
 
-$('project-select').addEventListener('change', (e) => {
-  localStorage.setItem('last_project', e.target.value);
-});
-
-// Keyboard shortcuts
 document.addEventListener('keydown', (e) => {
   if (e.key === 'Escape') {
     document.querySelectorAll('.modal.active').forEach(m => m.classList.remove('active'));
@@ -1161,7 +1109,7 @@ document.addEventListener('keydown', (e) => {
   }
 });
 
-// Expose functions to window
+// Expose to window
 window.loadFromNotionUrl = loadFromNotionUrl;
 window.setMode = setMode;
 window.saveNote = saveNote;
@@ -1170,10 +1118,11 @@ window.deleteHighlight = deleteHighlight;
 window.deleteAnnotation = deleteAnnotation;
 window.openNotionSetup = openNotionSetup;
 window.closeModal = closeModal;
-window.saveNotionConfig = saveNotionConfig;
 window.saveToNotion = saveToNotion;
 window.confirmSave = confirmSave;
 window.loadFromNotion = loadFromNotion;
+window.confirmNickname = confirmNickname;
+window.openNicknameModal = openNicknameModal;
 </script>
 </body>
 </html>
