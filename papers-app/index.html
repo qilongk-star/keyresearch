@@ -102,19 +102,27 @@
 
     /* Sidebar / Tags Panel */
     .sidebar {
-      width: 200px; background: var(--bg-secondary);
+      width: 220px; background: var(--bg-secondary);
       border-right: 1px solid var(--border); padding: 16px 0;
-      flex-shrink: 0; overflow-y: auto;
+      flex-shrink: 0; overflow-y: auto; display: flex; flex-direction: column;
     }
     .sidebar-section { padding: 0 12px; margin-bottom: 20px; }
     .sidebar-section h4 {
       font-size: 10px; text-transform: uppercase; letter-spacing: 1px;
       color: var(--text-muted); margin-bottom: 8px; padding: 0 8px;
+      display: flex; align-items: center; justify-content: space-between;
     }
+    .sidebar-section h4 .add-btn {
+      background: none; border: none; color: var(--text-muted);
+      cursor: pointer; font-size: 14px; padding: 0; line-height: 1;
+      transition: color 0.2s;
+    }
+    .sidebar-section h4 .add-btn:hover { color: var(--accent); }
     .sidebar-item {
       display: flex; align-items: center; gap: 8px;
       padding: 7px 10px; border-radius: 6px; cursor: pointer;
       font-size: 13px; color: var(--text-secondary); transition: all 0.15s;
+      position: relative;
     }
     .sidebar-item:hover { background: var(--bg-hover); color: var(--text-primary); }
     .sidebar-item.active { background: var(--accent); color: white; }
@@ -123,6 +131,24 @@
       padding: 1px 6px; border-radius: 10px; color: var(--text-muted);
     }
     .sidebar-item.active .count { background: rgba(255,255,255,0.2); color: white; }
+    .sidebar-item .folder-color {
+      width: 10px; height: 10px; border-radius: 3px; flex-shrink: 0;
+    }
+    .sidebar-item .folder-actions {
+      position: absolute; right: 6px; top: 50%; transform: translateY(-50%);
+      display: none; gap: 2px;
+    }
+    .sidebar-item:hover .folder-actions { display: flex; }
+    .sidebar-item:hover .folder-actions + .count { display: none; }
+    .folder-actions button {
+      background: none; border: none; color: var(--text-muted); cursor: pointer;
+      font-size: 11px; padding: 1px 4px; border-radius: 3px;
+    }
+    .folder-actions button:hover { color: var(--text-primary); background: var(--bg-tertiary); }
+    .folder-actions button.del:hover { color: var(--danger); }
+
+    /* Indented child folders */
+    .folder-children { padding-left: 16px; }
 
     /* Paper Grid */
     .content-area {
@@ -133,6 +159,12 @@
       margin-bottom: 16px;
     }
     .content-header h2 { font-size: 18px; font-weight: 600; }
+    .content-header .breadcrumb {
+      font-size: 13px; color: var(--text-secondary); margin-bottom: 4px;
+    }
+    .content-header .breadcrumb span { cursor: pointer; }
+    .content-header .breadcrumb span:hover { color: var(--accent); }
+    .content-header .breadcrumb .sep { color: var(--text-muted); margin: 0 4px; }
     .sort-select {
       padding: 5px 8px; border-radius: 6px; background: var(--bg-tertiary);
       border: 1px solid var(--border); color: var(--text-primary); font-size: 12px;
@@ -180,6 +212,10 @@
     .paper-card .tag-dot {
       width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0;
     }
+    .paper-card .folder-badge {
+      font-size: 10px; color: var(--text-muted); background: var(--bg-tertiary);
+      padding: 1px 5px; border-radius: 3px;
+    }
 
     .empty-state {
       text-align: center; padding: 60px 20px; color: var(--text-muted);
@@ -209,7 +245,7 @@
       border-radius: 8px; background: var(--bg-tertiary); color: var(--text-primary);
       font-size: 13px; font-family: inherit;
     }
-    .modal-box input:focus, .modal-box textarea:focus {
+    .modal-box input:focus, .modal-box textarea:focus, .modal-box select:focus {
       border-color: var(--accent); outline: none;
     }
     .modal-box textarea { resize: vertical; min-height: 60px; }
@@ -465,6 +501,16 @@
     }
     .anno-item:hover .ai-del { opacity: 1; }
 
+    /* ─── Folder color picker in modal ─── */
+    .color-row {
+      display: flex; gap: 6px; margin-top: 6px;
+    }
+    .color-swatch {
+      width: 24px; height: 24px; border-radius: 6px; cursor: pointer;
+      border: 2px solid transparent; transition: border-color 0.2s;
+    }
+    .color-swatch.selected { border-color: white; }
+
     /* ─── Loading / Toast ─── */
     .loading-overlay {
       position: fixed; inset: 0; background: rgba(15,17,23,0.8);
@@ -534,10 +580,23 @@
 <div class="app-layout" id="library-view">
   <!-- Sidebar -->
   <div class="sidebar">
+    <!-- Folders Section -->
+    <div class="sidebar-section">
+      <h4>
+        📁 Folders
+        <button class="add-btn" onclick="openFolderModal()" title="New folder">+</button>
+      </h4>
+      <div id="folder-list"></div>
+    </div>
+
+    <!-- Smart Filters -->
     <div class="sidebar-section">
       <h4>Library</h4>
       <div class="sidebar-item active" data-filter="all" onclick="filterPapers('all', this)">
         📚 All Papers <span class="count" id="count-all">0</span>
+      </div>
+      <div class="sidebar-item" data-filter="unfiled" onclick="filterPapers('unfiled', this)">
+        📂 Unfiled <span class="count" id="count-unfiled">0</span>
       </div>
       <div class="sidebar-item" data-filter="recent" onclick="filterPapers('recent', this)">
         🕐 Recent <span class="count" id="count-recent">0</span>
@@ -555,7 +614,10 @@
   <!-- Content -->
   <div class="content-area">
     <div class="content-header">
-      <h2 id="content-title">All Papers</h2>
+      <div>
+        <div class="breadcrumb" id="breadcrumb"></div>
+        <h2 id="content-title">All Papers</h2>
+      </div>
       <select class="sort-select" id="sort-select" onchange="loadPapers()">
         <option value="newest">Newest first</option>
         <option value="oldest">Oldest first</option>
@@ -566,7 +628,7 @@
     <div class="paper-grid" id="paper-grid"></div>
     <div class="empty-state" id="empty-state" style="display:none">
       <div class="icon">📄</div>
-      <p>No papers yet</p>
+      <p>No papers here</p>
       <p style="font-size:13px">Click "+ Add Paper" to get started</p>
     </div>
   </div>
@@ -640,6 +702,11 @@
   <div class="modal-box">
     <h3>📄 Add Paper</h3>
 
+    <label>Folder</label>
+    <select id="paper-folder">
+      <option value="">-- No folder --</option>
+    </select>
+
     <label>PDF Source</label>
     <div class="drop-zone" id="drop-zone">
       <div class="icon">📁</div>
@@ -697,6 +764,26 @@
   </div>
 </div>
 
+<!-- ═══ Folder Modal ═══ -->
+<div class="modal-overlay" id="folder-modal">
+  <div class="modal-box" style="max-width:380px">
+    <h3 id="folder-modal-title">📁 New Folder</h3>
+    <label>Folder name</label>
+    <input type="text" id="folder-name-input" placeholder="e.g. E-commerce Fraud" maxlength="50">
+    <label>Color</label>
+    <div class="color-row" id="folder-color-picks"></div>
+    <label>Parent folder (optional)</label>
+    <select id="folder-parent-select">
+      <option value="">-- Top level --</option>
+    </select>
+    <input type="hidden" id="folder-edit-id" value="">
+    <div class="modal-actions">
+      <button class="topbar-btn secondary" onclick="closeModal('folder-modal')">Cancel</button>
+      <button class="topbar-btn" onclick="saveFolder()">Save</button>
+    </div>
+  </div>
+</div>
+
 <!-- ═══ Note Modal ═══ -->
 <div class="modal-overlay" id="note-modal">
   <div class="modal-box" style="max-width:340px">
@@ -735,7 +822,7 @@ pdfjsLib.GlobalWorkerOptions.workerSrc =
 // ═══════════════════════════════════════════════════════════════════
 // STATE
 // ═══════════════════════════════════════════════════════════════════
-const COLORS = ['#6366f1','#22c55e','#f59e0b','#ef4444','#ec4899','#06b6d4','#8b5cf6','#f97316'];
+const COLORS = ['#6366f1','#22c55e','#f59e0b','#ef4444','#ec4899','#06b6d4','#8b5cf6','#f97316','#14b8a6','#e11d48'];
 
 let currentUser = {
   name: localStorage.getItem('ph_name') || '',
@@ -743,22 +830,26 @@ let currentUser = {
 };
 
 let currentFilter = 'all';
-let currentPaper = null;   // paper record from DB
+let currentFolderId = null;   // null = show all (or smart filter)
+let currentFolderName = '';
+let folders = [];              // all folders from DB
+let currentPaper = null;       // paper record from DB
 let pdfDoc = null;
 let totalPages = 0;
 let scale = 1.5;
-let mode = 'select';       // highlight | note | select
+let mode = 'select';
 let annotations = [];
 let pages = [];
 let pendingNotePos = null;
 let annoFilter = 'all';
 let realtimeChannel = null;
-let pendingPdfBlob = null;  // for upload
+let pendingPdfBlob = null;
+let folderColorPick = COLORS[0];
 
 // ═══════════════════════════════════════════════════════════════════
 // INIT
 // ═══════════════════════════════════════════════════════════════════
-(function init() {
+(async function init() {
   if (!currentUser.name) {
     openNameModal();
   } else {
@@ -767,7 +858,15 @@ let pendingPdfBlob = null;  // for upload
   }
   initColorPicker();
   initDropZone();
+  await loadFolders();
   loadPapers();
+
+  // Subscribe to folder changes
+  sb.channel('folder-changes')
+    .on('postgres_changes', { event: '*', schema: 'public', table: 'folders' }, () => {
+      loadFolders();
+    })
+    .subscribe();
 
   // Search debounce
   let searchTimer;
@@ -779,6 +878,11 @@ let pendingPdfBlob = null;  // for upload
   // Enter key for name input
   $('name-input').addEventListener('keydown', e => {
     if (e.key === 'Enter') confirmName();
+  });
+
+  // Enter key for folder input
+  $('folder-name-input').addEventListener('keydown', e => {
+    if (e.key === 'Enter') saveFolder();
   });
 })();
 
@@ -820,6 +924,196 @@ function updateBadge() {
 }
 
 // ═══════════════════════════════════════════════════════════════════
+// FOLDERS
+// ═══════════════════════════════════════════════════════════════════
+async function loadFolders() {
+  const { data, error } = await sb.from('folders').select('*').order('sort_order', { ascending: true }).order('name');
+  if (error) { console.error(error); return; }
+  folders = data || [];
+  renderFolderTree();
+  updateFolderSelects();
+}
+
+function renderFolderTree() {
+  const container = $('folder-list');
+  const rootFolders = folders.filter(f => !f.parent_id);
+
+  function buildTree(parentId) {
+    return folders
+      .filter(f => f.parent_id === parentId)
+      .map(f => {
+        const children = buildTree(f.id);
+        const isActive = currentFilter === 'folder' && currentFolderId === f.id;
+        return `
+          <div>
+            <div class="sidebar-item ${isActive ? 'active' : ''}" onclick="selectFolder('${f.id}','${esc(f.name)}',this)">
+              <span class="folder-color" style="background:${f.color || COLORS[0]}"></span>
+              📁 ${esc(f.name)}
+              <span class="count" id="fc-${f.id}">0</span>
+              <span class="folder-actions">
+                <button onclick="event.stopPropagation();openFolderModal('${f.id}')" title="Edit">✏️</button>
+                <button class="del" onclick="event.stopPropagation();deleteFolder('${f.id}','${esc(f.name)}')" title="Delete">🗑️</button>
+              </span>
+            </div>
+            ${children.length ? `<div class="folder-children">${children.join('')}</div>` : ''}
+          </div>
+        `;
+      });
+  }
+
+  container.innerHTML = buildTree(null).join('') || '<div style="padding:6px 10px;font-size:12px;color:var(--text-muted)">No folders yet</div>';
+}
+
+function updateFolderSelects() {
+  // Upload modal folder select
+  const uploadSelect = $('paper-folder');
+  const currentVal = uploadSelect.value;
+  uploadSelect.innerHTML = '<option value="">-- No folder --</option>';
+
+  function addOptions(parentId, indent) {
+    folders.filter(f => f.parent_id === parentId).forEach(f => {
+      const opt = document.createElement('option');
+      opt.value = f.id;
+      opt.textContent = indent + f.name;
+      uploadSelect.appendChild(opt);
+      addOptions(f.id, indent + '  ');
+    });
+  }
+  addOptions(null, '');
+  uploadSelect.value = currentVal;
+
+  // Folder modal parent select
+  const parentSelect = $('folder-parent-select');
+  const editId = $('folder-edit-id').value;
+  parentSelect.innerHTML = '<option value="">-- Top level --</option>';
+
+  function addParentOptions(parentId, indent) {
+    folders.filter(f => f.parent_id === parentId && f.id !== editId).forEach(f => {
+      const opt = document.createElement('option');
+      opt.value = f.id;
+      opt.textContent = indent + f.name;
+      parentSelect.appendChild(opt);
+      addParentOptions(f.id, indent + '  ');
+    });
+  }
+  addParentOptions(null, '');
+}
+
+function selectFolder(folderId, folderName, el) {
+  currentFilter = 'folder';
+  currentFolderId = folderId;
+  currentFolderName = folderName;
+  document.querySelectorAll('.sidebar-item').forEach(i => i.classList.remove('active'));
+  if (el) el.classList.add('active');
+  $('breadcrumb').innerHTML = `<span onclick="filterPapers('all',document.querySelector('[data-filter=all]'))">📚 All</span> <span class="sep">›</span> <span>${esc(folderName)}</span>`;
+  $('content-title').textContent = folderName;
+  loadPapers();
+}
+
+function openFolderModal(editId) {
+  $('folder-modal').classList.add('active');
+  $('folder-modal-title').textContent = editId ? '✏️ Edit Folder' : '📁 New Folder';
+
+  if (editId) {
+    const f = folders.find(x => x.id === editId);
+    if (!f) return;
+    $('folder-name-input').value = f.name;
+    $('folder-edit-id').value = f.id;
+    folderColorPick = f.color || COLORS[0];
+    // Parent will be set after updateFolderSelects
+    setTimeout(() => { $('folder-parent-select').value = f.parent_id || ''; }, 10);
+  } else {
+    $('folder-name-input').value = '';
+    $('folder-edit-id').value = '';
+    folderColorPick = COLORS[0];
+    $('folder-parent-select').value = '';
+  }
+
+  updateFolderSelects();
+  renderFolderColorPicks();
+  $('folder-name-input').focus();
+}
+
+function renderFolderColorPicks() {
+  const row = $('folder-color-picks');
+  row.innerHTML = '';
+  COLORS.forEach(c => {
+    const el = document.createElement('div');
+    el.className = 'color-swatch' + (c === folderColorPick ? ' selected' : '');
+    el.style.background = c;
+    el.onclick = () => {
+      folderColorPick = c;
+      row.querySelectorAll('.color-swatch').forEach(s => s.classList.remove('selected'));
+      el.classList.add('selected');
+    };
+    row.appendChild(el);
+  });
+}
+
+async function saveFolder() {
+  const name = $('folder-name-input').value.trim();
+  if (!name) { toast('Folder name is required', 'error'); return; }
+
+  const editId = $('folder-edit-id').value;
+  const parentId = $('folder-parent-select').value || null;
+
+  if (editId) {
+    const { error } = await sb.from('folders').update({
+      name, parent_id: parentId, color: folderColorPick
+    }).eq('id', editId);
+    if (error) { toast('Error: ' + error.message, 'error'); return; }
+    toast('Folder updated', 'success');
+  } else {
+    const { error } = await sb.from('folders').insert({
+      name, parent_id: parentId, color: folderColorPick
+    });
+    if (error) { toast('Error: ' + error.message, 'error'); return; }
+    toast('Folder created: ' + name, 'success');
+  }
+
+  closeModal('folder-modal');
+  await loadFolders();
+  if (currentFilter === 'folder') loadPapers();
+}
+
+async function deleteFolder(folderId, folderName) {
+  if (!confirm(`Delete folder "${folderName}" and all its sub-folders? Papers inside won't be deleted.`)) return;
+
+  // Get all descendant folder IDs
+  function getDescendants(pid) {
+    const children = folders.filter(f => f.parent_id === pid);
+    let ids = [pid];
+    children.forEach(c => { ids = ids.concat(getDescendants(c.id)); });
+    return ids;
+  }
+
+  const idsToDelete = getDescendants(folderId);
+
+  // Remove folder from papers in these folders
+  const { data: papersInFolder } = await sb.from('papers')
+    .select('id').in('folder', idsToDelete);
+  if (papersInFolder && papersInFolder.length) {
+    await sb.from('papers').update({ folder: '' })
+      .in('id', papersInFolder.map(p => p.id));
+  }
+
+  // Delete sub-folders first, then the folder
+  for (const id of idsToDelete.reverse()) {
+    await sb.from('folders').delete().eq('id', id);
+  }
+
+  toast('Folder deleted', 'success');
+  if (currentFolderId === folderId) {
+    currentFilter = 'all';
+    currentFolderId = null;
+    $('breadcrumb').innerHTML = '';
+    $('content-title').textContent = 'All Papers';
+    filterPapers('all', document.querySelector('[data-filter=all]'));
+  }
+  await loadFolders();
+}
+
+// ═══════════════════════════════════════════════════════════════════
 // PAPER LIBRARY
 // ═══════════════════════════════════════════════════════════════════
 async function loadPapers() {
@@ -840,8 +1134,7 @@ async function loadPapers() {
   let papers = data || [];
 
   // Fetch annotation counts
-  const { data: annoCounts } = await sb.from('annotations')
-    .select('paper_id');
+  const { data: annoCounts } = await sb.from('annotations').select('paper_id');
   const countMap = {};
   (annoCounts || []).forEach(a => {
     countMap[a.paper_id] = (countMap[a.paper_id] || 0) + 1;
@@ -853,17 +1146,49 @@ async function loadPapers() {
     papers.sort((a, b) => b._annoCount - a._annoCount);
   }
 
-  // Filter
-  if (currentFilter === 'annotated') {
+  // Filter by folder
+  if (currentFilter === 'folder' && currentFolderId) {
+    papers = papers.filter(p => p.folder === currentFolderId);
+  }
+
+  // Smart filters
+  if (currentFilter === 'unfiled') {
+    papers = papers.filter(p => !p.folder);
+  } else if (currentFilter === 'annotated') {
     papers = papers.filter(p => p._annoCount > 0);
   } else if (currentFilter === 'recent') {
     const weekAgo = new Date(Date.now() - 7 * 86400000).toISOString();
     papers = papers.filter(p => p.created_at >= weekAgo);
   }
 
+  // Update folder counts in sidebar
+  updateFolderCounts(data || []);
+
   renderPaperGrid(papers);
   updateSidebarCounts(data || []);
   renderTags(data || []);
+}
+
+function updateFolderCounts(allPapers) {
+  const countMap = {};
+  allPapers.forEach(p => {
+    if (p.folder) countMap[p.folder] = (countMap[p.folder] || 0) + 1;
+  });
+  folders.forEach(f => {
+    const el = $('fc-' + f.id);
+    if (el) {
+      let count = countMap[f.id] || 0;
+      // Add child counts
+      function addChildCounts(pid) {
+        folders.filter(cf => cf.parent_id === pid).forEach(cf => {
+          count += countMap[cf.id] || 0;
+          addChildCounts(cf.id);
+        });
+      }
+      addChildCounts(f.id);
+      el.textContent = count;
+    }
+  });
 }
 
 function renderPaperGrid(papers) {
@@ -876,28 +1201,60 @@ function renderPaperGrid(papers) {
   }
   empty.style.display = 'none';
 
-  grid.innerHTML = papers.map(p => `
+  grid.innerHTML = papers.map(p => {
+    const folder = folders.find(f => f.id === p.folder);
+    return `
     <div class="paper-card" onclick="openPaper('${p.id}')">
       <div class="thumb">
-        ${p.pdf_path ? `<canvas data-pdf="${p.pdf_path}" data-pid="${p.id}"></canvas>` : '<span class="no-cover">📄</span>'}
+        ${p.pdf_base64 ? `<canvas data-base64="true" data-pid="${p.id}"></canvas>` :
+          p.pdf_path ? `<canvas data-pdf="${p.pdf_path}" data-pid="${p.id}"></canvas>` :
+          '<span class="no-cover">📄</span>'}
       </div>
       <div class="info">
         <div class="title">${esc(p.title)}</div>
         <div class="authors">${esc(p.authors || '')}</div>
         <div class="meta">
+          ${folder ? `<span class="folder-badge" style="color:${folder.color || COLORS[0]}">📁 ${esc(folder.name)}</span>` : ''}
           ${p.year ? `<span>${p.year}</span>` : ''}
           ${p.journal ? `<span>· ${esc(p.journal)}</span>` : ''}
-          ${(p.tags || []).length ? p.tags.slice(0, 3).map(t => `<span class="tag-dot" style="background:${COLORS[hashStr(t) % COLORS.length]}"></span>`).join('') : ''}
           ${p._annoCount ? `<span class="anno-count">${p._annoCount}</span>` : ''}
         </div>
       </div>
     </div>
-  `).join('');
+  `}).join('');
 
   // Render first page thumbnails
   grid.querySelectorAll('canvas[data-pdf]').forEach(canvas => {
     renderThumb(canvas, canvas.dataset.pdf);
   });
+  grid.querySelectorAll('canvas[data-base64]').forEach(canvas => {
+    const pid = canvas.dataset.pid;
+    const allP = grid.closest ? [] : [];
+    // Find paper data from DOM - we need the base64 from DB
+    renderThumbFromBase64(canvas, pid);
+  });
+}
+
+async function renderThumbFromBase64(canvas, paperId) {
+  try {
+    const { data: paper } = await sb.from('papers').select('pdf_base64').eq('id', paperId).single();
+    if (!paper || !paper.pdf_base64) {
+      canvas.parentElement.innerHTML = '<span class="no-cover">📄</span>';
+      return;
+    }
+    const binary = atob(paper.pdf_base64);
+    const bytes = new Uint8Array(binary.length);
+    for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
+    const pdf = await pdfjsLib.getDocument({ data: bytes.buffer }).promise;
+    const page = await pdf.getPage(1);
+    const vp = page.getViewport({ scale: 0.4 });
+    canvas.width = vp.width;
+    canvas.height = vp.height;
+    const ctx = canvas.getContext('2d');
+    await page.render({ canvasContext: ctx, viewport: vp }).promise;
+  } catch (e) {
+    canvas.parentElement.innerHTML = '<span class="no-cover">📄</span>';
+  }
 }
 
 async function renderThumb(canvas, pdfPath) {
@@ -918,6 +1275,7 @@ async function renderThumb(canvas, pdfPath) {
 
 function updateSidebarCounts(allPapers) {
   $('count-all').textContent = allPapers.length;
+  $('count-unfiled').textContent = allPapers.filter(p => !p.folder).length;
   const weekAgo = new Date(Date.now() - 7 * 86400000).toISOString();
   $('count-recent').textContent = allPapers.filter(p => p.created_at >= weekAgo).length;
 }
@@ -938,10 +1296,12 @@ function renderTags(papers) {
 
 function filterPapers(filter, el) {
   currentFilter = filter;
+  currentFolderId = null;
   document.querySelectorAll('.sidebar-item').forEach(i => i.classList.remove('active'));
   if (el) el.classList.add('active');
-  const titles = { all: 'All Papers', recent: 'Recent', annotated: 'Annotated' };
+  const titles = { all: 'All Papers', unfiled: 'Unfiled', recent: 'Recent', annotated: 'Annotated' };
   $('content-title').textContent = titles[filter] || 'All Papers';
+  $('breadcrumb').innerHTML = '';
   loadPapers();
 }
 
@@ -960,6 +1320,10 @@ function openUploadModal() {
   ['paper-title','paper-authors','paper-year','paper-journal','paper-doi','paper-abstract','paper-tags','pdf-url-input'].forEach(id => $(id).value = '');
   $('upload-pdf-path').value = '';
   pendingPdfBlob = null;
+  // Pre-select current folder if viewing one
+  $('paper-folder').value = (currentFilter === 'folder' && currentFolderId) ? currentFolderId : '';
+  updateFolderSelects();
+  $('paper-folder').value = (currentFilter === 'folder' && currentFolderId) ? currentFolderId : '';
 }
 
 function initDropZone() {
@@ -1044,11 +1408,9 @@ async function submitPaper() {
   if (!title) { toast('Title is required', 'error'); return; }
 
   // Build pdf_path: if user provided URL, use it; if local file, we'd need to upload somewhere
-  // For now, we store the URL or leave empty
   const pdfPath = $('upload-pdf-path').value.trim() || $('pdf-url-input').value.trim() || '';
 
-  // If local file, convert to base64 and store (limited to ~5MB for Supabase text field)
-  // Better approach: upload to GitHub separately, then paste the raw URL
+  // If local file, convert to base64 and store
   let pdfBase64 = '';
   if (pendingPdfBlob && !pdfPath) {
     if (pendingPdfBlob.size > 5 * 1024 * 1024) {
@@ -1063,6 +1425,7 @@ async function submitPaper() {
   }
 
   const tags = $('paper-tags').value.split(',').map(t => t.trim()).filter(Boolean);
+  const folderId = $('paper-folder').value || '';
 
   const paperData = {
     title,
@@ -1074,6 +1437,7 @@ async function submitPaper() {
     tags,
     pdf_path: pdfPath,
     pdf_base64: pdfBase64 || null,
+    folder: folderId,
     uploaded_by: currentUser.name
   };
 
@@ -1109,7 +1473,6 @@ async function openPaper(paperId) {
       const resp = await fetch(paper.pdf_path);
       pdfArrayBuffer = await resp.arrayBuffer();
     } catch (e) {
-      // If URL fails, try base64
       if (paper.pdf_base64) {
         const binary = atob(paper.pdf_base64);
         const bytes = new Uint8Array(binary.length);
@@ -1333,7 +1696,6 @@ async function loadAnnotations(paperId) {
 async function insertAnnotation(annoData) {
   const { data, error } = await sb.from('annotations').insert(annoData).select().single();
   if (error) { toast('Annotation error: ' + error.message, 'error'); return; }
-  // Will be handled by realtime subscription
 }
 
 async function deleteAnnotationFromDb(id) {
