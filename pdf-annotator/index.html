@@ -384,7 +384,7 @@
       <p style="margin-bottom:12px;color:#aaa;font-size:14px">Notion Token is configured server-side. No input needed.</p>
       <div style="background:#1a1a1a;border-radius:8px;padding:12px;margin-bottom:16px">
         <div style="font-size:12px;color:#888">Connection</div>
-        <div style="font-size:14px;color:#4caf50">✅ Connected (proxy)</div>
+        <div style="font-size:14px;color:#4caf50">✅ Connected</div>
         <div style="font-size:12px;color:#888;margin-top:8px">Database ID</div>
         <div style="font-size:13px;color:#ddd;font-family:monospace;word-break:break-all" id="db-display"></div>
       </div>
@@ -428,7 +428,7 @@
 pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
 
 const DEFAULT_DB_ID = '34b3730d-690c-814a-b412-d8ea7186b88d';
-const PROXY_URL = 'https://notion-prox.qilongk-ac8.workers.dev';
+const NOTION_TOKEN = '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';
 
 // Annotation colors palette (for different users)
 const PALETTE = [
@@ -446,7 +446,7 @@ let pdfDoc = null, totalPages = 0, mode = 'select', scale = 1.5;
 let annotations = [], pages = [], pendingNotePosition = null;
 let currentPdfSource = { type: 'local', name: '', url: '' };
 let selectedHighlight = null;
-let proxyReady = false;
+let notionReady = false;
 
 // Current user
 let currentUser = {
@@ -612,7 +612,7 @@ function updateStatus(text, connected = false) {
   s.className = 'status' + (connected ? ' connected' : '');
 }
 
-checkProxy();
+checkNotion();
 
 // ─── Mode ─────────────────────────────────────────────────────────────────────
 
@@ -646,13 +646,12 @@ async function loadFromNotionUrl() {
   if (!url) { alert('Please enter a Notion PDF link'); return; }
   if (!url.includes('file.notion.so')) { alert('Please enter a valid file.notion.so link'); return; }
 
-  updateStatus('Loading via proxy...', false);
+  updateStatus('Loading PDF...', false);
 
   try {
-    // Download PDF through the Cloudflare Worker proxy to bypass CORS
-    const proxyUrl = PROXY_URL + '/pdf?url=' + encodeURIComponent(url);
-    const resp = await fetch(proxyUrl);
-    if (!resp.ok) throw new Error('Proxy returned ' + resp.status);
+    // Try direct loading first (Notion file URLs should work directly)
+    const resp = await fetch(url, { mode: 'cors' });
+    if (!resp.ok) throw new Error('Direct fetch failed: ' + resp.status);
     const blob = await resp.blob();
     const arrayBuffer = await blob.arrayBuffer();
 
@@ -674,7 +673,7 @@ async function loadFromNotionUrl() {
     updateStatus(`${totalPages} pages loaded`, true);
   } catch (err) {
     updateStatus('Load failed', false);
-    alert('Load failed: ' + err.message + '\n\nPossible reasons:\n1. Proxy not working (check Status)\n2. Link expired\n\nTip: Download the PDF and open with "Local PDF"');
+    alert('Load failed: ' + err.message + '\n\nPossible reasons:\n1. Link expired or invalid\n2. Network issue\n\nTip: Download the PDF from Notion and open with "Local PDF"');
   }
 }
 
@@ -1018,15 +1017,22 @@ function deleteAnnotation(id) {
   else deleteNote(id);
 }
 
-// ─── Proxy / Notion ───────────────────────────────────────────────────────────
+// ─── Notion API (Direct) ───────────────────────────────────────────────────────
 
-async function checkProxy() {
+async function checkNotion() {
   updateStatus('Connecting...', false);
   $('db-display').textContent = notionConfig.dbId;
   try {
-    const resp = await fetch(PROXY_URL + '/health');
-    if (resp.ok) { proxyReady = true; updateStatus('Connected', true); }
-    else updateStatus('Connection failed', false);
+    // Test connection by fetching database info
+    const resp = await fetch(`https://api.notion.com/v1/databases/${notionConfig.dbId}`, {
+      method: 'GET',
+      headers: {
+        'Authorization': `Bearer ${NOTION_TOKEN}`,
+        'Notion-Version': '2022-06-28'
+      }
+    });
+    if (resp.ok) { notionReady = true; updateStatus('Connected', true); }
+    else { updateStatus('Auth failed', false); }
   } catch (e) {
     updateStatus('Offline', false);
   }
@@ -1041,7 +1047,7 @@ function closeModal(id) {
 }
 
 function saveToNotion() {
-  if (!proxyReady) { alert('Service not connected. Please try again later.'); return; }
+  if (!notionReady) { alert('Service not connected. Please try again later.'); return; }
   if (!notionConfig.dbId) { alert('Database not configured.'); return; }
   if (annotations.length === 0) { alert('No annotations to save.'); return; }
   if (!currentUser.name) { openNicknameModal(false); return; }
@@ -1073,21 +1079,21 @@ async function confirmSave() {
   const richTextParts = chunks.map(c => ({ text: { content: c } }));
 
   try {
-    const resp = await fetch(PROXY_URL + '/api/notion', {
+    const resp = await fetch('https://api.notion.com/v1/pages', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: {
+        'Authorization': `Bearer ${NOTION_TOKEN}`,
+        'Content-Type': 'application/json',
+        'Notion-Version': '2022-06-28'
+      },
       body: JSON.stringify({
-        url: 'https://api.notion.com/v1/pages',
-        method: 'POST',
-        body: {
-          parent: { database_id: notionConfig.dbId },
-          properties: {
-            'Name': { title: [{ text: { content: pdfName } }] },
-            'Project': { rich_text: [{ text: { content: project } }] },
-            'PdfName': { rich_text: [{ text: { content: pdfName } }] },
-            'Annotations': { rich_text: richTextParts },
-            'LastModified': { date: { start: new Date().toISOString() } }
-          }
+        parent: { database_id: notionConfig.dbId },
+        properties: {
+          'Name': { title: [{ text: { content: pdfName } }] },
+          'Project': { rich_text: [{ text: { content: project } }] },
+          'PdfName': { rich_text: [{ text: { content: pdfName } }] },
+          'Annotations': { rich_text: richTextParts },
+          'LastModified': { date: { start: new Date().toISOString() } }
         }
       })
     });
@@ -1098,22 +1104,23 @@ async function confirmSave() {
     alert('Save failed: ' + e.message);
   }
 }
+}
 
 async function loadFromNotion() {
-  if (!proxyReady || !notionConfig.dbId) { alert('Service not connected.'); return; }
+  if (!notionReady || !notionConfig.dbId) { alert('Service not connected.'); return; }
 
   try {
     const project = $('project-select').value;
     const body = project ? { filter: { property: 'Project', rich_text: { equals: project } } } : {};
 
-    const resp = await fetch(PROXY_URL + '/api/notion', {
+    const resp = await fetch(`https://api.notion.com/v1/databases/${notionConfig.dbId}/query`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        url: `https://api.notion.com/v1/databases/${notionConfig.dbId}/query`,
-        method: 'POST',
-        body: { ...body, page_size: 50 }
-      })
+      headers: {
+        'Authorization': `Bearer ${NOTION_TOKEN}`,
+        'Content-Type': 'application/json',
+        'Notion-Version': '2022-06-28'
+      },
+      body: JSON.stringify({ ...body, page_size: 50 })
     });
 
     const result = await resp.json();
