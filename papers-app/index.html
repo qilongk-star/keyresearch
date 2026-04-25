@@ -306,6 +306,11 @@
       position: relative; box-shadow: 0 4px 20px rgba(0,0,0,0.4);
       border-radius: 4px; overflow: hidden; background: white; display: inline-block;
     }
+    .page-wrapper-single .text-layer,
+    .page-wrapper-single .highlight-layer,
+    .page-wrapper-single .note-layer {
+      position: absolute; top: 0; left: 0; right: 0; bottom: 0;
+    }
     .page-nav-btn {
       position: absolute; top: 50%; transform: translateY(-50%);
       width: 48px; height: 80px; border: none; border-radius: 8px;
@@ -468,13 +473,14 @@
     /* Text layer for selection */
     .text-layer {
       position: absolute; top: 0; left: 0; right: 0; bottom: 0;
-      line-height: 1; opacity: 0.2; user-select: text;
+      line-height: 1; opacity: 0.25; user-select: text;
     }
-    .text-layer ::selection { background: rgba(99,102,241,0.3); }
+    .text-layer ::selection { background: rgba(99,102,241,0.4); }
     .text-layer span {
       position: absolute; white-space: pre; cursor: text;
       transform-origin: 0% 0%; color: transparent;
-      line-height: 1.25; pointer-events: none;
+      pointer-events: none;
+      /* width/height set inline by JS */
     }
 
     /* Highlight layer */
@@ -484,26 +490,42 @@
     }
     .highlight-box {
       position: absolute; border-radius: 2px;
-      pointer-events: auto; cursor: pointer; transition: opacity 0.2s;
+      pointer-events: auto; cursor: pointer; transition: opacity 0.15s;
     }
-    .highlight-box:hover { opacity: 0.85; }
+    .highlight-box:hover { opacity: 0.85 !important; }
     .highlight-box.selected { box-shadow: 0 0 0 2px var(--accent); }
     .highlight-box .author-tip {
-      position: absolute; bottom: calc(100% + 2px); left: 0;
-      background: rgba(0,0,0,0.8); color: white;
-      font-size: 10px; padding: 2px 6px; border-radius: 3px;
+      position: absolute; bottom: calc(100% + 4px); left: 50%;
+      transform: translateX(-50%);
+      background: rgba(0,0,0,0.85); color: white;
+      font-size: 11px; padding: 3px 8px; border-radius: 4px;
       white-space: nowrap; pointer-events: none;
       opacity: 0; transition: opacity 0.2s;
+      display: flex; align-items: center; gap: 6px;
     }
     .highlight-box:hover .author-tip { opacity: 1; }
     .highlight-box .del-x {
-      position: absolute; top: -7px; right: -7px;
-      width: 14px; height: 14px; background: var(--danger);
-      border-radius: 50%; color: white; font-size: 9px;
+      background: rgba(255,80,80,0.9); color: white; border: none;
+      width: 18px; height: 18px; border-radius: 50%; font-size: 11px;
       display: flex; align-items: center; justify-content: center;
-      cursor: pointer; opacity: 0; transition: opacity 0.2s; z-index: 20;
+      cursor: pointer; margin-left: 4px; flex-shrink: 0;
+      line-height: 1; transition: background 0.15s;
     }
-    .highlight-box:hover .del-x { opacity: 1; }
+    .highlight-box .del-x:hover { background: #e53e3e; }
+
+    /* Highlight thickness controls */
+    .hl-thickness-group {
+      display: flex; align-items: center; gap: 4px; margin-left: 4px;
+    }
+    .hl-thickness-group span { font-size: 10px; color: var(--text-muted); }
+    .hl-thick-btn {
+      width: 24px; height: 24px; border: 1px solid var(--border);
+      border-radius: 4px; background: var(--bg-tertiary); color: var(--text-primary);
+      cursor: pointer; display: flex; align-items: center; justify-content: center;
+      font-size: 14px; transition: all 0.15s;
+    }
+    .hl-thick-btn.active { background: var(--accent); color: white; border-color: var(--accent); }
+    .hl-thick-btn:hover:not(.active) { background: var(--bg-secondary); }
 
     /* Note layer */
     .note-layer {
@@ -878,6 +900,12 @@
     <button class="vt-btn" onclick="goBackToLibrary()" title="Back to library">←</button>
     <div class="vt-divider"></div>
     <button class="vt-btn" id="vt-highlight" onclick="setMode('highlight')" title="Highlight">🖍️</button>
+    <div class="hl-thickness-group" id="hl-thick-group" style="display:none">
+      <span>粗细</span>
+      <button class="hl-thick-btn" data-thick="thin" onclick="setHlThickness('thin')" title="细">¯</button>
+      <button class="hl-thick-btn active" data-thick="medium" onclick="setHlThickness('medium')" title="中">—</button>
+      <button class="hl-thick-btn" data-thick="thick" onclick="setHlThickness('thick')" title="粗">▮</button>
+    </div>
     <button class="vt-btn" id="vt-note" onclick="setMode('note')" title="Add note">📝</button>
     <button class="vt-btn" id="vt-select" onclick="setMode('select')" title="Select">↖️</button>
     <div class="vt-divider"></div>
@@ -1162,6 +1190,7 @@ let quickUploadFile = null;  // file from drag-drop
 let currentView = 'grid';   // 'grid' or 'list'
 let contextTargetId = null;  // paper id for context menu
 let currentViewerPage = 1;   // single-page viewer current page
+let hlThickness = 'medium';   // highlight thickness: 'thin' | 'medium' | 'thick'
 
 // ═══════════════════════════════════════════════════════════════════
 // INIT
@@ -2063,20 +2092,55 @@ function goToNextPage() {
 }
 
 function renderTextLayer(textContent, container, viewport) {
-  textContent.items.forEach(item => {
-    if (!item.str.trim()) return;
+  // Group text items by transform (same line / same style)
+  const items = textContent.items;
+  for (let i = 0; i < items.length; i++) {
+    const item = items[i];
+    if (!item.str.trim()) continue;
+
+    // Transform the text position from PDF coords to viewport coords
     const tx = pdfjsLib.Util.transform(viewport.transform, item.transform);
-    const fh = Math.hypot(tx[0], tx[1]);
-    const fw = Math.hypot(tx[2], tx[3]);
+    const fontSize = Math.hypot(tx[0], tx[1]);
+    const angle = Math.atan2(tx[1], tx[0]);
+    const isVertical = Math.abs(angle) > Math.PI / 4;
+
     const el = document.createElement('span');
     el.textContent = item.str;
-    el.style.left = tx[4] + 'px';
-    el.style.top = tx[5] + 'px';
-    el.style.fontSize = fh + 'px';
-    el.style.fontFamily = item.fontName;
-    el.style.transform = `scaleX(${fw / fh})`;
+
+    if (isVertical) {
+      // Vertical text
+      const width = fontSize;
+      const height = item.width * fontSize || fontSize;
+      el.style.left = (tx[4] - fontSize * 0.5) + 'px';
+      el.style.top = (tx[5] - fontSize) + 'px';
+      el.style.width = width + 'px';
+      el.style.height = height + 'px';
+      el.style.fontSize = fontSize + 'px';
+      el.style.lineHeight = (height / fontSize) + '';
+      el.style.writingMode = 'vertical-rl';
+    } else {
+      // Horizontal text
+      // item.width is in text-space units; scale to viewport
+      const textWidth = (item.width || item.str.length * 0.5) * fontSize;
+      // item.height is the actual height of the text item in text-space units
+      const textHeight = (item.height || 1) * fontSize;
+
+      el.style.left = tx[4] + 'px';
+      el.style.top = (tx[5] - textHeight * 0.85) + 'px'; // baseline adjustment
+      el.style.fontSize = fontSize + 'px';
+      el.style.fontFamily = item.fontName || 'sans-serif';
+      el.style.width = Math.max(textWidth, 1) + 'px';
+      el.style.height = Math.max(textHeight * 1.1, fontSize) + 'px';
+      el.style.lineHeight = Math.max(textHeight * 1.1, fontSize) / fontSize + '';
+      // Apply horizontal scaling from transform
+      const scaleX = Math.hypot(tx[2], tx[3]) / fontSize;
+      if (Math.abs(scaleX - 1) > 0.01) {
+        el.style.transform = `scaleX(${scaleX})`;
+      }
+    }
+
     container.appendChild(el);
-  });
+  }
 }
 
 // ─── Zoom ───
@@ -2104,10 +2168,34 @@ function setMode(m) {
     l.style.pointerEvents = pe;
     l.querySelectorAll('span').forEach(s => s.style.pointerEvents = pe);
   });
+  // Show/hide thickness controls
+  const tg = $('hl-thick-group');
+  if (tg) tg.style.display = m === 'highlight' ? 'flex' : 'none';
 }
 
 function toggleAnnoSidebar() {
   $('anno-sidebar').style.display = $('anno-sidebar').style.display === 'none' ? 'flex' : 'none';
+}
+
+// ─── Highlight Thickness ───
+function setHlThickness(t) {
+  hlThickness = t;
+  document.querySelectorAll('.hl-thick-btn').forEach(b => b.classList.toggle('active', b.dataset.thick === t));
+}
+function getHighlightHeight(thick) {
+  // Returns the highlight vertical padding/offset (negative to expand up)
+  switch(thick) {
+    case 'thin': return 0;
+    case 'thick': return 2;
+    default: return 0;
+  }
+}
+function getHighlightBorderBottom(thick) {
+  switch(thick) {
+    case 'thin': return 1;
+    case 'thick': return 4;
+    default: return 2;
+  }
 }
 
 // ─── Text Selection / Highlight ───
@@ -2133,8 +2221,18 @@ function handleMouseUp() {
   const pageRect = targetPage.wrapper.getBoundingClientRect();
   const hlRects = [];
   for (const r of rects) {
-    hlRects.push({ x: r.left - pageRect.left, y: r.top - pageRect.top, width: r.width, height: r.height });
+    // Only include rects that are within the page boundaries
+    const x = r.left - pageRect.left;
+    const y = r.top - pageRect.top;
+    const w = r.width;
+    const h = r.height;
+    // Skip tiny artifacts from line breaks
+    if (w > 1 && h > 1) {
+      hlRects.push({ x: Math.round(x * 10) / 10, y: Math.round(y * 10) / 10, width: Math.round(w * 10) / 10, height: Math.round(h * 10) / 10 });
+    }
   }
+
+  if (hlRects.length === 0) { sel.removeAllRanges(); return; }
 
   const anno = {
     paper_id: currentPaper.id,
@@ -2143,7 +2241,8 @@ function handleMouseUp() {
     page_num: targetPage.pageNum,
     type: 'highlight',
     text: text,
-    rects: hlRects
+    rects: hlRects,
+    thickness: hlThickness
   };
 
   sel.removeAllRanges();
@@ -2233,16 +2332,23 @@ function renderHighlight(a) {
   const color = a.user_color || getAuthorColor(a.user_name);
   const isOwn = a.user_name === currentUser.name;
   const rects = typeof a.rects === 'string' ? JSON.parse(a.rects) : (a.rects || []);
+  const thick = a.thickness || 'medium';
+  const bh = getHighlightHeight(thick);
+  const bb = getHighlightBorderBottom(thick);
 
   rects.forEach((r, idx) => {
     const box = document.createElement('div');
     box.className = 'highlight-box';
     box.dataset.annoId = a.id;
-    box.style.cssText = `left:${r.x}px;top:${r.y}px;width:${r.width}px;height:${r.height}px;background:${hexToRgba(color, 0.35)};border-bottom:2px solid ${hexToRgba(color, 0.8)}`;
+    box.style.cssText = `left:${r.x}px;top:${r.y}px;width:${r.width}px;height:${r.height}px;background:${hexToRgba(color, 0.35)};border-bottom:${bb}px solid ${hexToRgba(color, 0.8)};`;
     if (idx === 0) {
-      box.innerHTML = `<span class="author-tip">${esc(a.user_name)}</span>${isOwn ? `<span class="del-x" onclick="event.stopPropagation();deleteAnno('${a.id}')">×</span>` : ''}`;
+      box.innerHTML = `<span class="author-tip">${esc(a.user_name)}${isOwn ? `<span class="del-x" onclick="event.stopPropagation();deleteAnno('${a.id}')" title="Delete">✕</span>` : ''}</span>`;
     }
-    box.onclick = e => { e.stopPropagation(); };
+    box.onclick = e => {
+      e.stopPropagation();
+      // If not own, just show author tip
+      if (!isOwn) return;
+    };
     pg.hlLayer.appendChild(box);
   });
 }
