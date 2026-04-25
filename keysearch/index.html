@@ -2118,7 +2118,14 @@
                         ${p.citationCount !== undefined && p.citationCount !== null ? `<span>📊 ${p.citationCount.toLocaleString()} 被引</span>` : ''}
                         ${p.journalRating?.if ? `<span>📈 IF: ${p.journalRating.if}</span>` : ''}
                     </div>
-                    <div class="paper-abstract">${p.abstract ? p.abstract.slice(0, 400) + '...' : 'No abstract available'}</div>
+                    <div class="paper-abstract" onclick="this.classList.toggle('expanded')" style="cursor:pointer;">
+                        ${p.abstract
+                            ? (p.abstract.length > 400
+                                ? `<span class="abstract-short">${p.abstract.slice(0, 400)}...</span><span class="abstract-full" style="display:none;">${p.abstract}</span><span class="abstract-toggle" style="color:var(--primary);font-size:12px;margin-left:4px;">▼ Show more</span>`
+                                : p.abstract)
+                            : 'No abstract available'
+                        }
+                    </div>
                     <div class="paper-actions">
                         <button class="btn btn-primary btn-small" data-paper="${encodeURIComponent(JSON.stringify(p))}" onclick='addToLibraryFromButton(this)'>
                             ➕ ${i18n.currentLang === 'zh' ? '加入文献库' : 'Add to Library'}
@@ -2143,6 +2150,20 @@
             `;
             }).join('');
         }
+
+        // ═══════════ Abstract expand/collapse ═══════════
+        document.addEventListener('click', function(e) {
+            const absDiv = e.target.closest('.paper-abstract');
+            if (!absDiv) return;
+            const shortEl = absDiv.querySelector('.abstract-short');
+            const fullEl = absDiv.querySelector('.abstract-full');
+            const toggleEl = absDiv.querySelector('.abstract-toggle');
+            if (!shortEl || !fullEl) return;
+            const isExpanded = fullEl.style.display !== 'none';
+            shortEl.style.display = isExpanded ? 'inline' : 'none';
+            fullEl.style.display = isExpanded ? 'none' : 'inline';
+            if (toggleEl) toggleEl.textContent = isExpanded ? '▼ Show more' : '▲ Show less';
+        });
 
         function renderBadges(rating) {
             if (!rating) return '';
