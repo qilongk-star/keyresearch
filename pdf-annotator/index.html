@@ -217,8 +217,9 @@
       position: fixed; top: 0; left: 0; right: 0; bottom: 0;
       background: rgba(0,0,0,0.85); display: none;
       align-items: center; justify-content: center; z-index: 2000;
+      pointer-events: none;
     }
-    .modal.active { display: flex; }
+    .modal.active { display: flex; pointer-events: auto; }
     .modal-content {
       background: #2d2d2d; padding: 28px; border-radius: 14px;
       width: 420px; max-width: 90%;
@@ -236,8 +237,10 @@
     .modal-content button {
       width: 100%; padding: 12px; background: #0078d4; color: white;
       border: none; border-radius: 8px; cursor: pointer; font-weight: 600;
+      position: relative; z-index: 1;
     }
     .modal-content button:hover { background: #106ebe; }
+    .modal-content button:active { transform: scale(0.98); }
     .modal-content button.secondary { background: #404040; margin-top: 8px; }
 
     /* Nickname modal special styles */
@@ -350,7 +353,7 @@
       <input type="text" id="nickname-input" placeholder="e.g. Alice, Bob, Prof. Zhang..." maxlength="30">
       <p style="font-size:12px;color:#aaa;margin-bottom:10px">Pick a color for your annotations:</p>
       <div class="color-picker-row" id="color-picker-row"></div>
-      <button onclick="confirmNickname()">Start Annotating</button>
+      <button type="button" onclick="confirmNickname(); event.stopPropagation();">Start Annotating</button>
     </div>
   </div>
 
@@ -464,6 +467,11 @@ const PROJECTS = [
 ];
 
 function $(id) { return document.getElementById(id); }
+
+// Enter key submits nickname
+$('nickname-input').addEventListener('keydown', (e) => {
+  if (e.key === 'Enter') { e.preventDefault(); confirmNickname(); }
+});
 
 // ─── Nickname / User Setup ───────────────────────────────────────────────────
 
