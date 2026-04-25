@@ -1717,7 +1717,7 @@ async function submitPaper() {
     tags,
     pdf_path: pdfPath,
     pdf_base64: null,
-    folder: folderId,
+    folder: folderId || null,
     uploaded_by: currentUser.name
   };
 
@@ -2283,7 +2283,7 @@ async function submitQuickUpload() {
     tags: [],
     pdf_path: pdfPath,
     pdf_base64: null,
-    folder: folderId,
+    folder: folderId || null,
     uploaded_by: currentUser.name
   };
 
