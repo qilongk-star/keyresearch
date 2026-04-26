@@ -2434,20 +2434,33 @@ async function loadAnnotations(paperId) {
 }
 
 async function insertAnnotation(annoData) {
-  const { data, error } = await sb.from('annotations').insert(annoData).select().single();
-  if (error) { toast('Annotation error: ' + error.message, 'error'); return; }
+  try {
+    const { data, error } = await sb.from('annotations').insert(annoData).select().single();
+    if (error) { toast('Annotation error: ' + error.message, 'error'); return null; }
+    return data;
+  } catch (e) {
+    console.error('insertAnnotation exception:', e);
+    toast('Network error — browser may be blocking requests. Try: Edge Settings → Privacy → Tracking Prevention → add site exception, or use Chrome/Incognito.', 'error');
+    return null;
+  }
 }
 
 async function deleteAnnotationFromDb(id) {
   console.log('deleteAnnotationFromDb called for id:', id);
-  const { error } = await sb.from('annotations').delete().eq('id', id);
-  if (error) {
-    console.error('deleteAnnotationFromDb error:', error);
-    toast('Delete failed: ' + error.message, 'error');
+  try {
+    const { data, error } = await sb.from('annotations').delete().eq('id', id);
+    if (error) {
+      console.error('deleteAnnotationFromDb supabase error:', error);
+      toast('Delete failed: ' + error.message, 'error');
+      return false;
+    }
+    console.log('deleteAnnotationFromDb success for id:', id, 'rows:', data);
+    return true;
+  } catch (e) {
+    console.error('deleteAnnotationFromDb exception:', e);
+    toast('Network error — browser may be blocking requests. Try: Edge Settings → Privacy → Tracking Prevention → add site exception, or use Chrome/Incognito.', 'error');
     return false;
   }
-  console.log('deleteAnnotationFromDb success for id:', id);
-  return true;
 }
 
 function subscribeRealtime(paperId) {
@@ -2711,20 +2724,18 @@ async function deleteAnno(id) {
   const a = annotations.find(x => x.id === id);
   if (a && a.user_name !== currentUser.name) { toast('Can only delete your own', 'error'); return; }
   
-  // Remove from UI immediately
-  annotations = annotations.filter(x => x.id !== id);
-  document.querySelectorAll(`[data-anno-id="${id}"]`).forEach(el => el.remove());
-  document.querySelectorAll('.hl-popup').forEach(p => p.remove());
-  document.querySelectorAll('.note-popup').forEach(p => p.remove());
-  renderAnnoList();
-  
-  // Delete from DB immediately
+  // Delete from DB first, then remove from UI
   const ok = await deleteAnnotationFromDb(id);
   if (ok) {
+    // DB confirmed — now safe to remove from UI
+    annotations = annotations.filter(x => x.id !== id);
+    document.querySelectorAll(`[data-anno-id="${id}"]`).forEach(el => el.remove());
+    document.querySelectorAll('.hl-popup').forEach(p => p.remove());
+    document.querySelectorAll('.note-popup').forEach(p => p.remove());
+    renderAnnoList();
     toast('Highlight deleted', 'success');
-  } else {
-    toast('Delete failed — check console', 'error');
   }
+  // If failed, UI stays untouched — no false deletion
 }
 
 // ─── Annotation sidebar list ───
