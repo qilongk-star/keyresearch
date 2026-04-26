@@ -405,7 +405,7 @@ async function handleFile(file) {
         if (best && best.confidence > 0.4) {
           cit.matchedRef = best.ref.index;
           cit.matchType = best.confidence > 0.8 ? 'exact' : 'fuzzy';
-          references[best.ref.index].matchCount++;
+          best.ref.matchCount++;
           matched++;
         } else unmatched++;
       }
@@ -1088,7 +1088,7 @@ function matchCitations() {
       if (best && best.confidence > 0.4) {
         cit.matchedRef = best.ref.index;
         cit.matchType = best.confidence > 0.8 ? 'exact' : 'fuzzy';
-        references[best.ref.index].matchCount++;
+        best.ref.matchCount++;
         matched++;
       } else {
         unmatched++;
@@ -1330,7 +1330,7 @@ Reply ONLY with a JSON array of strings. Each string is one citation, e.g. ["Smi
       if (best && best.confidence > 0.4) {
         cit.matchedRef = best.ref.index;
         cit.matchType = best.confidence > 0.8 ? 'exact' : 'fuzzy';
-        references[best.ref.index].matchCount++;
+        best.ref.matchCount++;
         matched++;
       } else unmatched++;
     }
