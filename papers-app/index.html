@@ -2222,18 +2222,22 @@ function renderTextLayer(textContent, container, viewport) {
     const angle = Math.atan2(tx[1], tx[0]);
     const isVertical = Math.abs(angle) > Math.PI / 4;
 
-    // Total item width in viewport pixels
-    const totalWidth = (item.width || item.str.length * fontSize * 0.55) * fontSize;
+    // item.width is in text-space units (≈ total character widths, ~fontSize scale).
+    // The viewport transform scales text-space → viewport pixels.
+    // tx[0],tx[1] = the combined scale+rotation of the first axis ≈ fontSize in px.
+    // So viewport width = item.width * fontSize is already correct in most cases,
+    // but we cap it to prevent runaway values from bad PDFs.
+    const rawWidth = (item.width || 0) * fontSize;
+    const totalWidth = Math.min(rawWidth, 2000);  // sane cap
     const textHeight = (item.height || 1) * fontSize;
     const scaleX = Math.hypot(tx[2], tx[3]) / fontSize;
 
     // ── Wrap the whole item in a container span ──
-    // This keeps characters together so selection works across them
     const wrapper = document.createElement('span');
     wrapper.dataset.itemIdx = i;
 
     if (isVertical) {
-      const height = item.width * fontSize || fontSize;
+      const height = Math.min(item.width * fontSize || fontSize, 2000);
       wrapper.style.cssText = `
         position:absolute;
         left:${tx[4] - fontSize * 0.5}px;
@@ -2252,12 +2256,22 @@ function renderTextLayer(textContent, container, viewport) {
       continue;
     }
 
-    // ── Horizontal text: split into per-character spans ──
-    // Each char span gets an equal share of the total width,
-    // so browsers can hit-test them individually for precise selection.
+    // ── Horizontal text ──
     const str = item.str;
     const charCount = str.length;
-    const charWidth = charCount > 0 ? totalWidth / charCount : totalWidth;
+
+    // Compute a reasonable charWidth: divide total item width by number of chars.
+    // Fallback: use a font-based estimate if item.width is 0 or missing.
+    let charWidth;
+    if (totalWidth > 0 && charCount > 0) {
+      charWidth = totalWidth / charCount;
+    } else {
+      // Fallback: estimate ~0.55 * fontSize per char (proportional font average)
+      charWidth = fontSize * 0.55;
+    }
+
+    // Ensure charWidth is not absurdly large (guard against bad PDF data)
+    charWidth = Math.min(charWidth, fontSize * 3);
 
     wrapper.style.cssText = `
       position:absolute;
@@ -2273,7 +2287,7 @@ function renderTextLayer(textContent, container, viewport) {
       ${Math.abs(scaleX - 1) > 0.01 ? `transform:scaleX(${scaleX});` : ''}
     `;
 
-    // Build character spans
+    // Build character spans for precise selection
     for (let c = 0; c < charCount; c++) {
       const ch = document.createElement('span');
       ch.textContent = str[c];
@@ -2369,17 +2383,25 @@ function handleMouseUp() {
 
   const rects = range.getClientRects();
   const pageRect = targetPage.wrapper.getBoundingClientRect();
+  const pageW = targetPage.viewport.width;
+  const pageH = targetPage.viewport.height;
 
-  // Collect raw rects
+  // Collect raw rects, clamped to page boundaries
   const rawRects = [];
   for (const r of rects) {
-    const x = r.left - pageRect.left;
-    const y = r.top - pageRect.top;
-    const w = r.width;
-    const h = r.height;
-    if (w > 0.5 && h > 1) {
-      rawRects.push({ x, y, right: x + w, bottom: y + h, width: w, height: h });
-    }
+    let x = r.left - pageRect.left;
+    let y = r.top - pageRect.top;
+    let w = r.width;
+    let h = r.height;
+    // Skip tiny artifacts from char-span splitting
+    if (w < 0.5 || h < 1) continue;
+    // Clamp to page boundaries to prevent cross-page highlight
+    if (x + w < 0 || y + h < 0 || x > pageW || y > pageH) continue;
+    if (x < 0) { w += x; x = 0; }
+    if (y < 0) { h += y; y = 0; }
+    if (x + w > pageW) w = pageW - x;
+    if (y + h > pageH) h = pageH - y;
+    rawRects.push({ x, y, right: x + w, bottom: y + h, width: w, height: h });
   }
 
   // Merge rects that are on the same line (y overlap > 50%) to avoid
@@ -2520,13 +2542,18 @@ function renderHighlight(a) {
     box.style.cssText = `left:${r.x}px;top:${r.y}px;width:${r.width}px;height:${r.height}px;background:${hexToRgba(color, 0.35)};border-bottom:${bb}px solid ${hexToRgba(color, 0.8)};`;
     if (idx === 0) {
       firstBox = box;
-      box.innerHTML = `<span class="author-tip">${esc(a.user_name)}${isOwn ? `<span class="del-x" onclick="event.stopPropagation();deleteAnno('${a.id}')" title="Delete">✕</span>` : ''}</span>`;
+      const delSpan = document.createElement('span');
+      delSpan.className = 'del-x';
+      delSpan.title = 'Delete';
+      delSpan.textContent = '✕';
+      delSpan.addEventListener('click', e => { e.stopPropagation(); deleteAnno(a.id); });
+      box.innerHTML = `<span class="author-tip">${esc(a.user_name)}</span>`;
+      box.querySelector('.author-tip').appendChild(delSpan);
     }
-    box.onclick = e => {
+    box.addEventListener('click', e => {
       e.stopPropagation();
-      // Show text popup, anchored to the first box
       showHighlightPopup(a, firstBox || box);
-    };
+    });
     pg.hlLayer.appendChild(box);
     if (idx === 0) firstBox = box;
   });
@@ -2561,10 +2588,15 @@ function showNotePopup(a, pin) {
     <div class="np-author"><span class="dot" style="background:${color}"></span>${esc(a.user_name)} · p.${a.page_num}</div>
     <div class="np-text">${esc(a.note_text || a.text || '')}</div>
     <div class="np-btns">
-      ${isOwn ? `<button style="background:var(--danger);color:white" onclick="deleteAnno('${a.id}');this.closest('.note-popup').remove()">Delete</button>` : ''}
-      <button style="background:var(--bg-tertiary);color:var(--text-primary)" onclick="this.closest('.note-popup').remove()">Close</button>
+      ${isOwn ? `<button class="np-del-btn" style="background:var(--danger);color:white">Delete</button>` : ''}
+      <button class="np-close-btn" style="background:var(--bg-tertiary);color:var(--text-primary)">Close</button>
     </div>
   `;
+  // Attach listeners
+  const delBtn = popup.querySelector('.np-del-btn');
+  if (delBtn) delBtn.addEventListener('click', () => { deleteAnno(a.id); popup.remove(); });
+  popup.querySelector('.np-close-btn').addEventListener('click', () => popup.remove());
+
   const mr = pin.getBoundingClientRect();
   popup.style.left = Math.min(mr.left, window.innerWidth - 300) + 'px';
   popup.style.top = (mr.bottom + 8) + 'px';
@@ -2609,6 +2641,10 @@ async function deleteAnno(id) {
 }
 
 // ─── Annotation sidebar list ───
+
+// Store annotation full texts by ID to avoid embedding large strings in onclick attributes
+const annoTextCache = {};
+
 function renderAnnoList() {
   const list = $('anno-list');
   $('anno-total').textContent = annotations.length;
@@ -2623,13 +2659,18 @@ function renderAnnoList() {
     return;
   }
 
+  // Update text cache
+  annotations.forEach(a => {
+    annoTextCache[a.id] = a.type === 'highlight' ? (a.text || '') : (a.note_text || a.text || '');
+  });
+
   // Sort by page number
   const sorted = [...filtered].sort((a, b) => a.page_num - b.page_num);
 
   list.innerHTML = sorted.map(a => {
     const color = a.user_color || getAuthorColor(a.user_name);
     const isOwn = a.user_name === currentUser.name;
-    const rawText = a.type === 'highlight' ? (a.text || '') : (a.note_text || a.text || '');
+    const rawText = annoTextCache[a.id] || '';
     const isLong = rawText.length > 120;
     const previewText = isLong ? rawText.substring(0, 120) + '…' : rawText;
 
@@ -2642,32 +2683,59 @@ function renderAnnoList() {
             <span class="ai-type">🖍️</span>
           </div>
           <div class="ai-text-preview" id="ai-preview-${a.id}">${esc(previewText)}</div>
-          ${isLong ? `<button class="ai-expand-btn" id="ai-expand-${a.id}" onclick="event.stopPropagation();toggleAnnoExpand('${a.id}', ${JSON.stringify(rawText)})">▼ 展开全文 (${rawText.length} 字)</button>` : ''}
+          ${isLong ? `<button class="ai-expand-btn" id="ai-expand-${a.id}" data-anno-id="${a.id}">▼ 展开全文 (${rawText.length} 字)</button>` : ''}
           <div class="ai-text-full" id="ai-full-${a.id}" style="display:none">${esc(rawText)}</div>
           <div class="ai-actions">
-            <button class="ai-copy-btn" onclick="event.stopPropagation();copyText(${JSON.stringify(rawText)}, this)">📋 复制</button>
-            ${isOwn ? `<button class="ai-copy-btn" style="color:var(--danger);border-color:var(--danger)" onclick="event.stopPropagation();deleteAnno('${a.id}')">🗑️ 删除</button>` : ''}
-            <button class="ai-copy-btn" onclick="event.stopPropagation();scrollToAnno('${a.id}')">→ 定位</button>
+            <button class="ai-copy-btn" data-copy-id="${a.id}">📋 复制</button>
+            ${isOwn ? `<button class="ai-copy-btn" style="color:var(--danger);border-color:var(--danger)" data-del-id="${a.id}">🗑️ 删除</button>` : ''}
+            <button class="ai-copy-btn" data-scroll-id="${a.id}">→ 定位</button>
           </div>
         </div>
       `;
     } else {
       return `
-        <div class="anno-item" id="anno-item-${a.id}" onclick="scrollToAnno('${a.id}')">
+        <div class="anno-item" id="anno-item-${a.id}" data-scroll-id="${a.id}">
           <div class="ai-header">
             <span class="ai-author" style="background:${color}">${esc(a.user_name)}</span>
             <span class="ai-page">p.${a.page_num}</span>
             <span class="ai-type">📝</span>
           </div>
           <div class="ai-text">${esc(rawText)}</div>
-          ${isOwn ? `<button class="ai-del" onclick="event.stopPropagation();deleteAnno('${a.id}')">×</button>` : ''}
+          ${isOwn ? `<button class="ai-del" data-del-id="${a.id}">×</button>` : ''}
         </div>
       `;
     }
   }).join('');
+
+  // Attach event listeners via delegation (avoids inline onclick with special chars)
+  list.querySelectorAll('[data-copy-id]').forEach(btn => {
+    btn.addEventListener('click', e => {
+      e.stopPropagation();
+      const t = annoTextCache[btn.dataset.copyId] || '';
+      copyText(t, btn);
+    });
+  });
+  list.querySelectorAll('[data-del-id]').forEach(btn => {
+    btn.addEventListener('click', e => {
+      e.stopPropagation();
+      deleteAnno(btn.dataset.delId);
+    });
+  });
+  list.querySelectorAll('[data-scroll-id]').forEach(el => {
+    el.addEventListener('click', e => {
+      e.stopPropagation();
+      scrollToAnno(el.dataset.scrollId);
+    });
+  });
+  list.querySelectorAll('[data-anno-id]').forEach(btn => {
+    btn.addEventListener('click', e => {
+      e.stopPropagation();
+      toggleAnnoExpand(btn.dataset.annoId);
+    });
+  });
 }
 
-function toggleAnnoExpand(id, fullText) {
+function toggleAnnoExpand(id) {
   const fullEl = $(`ai-full-${id}`);
   const expandBtn = $(`ai-expand-${id}`);
   const previewEl = $(`ai-preview-${id}`);
@@ -2675,7 +2743,8 @@ function toggleAnnoExpand(id, fullText) {
   const isExpanded = fullEl.style.display !== 'none';
   fullEl.style.display = isExpanded ? 'none' : 'block';
   previewEl.style.display = isExpanded ? '' : 'none';
-  expandBtn.textContent = isExpanded ? `▼ 展开全文 (${fullText.length} 字)` : '▲ 收起';
+  const len = (annoTextCache[id] || '').length;
+  expandBtn.textContent = isExpanded ? `▼ 展开全文 (${len} 字)` : '▲ 收起';
 }
 
 function filterAnnotations(f, btn) {
@@ -2722,11 +2791,21 @@ function showHighlightPopup(anno, anchorEl) {
     </div>
     <div class="hl-popup-text">${esc(text)}</div>
     <div class="hl-popup-btns">
-      <button class="hl-popup-copy" onclick="copyText(${JSON.stringify(text)}, this)">📋 复制文本</button>
-      ${isOwn ? `<button class="hl-popup-del" onclick="deleteAnno('${anno.id}');document.querySelectorAll('.hl-popup').forEach(p=>p.remove())">🗑️ 删除</button>` : ''}
-      <button class="hl-popup-close" onclick="this.closest('.hl-popup').remove()">关闭</button>
+      <button class="hl-popup-copy">📋 复制文本</button>
+      ${isOwn ? `<button class="hl-popup-del">🗑️ 删除</button>` : ''}
+      <button class="hl-popup-close">关闭</button>
     </div>
   `;
+
+  // Attach event listeners (avoid inline onclick with text content)
+  popup.querySelector('.hl-popup-copy').addEventListener('click', () => copyText(text, popup.querySelector('.hl-popup-copy')));
+  if (isOwn) {
+    popup.querySelector('.hl-popup-del').addEventListener('click', () => {
+      deleteAnno(anno.id);
+      popup.remove();
+    });
+  }
+  popup.querySelector('.hl-popup-close').addEventListener('click', () => popup.remove());
 
   // Position near the anchor element
   document.body.appendChild(popup);
