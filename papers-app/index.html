@@ -1045,7 +1045,11 @@
       <button class="anno-filter-btn" data-af="mine" onclick="filterAnnotations('mine',this)">My</button>
     </div>
     <div class="anno-list" id="anno-list"></div>
-    <button class="anno-export-btn" onclick="openExportModal()" title="Export all highlights as text">📋 Export Highlights</button>
+    <div style="display:flex;gap:6px;padding:8px">
+      <button class="anno-export-btn" id="anno-save-btn" onclick="commitPendingDeletes()" title="Confirm deletions" style="flex:1">💾 Save</button>
+      <button class="anno-export-btn" onclick="cancelPendingDeletes()" title="Undo pending deletions" id="anno-cancel-btn" style="flex:1;display:none;background:var(--bg-tertiary);border-color:var(--border)">↩️ Undo</button>
+      <button class="anno-export-btn" onclick="openExportModal()" title="Export all highlights as text" style="flex:1">📋 Export</button>
+    </div>
   </div>
 </div>
 
@@ -2338,19 +2342,32 @@ function handleMouseUp() {
   }
 
   // Merge rects that are on the same line (y overlap > 50%) to avoid
-  // per-character tiny boxes caused by char-span splitting
+  // per-character tiny boxes caused by char-span splitting.
+  // IMPORTANT: In 2-column journal layouts, left and right column rects
+  // may have similar y values but should NOT be merged. We detect this
+  // by checking for a large horizontal gap between adjacent rects.
   rawRects.sort((a, b) => a.y - b.y || a.x - b.x);
   const merged = [];
   for (const r of rawRects) {
     const last = merged[merged.length - 1];
     if (last && Math.abs(r.y - last.y) < last.height * 0.5) {
-      // Same line — extend the band
-      last.x = Math.min(last.x, r.x);
-      last.right = Math.max(last.right, r.right);
-      last.y = Math.min(last.y, r.y);
-      last.bottom = Math.max(last.bottom, r.bottom);
-      last.width = last.right - last.x;
-      last.height = last.bottom - last.y;
+      // Check for column gap: if there's a significant horizontal gap
+      // between last rect's right edge and current rect's left edge,
+      // they belong to different columns — don't merge
+      const gap = r.x - last.right;
+      const gapThreshold = Math.max(last.width * 0.3, r.width * 0.3, 20);
+      if (gap > gapThreshold) {
+        // Different columns — start a new merged rect
+        merged.push({ ...r });
+      } else {
+        // Same line & same column — extend the band
+        last.x = Math.min(last.x, r.x);
+        last.right = Math.max(last.right, r.right);
+        last.y = Math.min(last.y, r.y);
+        last.bottom = Math.max(last.bottom, r.bottom);
+        last.width = last.right - last.x;
+        last.height = last.bottom - last.y;
+      }
     } else {
       merged.push({ ...r });
     }
@@ -2384,6 +2401,7 @@ function handleMouseUp() {
 // ANNOTATIONS (Supabase)
 // ═══════════════════════════════════════════════════════════════════
 async function loadAnnotations(paperId) {
+  pendingDeletes.clear();
   const { data, error } = await sb.from('annotations')
     .select('*')
     .eq('paper_id', paperId)
@@ -2396,6 +2414,7 @@ async function loadAnnotations(paperId) {
     else renderNotePin(a);
   });
   renderAnnoList();
+  updateSaveBtn();
 }
 
 async function insertAnnotation(annoData) {
@@ -2404,8 +2423,15 @@ async function insertAnnotation(annoData) {
 }
 
 async function deleteAnnotationFromDb(id) {
+  console.log('deleteAnnotationFromDb called for id:', id);
   const { error } = await sb.from('annotations').delete().eq('id', id);
-  if (error) toast('Delete error', 'error');
+  if (error) {
+    console.error('deleteAnnotationFromDb error:', error);
+    toast('Delete failed: ' + error.message, 'error');
+    return false;
+  }
+  console.log('deleteAnnotationFromDb success for id:', id);
+  return true;
 }
 
 function subscribeRealtime(paperId) {
@@ -2563,14 +2589,83 @@ function saveNote() {
   pendingNotePos = null;
 }
 
+// Pending deletions queue: stores annotation IDs marked for deletion
+// awaiting user confirmation via Save button
+const pendingDeletes = new Set();
+
+function updateSaveBtn() {
+  const btn = $('anno-save-btn');
+  const cancelBtn = $('anno-cancel-btn');
+  if (!btn) return;
+  const count = pendingDeletes.size;
+  if (count > 0) {
+    btn.textContent = `💾 Save & Delete (${count})`;
+    btn.style.background = 'var(--danger)';
+    btn.style.borderColor = 'var(--danger)';
+    if (cancelBtn) cancelBtn.style.display = 'block';
+  } else {
+    btn.textContent = '💾 Save';
+    btn.style.background = 'var(--accent)';
+    btn.style.borderColor = 'var(--accent)';
+    if (cancelBtn) cancelBtn.style.display = 'none';
+  }
+}
+
+async function cancelPendingDeletes() {
+  if (pendingDeletes.size === 0) return;
+  // Reload annotations from DB to restore deleted ones
+  if (currentPaper) {
+    await loadAnnotations(currentPaper.id);
+    toast('Deletions cancelled', 'info');
+  }
+}
+
+
 async function deleteAnno(id) {
   const a = annotations.find(x => x.id === id);
   if (a && a.user_name !== currentUser.name) { toast('Can only delete your own', 'error'); return; }
+  
+  // Add to pending deletions and update UI immediately
+  pendingDeletes.add(id);
   annotations = annotations.filter(x => x.id !== id);
   document.querySelectorAll(`[data-anno-id="${id}"]`).forEach(el => el.remove());
+  document.querySelectorAll('.hl-popup').forEach(p => p.remove());
   document.querySelectorAll('.note-popup').forEach(p => p.remove());
   renderAnnoList();
-  await deleteAnnotationFromDb(id);
+  updateSaveBtn();
+  toast('Marked for deletion — click Save to confirm', 'info');
+}
+
+async function commitPendingDeletes() {
+  if (pendingDeletes.size === 0) { toast('Nothing to save', 'info'); return; }
+  
+  const btn = $('anno-save-btn');
+  const origText = btn.textContent;
+  btn.textContent = 'Saving...';
+  btn.disabled = true;
+  
+  let successCount = 0;
+  let failCount = 0;
+  const failed = [];
+  
+  for (const id of pendingDeletes) {
+    const ok = await deleteAnnotationFromDb(id);
+    if (ok) successCount++;
+    else { failCount++; failed.push(id); }
+  }
+  
+  pendingDeletes.clear();
+  
+  if (failCount > 0) {
+    // Re-add failed ones back to annotations
+    toast(`${successCount} deleted, ${failCount} failed`, 'error');
+  } else {
+    toast(`${successCount} annotation(s) deleted`, 'success');
+  }
+  
+  btn.textContent = origText;
+  btn.disabled = false;
+  updateSaveBtn();
 }
 
 // ─── Annotation sidebar list ───
