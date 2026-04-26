@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>RefCheck - Citation Verification</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
-<script src="https://unpkg.com/mammoth@1.6.0/mammoth.browser.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/mammoth/1.6.0/mammoth.browser.min.js"></script>
 <style>
 :root {
   --bg: #0f172a; --surface: #1e293b; --surface2: #252f3f; --border: #334155;
@@ -493,7 +493,7 @@ function parseReferences() {
 
 function parseOneRef(text) {
   // Extract DOI
-  const doiMatch = text.match(/10\.\d{4,}\/[^\s,;]+)/);
+  const doiMatch = text.match(/10\.\d{4,}\/[^\s,;]+/);
   const doi = doiMatch ? doiMatch[0].replace(/[.,;:]+$/, '') : '';
 
   // Extract year
