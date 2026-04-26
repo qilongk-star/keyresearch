@@ -623,6 +623,104 @@
       opacity: 0; transition: opacity 0.15s; cursor: pointer; border: none;
     }
     .anno-item:hover .ai-del { opacity: 1; }
+    .anno-item .ai-text-full {
+      font-size: 12px; color: var(--text-primary); line-height: 1.55;
+      white-space: pre-wrap; word-break: break-word;
+      background: var(--bg-primary); border-radius: 5px;
+      padding: 8px 10px; margin-top: 6px; border-left: 3px solid var(--accent);
+    }
+    .anno-item .ai-text-preview {
+      font-size: 12px; color: var(--text-secondary); line-height: 1.4;
+      overflow: hidden; text-overflow: ellipsis;
+      display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical;
+    }
+    .anno-item .ai-expand-btn {
+      font-size: 11px; color: var(--accent); cursor: pointer;
+      background: none; border: none; padding: 2px 0; margin-top: 2px;
+      display: block; text-align: left;
+    }
+    .anno-item .ai-expand-btn:hover { text-decoration: underline; }
+    .anno-item .ai-actions {
+      display: flex; gap: 6px; margin-top: 6px; opacity: 0; transition: opacity 0.15s;
+    }
+    .anno-item:hover .ai-actions { opacity: 1; }
+    .anno-item .ai-copy-btn {
+      font-size: 11px; color: var(--text-secondary); cursor: pointer;
+      background: var(--bg-primary); border: 1px solid var(--border);
+      border-radius: 4px; padding: 2px 8px; transition: all 0.15s;
+    }
+    .anno-item .ai-copy-btn:hover { color: var(--accent); border-color: var(--accent); }
+
+    /* Highlight text popup (click on PDF highlight) */
+    .hl-popup {
+      position: fixed; z-index: 9000;
+      background: var(--bg-secondary); border: 1px solid var(--border);
+      border-radius: 10px; padding: 14px 16px; width: 360px; max-width: 90vw;
+      box-shadow: 0 8px 32px rgba(0,0,0,0.5);
+    }
+    .hl-popup-header {
+      display: flex; align-items: center; gap: 6px;
+      font-size: 11px; color: var(--text-muted); margin-bottom: 8px;
+    }
+    .hl-popup-text {
+      font-size: 13px; color: var(--text-primary); line-height: 1.6;
+      white-space: pre-wrap; word-break: break-word;
+      max-height: 260px; overflow-y: auto;
+      background: var(--bg-primary); border-radius: 6px;
+      padding: 10px 12px; border-left: 3px solid var(--accent);
+    }
+    .hl-popup-btns {
+      display: flex; gap: 8px; margin-top: 10px;
+    }
+    .hl-popup-btns button {
+      flex: 1; padding: 6px; border-radius: 6px; font-size: 12px;
+      cursor: pointer; border: 1px solid var(--border); transition: all 0.15s;
+    }
+    .hl-popup-copy { background: var(--accent); color: white; border-color: var(--accent) !important; }
+    .hl-popup-copy:hover { opacity: 0.85; }
+    .hl-popup-del { background: transparent; color: var(--danger) !important; border-color: var(--danger) !important; }
+    .hl-popup-del:hover { background: rgba(239,68,68,0.1); }
+    .hl-popup-close { background: var(--bg-tertiary); color: var(--text-secondary); }
+    .hl-popup-close:hover { background: var(--bg-primary); }
+
+    /* Export highlights button */
+    .anno-export-btn {
+      margin: 0 10px 10px; padding: 7px; border-radius: 7px;
+      background: var(--bg-tertiary); border: 1px solid var(--border);
+      color: var(--text-secondary); font-size: 12px; cursor: pointer;
+      transition: all 0.15s; display: flex; align-items: center;
+      justify-content: center; gap: 5px;
+    }
+    .anno-export-btn:hover { background: var(--accent); color: white; border-color: var(--accent); }
+
+    /* Export modal */
+    .export-modal {
+      position: fixed; inset: 0; z-index: 9000;
+      background: rgba(0,0,0,0.7);
+      display: none; align-items: center; justify-content: center;
+    }
+    .export-modal.active { display: flex; }
+    .export-box {
+      background: var(--bg-secondary); border: 1px solid var(--border);
+      border-radius: 14px; padding: 24px; width: 600px; max-width: 94vw;
+      max-height: 85vh; display: flex; flex-direction: column; gap: 12px;
+    }
+    .export-box h3 { font-size: 15px; font-weight: 600; margin: 0; }
+    .export-box textarea {
+      flex: 1; min-height: 360px; background: var(--bg-primary);
+      border: 1px solid var(--border); border-radius: 8px;
+      color: var(--text-primary); font-family: 'SFMono-Regular', Consolas, monospace;
+      font-size: 12px; line-height: 1.6; padding: 14px; resize: none;
+    }
+    .export-box-btns { display: flex; gap: 8px; }
+    .export-box-btns button {
+      flex: 1; padding: 8px; border-radius: 8px; font-size: 13px;
+      cursor: pointer; border: 1px solid var(--border); transition: all 0.15s;
+    }
+    .export-copy-all { background: var(--accent); color: white; border-color: var(--accent) !important; }
+    .export-copy-all:hover { opacity: 0.85; }
+    .export-close-btn { background: var(--bg-tertiary); color: var(--text-secondary); }
+    .export-close-btn:hover { background: var(--bg-primary); }
 
     /* ─── Folder color picker in modal ─── */
     .color-row {
@@ -942,6 +1040,19 @@
       <button class="anno-filter-btn" data-af="mine" onclick="filterAnnotations('mine',this)">My</button>
     </div>
     <div class="anno-list" id="anno-list"></div>
+    <button class="anno-export-btn" onclick="openExportModal()" title="Export all highlights as text">📋 Export Highlights</button>
+  </div>
+</div>
+
+<!-- ═══ Export Highlights Modal ═══ -->
+<div class="export-modal" id="export-modal">
+  <div class="export-box">
+    <h3>📋 Export Highlights</h3>
+    <textarea id="export-textarea" readonly placeholder="No highlights yet..."></textarea>
+    <div class="export-box-btns">
+      <button class="export-copy-all" onclick="copyExportText()">📋 Copy All</button>
+      <button class="export-close-btn" onclick="$('export-modal').classList.remove('active')">Close</button>
+    </div>
   </div>
 </div>
 
@@ -2332,9 +2443,10 @@ function renderHighlight(a) {
   const color = a.user_color || getAuthorColor(a.user_name);
   const isOwn = a.user_name === currentUser.name;
   const rects = typeof a.rects === 'string' ? JSON.parse(a.rects) : (a.rects || []);
-  const thick = a.thickness || 'medium';
-  const bh = getHighlightHeight(thick);
-  const bb = getHighlightBorderBottom(thick);
+  const bb = getHighlightBorderBottom(a.thickness || 'medium');
+
+  // Track first box for popup anchor
+  let firstBox = null;
 
   rects.forEach((r, idx) => {
     const box = document.createElement('div');
@@ -2342,14 +2454,16 @@ function renderHighlight(a) {
     box.dataset.annoId = a.id;
     box.style.cssText = `left:${r.x}px;top:${r.y}px;width:${r.width}px;height:${r.height}px;background:${hexToRgba(color, 0.35)};border-bottom:${bb}px solid ${hexToRgba(color, 0.8)};`;
     if (idx === 0) {
+      firstBox = box;
       box.innerHTML = `<span class="author-tip">${esc(a.user_name)}${isOwn ? `<span class="del-x" onclick="event.stopPropagation();deleteAnno('${a.id}')" title="Delete">✕</span>` : ''}</span>`;
     }
     box.onclick = e => {
       e.stopPropagation();
-      // If not own, just show author tip
-      if (!isOwn) return;
+      // Show text popup, anchored to the first box
+      showHighlightPopup(a, firstBox || box);
     };
     pg.hlLayer.appendChild(box);
+    if (idx === 0) firstBox = box;
   });
 }
 
@@ -2444,22 +2558,59 @@ function renderAnnoList() {
     return;
   }
 
-  list.innerHTML = filtered.map(a => {
+  // Sort by page number
+  const sorted = [...filtered].sort((a, b) => a.page_num - b.page_num);
+
+  list.innerHTML = sorted.map(a => {
     const color = a.user_color || getAuthorColor(a.user_name);
     const isOwn = a.user_name === currentUser.name;
-    const text = a.type === 'highlight' ? (a.text || '').substring(0, 80) : (a.note_text || a.text || '');
-    return `
-      <div class="anno-item" onclick="scrollToAnno('${a.id}')">
-        <div class="ai-header">
-          <span class="ai-author" style="background:${color}">${esc(a.user_name)}</span>
-          <span class="ai-page">p.${a.page_num}</span>
-          <span class="ai-type">${a.type === 'highlight' ? '🖍️' : '📝'}</span>
+    const rawText = a.type === 'highlight' ? (a.text || '') : (a.note_text || a.text || '');
+    const isLong = rawText.length > 120;
+    const previewText = isLong ? rawText.substring(0, 120) + '…' : rawText;
+
+    if (a.type === 'highlight') {
+      return `
+        <div class="anno-item" id="anno-item-${a.id}">
+          <div class="ai-header">
+            <span class="ai-author" style="background:${color}">${esc(a.user_name)}</span>
+            <span class="ai-page">p.${a.page_num}</span>
+            <span class="ai-type">🖍️</span>
+          </div>
+          <div class="ai-text-preview" id="ai-preview-${a.id}">${esc(previewText)}</div>
+          ${isLong ? `<button class="ai-expand-btn" id="ai-expand-${a.id}" onclick="event.stopPropagation();toggleAnnoExpand('${a.id}', ${JSON.stringify(rawText)})">▼ 展开全文 (${rawText.length} 字)</button>` : ''}
+          <div class="ai-text-full" id="ai-full-${a.id}" style="display:none">${esc(rawText)}</div>
+          <div class="ai-actions">
+            <button class="ai-copy-btn" onclick="event.stopPropagation();copyText(${JSON.stringify(rawText)}, this)">📋 复制</button>
+            ${isOwn ? `<button class="ai-copy-btn" style="color:var(--danger);border-color:var(--danger)" onclick="event.stopPropagation();deleteAnno('${a.id}')">🗑️ 删除</button>` : ''}
+            <button class="ai-copy-btn" onclick="event.stopPropagation();scrollToAnno('${a.id}')">→ 定位</button>
+          </div>
         </div>
-        <div class="ai-text">${esc(text)}</div>
-        ${isOwn ? `<button class="ai-del" onclick="event.stopPropagation();deleteAnno('${a.id}')">×</button>` : ''}
-      </div>
-    `;
+      `;
+    } else {
+      return `
+        <div class="anno-item" id="anno-item-${a.id}" onclick="scrollToAnno('${a.id}')">
+          <div class="ai-header">
+            <span class="ai-author" style="background:${color}">${esc(a.user_name)}</span>
+            <span class="ai-page">p.${a.page_num}</span>
+            <span class="ai-type">📝</span>
+          </div>
+          <div class="ai-text">${esc(rawText)}</div>
+          ${isOwn ? `<button class="ai-del" onclick="event.stopPropagation();deleteAnno('${a.id}')">×</button>` : ''}
+        </div>
+      `;
+    }
   }).join('');
+}
+
+function toggleAnnoExpand(id, fullText) {
+  const fullEl = $(`ai-full-${id}`);
+  const expandBtn = $(`ai-expand-${id}`);
+  const previewEl = $(`ai-preview-${id}`);
+  if (!fullEl) return;
+  const isExpanded = fullEl.style.display !== 'none';
+  fullEl.style.display = isExpanded ? 'none' : 'block';
+  previewEl.style.display = isExpanded ? '' : 'none';
+  expandBtn.textContent = isExpanded ? `▼ 展开全文 (${fullText.length} 字)` : '▲ 收起';
 }
 
 function filterAnnotations(f, btn) {
@@ -2472,6 +2623,102 @@ function filterAnnotations(f, btn) {
 function scrollToAnno(id) {
   const el = document.querySelector(`[data-anno-id="${id}"]`);
   if (el) el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+}
+
+// ─── Copy text utility ───
+function copyText(text, btn) {
+  navigator.clipboard.writeText(text).then(() => {
+    if (btn) { const orig = btn.textContent; btn.textContent = '✓ 已复制'; setTimeout(() => btn.textContent = orig, 1500); }
+    else toast('Copied!', 'success');
+  }).catch(() => {
+    // Fallback
+    const ta = document.createElement('textarea');
+    ta.value = text; document.body.appendChild(ta); ta.select();
+    document.execCommand('copy'); document.body.removeChild(ta);
+    if (btn) { const orig = btn.textContent; btn.textContent = '✓ 已复制'; setTimeout(() => btn.textContent = orig, 1500); }
+  });
+}
+
+// ─── Highlight click popup ───
+function showHighlightPopup(anno, anchorEl) {
+  document.querySelectorAll('.hl-popup').forEach(p => p.remove());
+  const isOwn = anno.user_name === currentUser.name;
+  const color = anno.user_color || getAuthorColor(anno.user_name);
+  const text = anno.text || '';
+
+  const popup = document.createElement('div');
+  popup.className = 'hl-popup';
+  popup.innerHTML = `
+    <div class="hl-popup-header">
+      <span style="display:inline-block;width:10px;height:10px;border-radius:50%;background:${color};flex-shrink:0"></span>
+      <span>${esc(anno.user_name)}</span>
+      <span style="margin-left:4px">· 第 ${anno.page_num} 页</span>
+      ${anno.thickness && anno.thickness !== 'medium' ? `<span style="margin-left:auto;font-size:10px;color:var(--text-muted)">${anno.thickness === 'thin' ? '细线' : '粗线'}</span>` : ''}
+    </div>
+    <div class="hl-popup-text">${esc(text)}</div>
+    <div class="hl-popup-btns">
+      <button class="hl-popup-copy" onclick="copyText(${JSON.stringify(text)}, this)">📋 复制文本</button>
+      ${isOwn ? `<button class="hl-popup-del" onclick="deleteAnno('${anno.id}');document.querySelectorAll('.hl-popup').forEach(p=>p.remove())">🗑️ 删除</button>` : ''}
+      <button class="hl-popup-close" onclick="this.closest('.hl-popup').remove()">关闭</button>
+    </div>
+  `;
+
+  // Position near the anchor element
+  document.body.appendChild(popup);
+  const ar = anchorEl.getBoundingClientRect();
+  const pw = popup.offsetWidth;
+  const ph = popup.offsetHeight;
+  let left = ar.left + ar.width / 2 - pw / 2;
+  let top = ar.bottom + 8;
+  if (left < 8) left = 8;
+  if (left + pw > window.innerWidth - 8) left = window.innerWidth - pw - 8;
+  if (top + ph > window.innerHeight - 8) top = ar.top - ph - 8;
+  popup.style.left = left + 'px';
+  popup.style.top = top + 'px';
+
+  // Close on outside click
+  setTimeout(() => {
+    document.addEventListener('click', function h(e) {
+      if (!popup.contains(e.target) && !anchorEl.contains(e.target)) {
+        popup.remove(); document.removeEventListener('click', h);
+      }
+    });
+  }, 10);
+}
+
+// ─── Export Highlights ───
+function openExportModal() {
+  const highlights = annotations
+    .filter(a => a.type === 'highlight')
+    .sort((a, b) => a.page_num - b.page_num);
+
+  if (!highlights.length) {
+    toast('No highlights yet', 'info'); return;
+  }
+
+  const paperTitle = currentPaper ? currentPaper.title : 'Unknown';
+  const lines = [`# Highlights — ${paperTitle}`, `Exported: ${new Date().toLocaleDateString('zh-CN')}`, ''];
+
+  let lastPage = null;
+  highlights.forEach(a => {
+    if (a.page_num !== lastPage) {
+      lines.push(`\n## Page ${a.page_num}`);
+      lastPage = a.page_num;
+    }
+    const text = (a.text || '').trim();
+    lines.push(`> ${text}`);
+    lines.push(`  — ${a.user_name}`);
+    lines.push('');
+  });
+
+  $('export-textarea').value = lines.join('\n');
+  $('export-modal').classList.add('active');
+}
+
+function copyExportText() {
+  const text = $('export-textarea').value;
+  copyText(text);
+  toast(`已复制 ${annotations.filter(a=>a.type==='highlight').length} 条 highlight`, 'success');
 }
 
 // ─── Back to library ───
@@ -2610,6 +2857,14 @@ function hashStr(s) {
 }
 
 function closeModal(id) { $(id).classList.remove('active'); }
+
+// Close export-modal on backdrop click
+document.addEventListener('click', e => {
+  const em = $('export-modal');
+  if (em && em.classList.contains('active') && e.target === em) {
+    em.classList.remove('active');
+  }
+});
 
 function showLoading(text) { $('loading-text').textContent = text || 'Loading...'; $('loading').classList.add('active'); }
 function hideLoading() { $('loading').classList.remove('active'); }
