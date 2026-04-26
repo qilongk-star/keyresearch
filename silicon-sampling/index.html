@@ -1,0 +1,963 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Silicon Sampling - 硅采样平台</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Noto+Sans+SC:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+    <style>
+/* ============================================================   Silicon Sampling Platform - 硅采样平台   ============================================================ */
+:root {
+    --primary: #6C5CE7;--primary-light: #A29BFE;--primary-dark: #5A4BD1;
+    --accent: #00CEC9;--accent-light: #81ECEC;--success: #00B894;
+    --warning: #FDCB6E;--danger: #FF7675;--bg: #0F0F1A;--bg-card: #1A1A2E;
+    --bg-card-hover: #222240;--bg-input: #16162B;--border: #2D2D50;
+    --text: #E8E8F0;--text-muted: #8888AA;--text-dim: #555570;
+    --radius: 12px;--radius-sm: 8px;--shadow: 0 4px 20px rgba(0,0,0,0.3);
+    --shadow-lg: 0 8px 40px rgba(0,0,0,0.4);--transition: 0.2s ease;
+}
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body { font-family: 'Inter','Noto Sans SC',sans-serif; background: var(--bg); color: var(--text); line-height: 1.6; min-height: 100vh; }
+.top-nav { background: linear-gradient(135deg,var(--bg-card) 0%,#1E1E3A 100%); border-bottom: 1px solid var(--border); padding: 0 24px; display: flex; align-items: center; height: 60px; position: sticky; top: 0; z-index: 100; backdrop-filter: blur(10px); }
+.nav-brand { display: flex; align-items: center; gap: 8px; margin-right: 40px; }
+.nav-logo { font-size: 24px; }
+.nav-title { font-size: 18px; font-weight: 700; background: linear-gradient(135deg,var(--primary-light),var(--accent)); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
+.nav-subtitle { font-size: 12px; color: var(--text-muted); padding-left: 8px; border-left: 1px solid var(--border); }
+.nav-tabs { display: flex; gap: 4px; }
+.nav-tab { background: transparent; border: none; color: var(--text-muted); padding: 8px 16px; border-radius: var(--radius-sm); cursor: pointer; font-size: 14px; font-weight: 500; transition: var(--transition); font-family: inherit; }
+.nav-tab:hover { color: var(--text); background: rgba(255,255,255,0.05); }
+.nav-tab.active { color: var(--primary-light); background: rgba(108,92,231,0.15); }
+.main-content { max-width: 1400px; margin: 0 auto; padding: 24px; }
+.tab-panel { display: none; }
+.tab-panel.active { display: block; animation: fadeIn 0.3s ease; }
+@keyframes fadeIn { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
+.card { background: var(--bg-card); border: 1px solid var(--border); border-radius: var(--radius); padding: 24px; margin-bottom: 20px; box-shadow: var(--shadow); transition: var(--transition); }
+.card:hover { border-color: rgba(108,92,231,0.3); }
+.card h2 { font-size: 18px; font-weight: 600; margin-bottom: 16px; display: flex; align-items: center; gap: 8px; }
+.card h3 { font-size: 15px; font-weight: 600; margin-bottom: 12px; color: var(--text-muted); }
+.card-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; }
+.card-header h2 { margin-bottom: 0; }
+.config-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
+.config-col { display: flex; flex-direction: column; gap: 20px; }
+.mode-switch { display: flex; gap: 4px; background: var(--bg-input); border-radius: var(--radius-sm); padding: 3px; }
+.mode-btn { background: transparent; border: none; color: var(--text-muted); padding: 6px 14px; border-radius: 6px; cursor: pointer; font-size: 13px; font-weight: 500; transition: var(--transition); font-family: inherit; }
+.mode-btn.active { background: var(--primary); color: white; }
+.form-group { margin-bottom: 16px; }
+.form-group label { display: block; font-size: 13px; font-weight: 500; color: var(--text-muted); margin-bottom: 6px; }
+.form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+input[type="text"],input[type="number"],input[type="password"],select,textarea { width: 100%; background: var(--bg-input); border: 1px solid var(--border); color: var(--text); padding: 10px 14px; border-radius: var(--radius-sm); font-size: 14px; font-family: inherit; transition: var(--transition); outline: none; }
+input:focus,select:focus,textarea:focus { border-color: var(--primary); box-shadow: 0 0 0 3px rgba(108,92,231,0.15); }
+textarea { resize: vertical; }
+select { cursor: pointer; }
+.slider-row { display: flex; align-items: center; gap: 12px; }
+.slider-row input[type="range"] { flex: 1; -webkit-appearance: none; height: 6px; background: var(--border); border-radius: 3px; border: none; padding: 0; }
+.slider-row input[type="range"]::-webkit-slider-thumb { -webkit-appearance: none; width: 18px; height: 18px; background: var(--primary); border-radius: 50%; cursor: pointer; box-shadow: 0 2px 6px rgba(108,92,231,0.4); }
+.slider-value { font-weight: 600; color: var(--primary-light); min-width: 50px; text-align: right; font-size: 16px; }
+.city-grid { display: grid; grid-template-columns: repeat(auto-fill,minmax(90px,1fr)); gap: 6px; }
+.city-chip { display: flex; align-items: center; gap: 4px; padding: 6px 10px; background: var(--bg-input); border: 1px solid var(--border); border-radius: 6px; font-size: 13px; cursor: pointer; transition: var(--transition); user-select: none; }
+.city-chip.active { border-color: var(--primary); background: rgba(108,92,231,0.15); color: var(--primary-light); }
+.city-chip.tier1 { border-color: var(--warning); background: rgba(253,203,110,0.1); color: var(--warning); font-weight: 600; }
+.city-chip.tier1.active { border-color: var(--warning); background: rgba(253,203,110,0.2); color: var(--warning); }
+.city-chip.new-tier1 { border-color: var(--accent); background: rgba(0,206,201,0.08); color: var(--accent); font-weight: 500; }
+.city-chip.new-tier1.active { border-color: var(--accent); background: rgba(0,206,201,0.18); color: var(--accent); }
+.city-chip.tier2.active { border-color: var(--primary); background: rgba(108,92,231,0.15); color: var(--primary-light); }
+.city-chip input { display: none; }
+.btn { display: inline-flex; align-items: center; gap: 6px; padding: 10px 20px; border: none; border-radius: var(--radius-sm); font-size: 14px; font-weight: 600; cursor: pointer; transition: var(--transition); font-family: inherit; }
+.btn-primary { background: linear-gradient(135deg,var(--primary),var(--primary-dark)); color: white; box-shadow: 0 4px 12px rgba(108,92,231,0.3); }
+.btn-primary:hover { transform: translateY(-1px); box-shadow: 0 6px 16px rgba(108,92,231,0.4); }
+.btn-primary:disabled { opacity: 0.5; cursor: not-allowed; transform: none; box-shadow: none; }
+.btn-secondary { background: var(--bg-input); color: var(--text); border: 1px solid var(--border); }
+.btn-secondary:hover { border-color: var(--primary); color: var(--primary-light); }
+.btn-lg { padding: 14px 28px; font-size: 16px; }
+.btn-xl { padding: 16px 36px; font-size: 18px; width: 100%; justify-content: center; }
+.btn-sm { padding: 4px 10px; font-size: 12px; }
+.upload-zone { border: 2px dashed var(--border); border-radius: var(--radius); padding: 32px; text-align: center; cursor: pointer; transition: var(--transition); margin-bottom: 12px; }
+.upload-zone:hover,.upload-zone.dragover { border-color: var(--primary); background: rgba(108,92,231,0.05); }
+.upload-icon { font-size: 40px; margin-bottom: 8px; }
+.upload-hint { font-size: 12px; color: var(--text-dim); margin-top: 4px; }
+.screenshot-preview { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 12px; }
+.screenshot-thumb { position: relative; width: 80px; height: 80px; border-radius: 8px; overflow: hidden; border: 2px solid var(--border); }
+.screenshot-thumb img { width: 100%; height: 100%; object-fit: cover; }
+.screenshot-thumb .remove-btn { position: absolute; top: 2px; right: 2px; width: 20px; height: 20px; background: rgba(255,76,75,0.9); color: white; border: none; border-radius: 50%; font-size: 12px; cursor: pointer; display: flex; align-items: center; justify-content: center; }
+.extracted-result { background: var(--bg-input); border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 16px; margin-top: 12px; font-size: 13px; }
+.extracted-result h4 { color: var(--accent); margin-bottom: 8px; }
+.extracted-result pre { white-space: pre-wrap; word-break: break-all; color: var(--text-muted); font-family: 'Fira Code',monospace; font-size: 12px; }
+.questionnaire-preview { background: var(--bg-input); border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 16px; margin-top: 12px; }
+.questionnaire-preview .q-item { padding: 8px 12px; border-bottom: 1px solid var(--border); font-size: 14px; }
+.questionnaire-preview .q-item:last-child { border-bottom: none; }
+.q-type { display: inline-block; padding: 2px 8px; border-radius: 4px; font-size: 11px; font-weight: 600; margin-left: 8px; }
+.q-type.choice { background: rgba(0,206,201,0.15); color: var(--accent); }
+.q-type.open { background: rgba(253,203,110,0.15); color: var(--warning); }
+.alert { padding: 12px 16px; border-radius: var(--radius-sm); font-size: 13px; margin-bottom: 16px; line-height: 1.5; }
+.alert-info { background: rgba(0,206,201,0.08); border: 1px solid rgba(0,206,201,0.2); color: var(--accent); }
+.table-container { overflow-x: auto; max-height: 500px; overflow-y: auto; }
+table { width: 100%; border-collapse: collapse; }
+th { background: var(--bg-input); padding: 10px 14px; text-align: left; font-size: 12px; font-weight: 600; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.5px; position: sticky; top: 0; z-index: 1; }
+td { padding: 10px 14px; border-bottom: 1px solid var(--border); font-size: 14px; }
+tr:hover td { background: rgba(108,92,231,0.05); }
+.profile-actions { display: flex; align-items: center; gap: 12px; }
+.profile-count { font-size: 14px; color: var(--text-muted); background: var(--bg-input); padding: 4px 12px; border-radius: 20px; }
+.pagination { display: flex; justify-content: center; gap: 4px; margin-top: 16px; }
+.pagination button { background: var(--bg-input); border: 1px solid var(--border); color: var(--text); padding: 6px 12px; border-radius: 6px; cursor: pointer; font-size: 13px; font-family: inherit; transition: var(--transition); }
+.pagination button:hover { border-color: var(--primary); color: var(--primary-light); }
+.pagination button.active { background: var(--primary); color: white; border-color: var(--primary); }
+.chart-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
+.chart-grid canvas { max-height: 300px; }
+.run-checklist { margin-bottom: 20px; }
+.check-item { display: flex; align-items: center; gap: 10px; padding: 10px 0; font-size: 15px; border-bottom: 1px solid var(--border); }
+.check-item:last-child { border-bottom: none; }
+.check-icon { font-size: 18px; }
+.check-item.done .check-icon { color: var(--success); }
+.check-item.pending .check-icon { color: var(--danger); }
+.run-summary { background: var(--bg-input); border-radius: var(--radius-sm); padding: 16px; margin-bottom: 20px; font-size: 14px; line-height: 1.8; }
+.progress-container { margin-top: 20px; }
+.progress-bar { width: 100%; height: 8px; background: var(--bg-input); border-radius: 4px; overflow: hidden; }
+.progress-fill { height: 100%; width: 0%; background: linear-gradient(90deg,var(--primary),var(--accent)); border-radius: 4px; transition: width 0.3s ease; }
+.progress-text { margin-top: 8px; font-size: 13px; color: var(--text-muted); text-align: center; }
+.empty-state { text-align: center; padding: 60px 20px; color: var(--text-dim); font-size: 16px; }
+.results-detail { margin-top: 20px; }
+.result-question { background: var(--bg-card); border: 1px solid var(--border); border-radius: var(--radius); padding: 20px; margin-bottom: 16px; }
+.result-question h3 { font-size: 15px; color: var(--primary-light); margin-bottom: 12px; }
+.result-stats { display: grid; grid-template-columns: repeat(auto-fill,minmax(200px,1fr)); gap: 12px; }
+.stat-card { background: var(--bg-input); padding: 12px 16px; border-radius: var(--radius-sm); text-align: center; }
+.stat-card .stat-value { font-size: 24px; font-weight: 700; color: var(--accent); }
+.stat-card .stat-label { font-size: 12px; color: var(--text-muted); }
+.sample-answers { margin-top: 12px; padding: 12px; background: var(--bg-input); border-radius: var(--radius-sm); }
+.sample-answer { padding: 8px 0; border-bottom: 1px solid var(--border); font-size: 13px; line-height: 1.5; }
+.sample-answer:last-child { border-bottom: none; }
+.sample-answer .answer-profile { font-size: 11px; color: var(--text-dim); margin-bottom: 4px; }
+.about-card { max-width: 900px; margin: 0 auto; }
+.about-card h1 { font-size: 28px; text-align: center; margin-bottom: 32px; background: linear-gradient(135deg,var(--primary-light),var(--accent)); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
+.about-section { margin-bottom: 36px; }
+.about-section h2 { font-size: 20px; font-weight: 600; margin-bottom: 16px; color: var(--primary-light); }
+.about-section p { color: var(--text-muted); line-height: 1.8; font-size: 15px; }
+.theory-grid { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 16px; }
+.theory-item { background: var(--bg-input); border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 16px; }
+.theory-item h3 { font-size: 14px; margin-bottom: 8px; }
+.theory-item p { font-size: 13px; }
+.workflow-steps { display: flex; flex-direction: column; gap: 16px; }
+.wf-step { display: flex; gap: 16px; align-items: flex-start; }
+.wf-num { width: 36px; height: 36px; background: linear-gradient(135deg,var(--primary),var(--primary-dark)); color: white; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: 16px; flex-shrink: 0; }
+.wf-content h4 { font-size: 15px; font-weight: 600; margin-bottom: 4px; }
+.wf-content p { font-size: 13px; color: var(--text-muted); }
+.ref-list { list-style: none; padding: 0; }
+.ref-list li { padding: 10px 0; border-bottom: 1px solid var(--border); font-size: 13px; color: var(--text-muted); line-height: 1.6; }
+.ref-list li em { color: var(--text); font-style: italic; }
+.warning-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+.warning-item { background: rgba(255,118,117,0.05); border: 1px solid rgba(255,118,117,0.15); border-radius: var(--radius-sm); padding: 16px; }
+.warning-item h3 { color: var(--danger); font-size: 14px; margin-bottom: 8px; }
+.warning-item p { font-size: 13px; color: var(--text-muted); }
+.toast-container { position: fixed; top: 72px; right: 24px; z-index: 1000; display: flex; flex-direction: column; gap: 8px; }
+.toast { background: var(--bg-card); border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 12px 20px; font-size: 14px; box-shadow: var(--shadow-lg); animation: slideIn 0.3s ease; max-width: 400px; }
+.toast.success { border-left: 4px solid var(--success); }
+.toast.error { border-left: 4px solid var(--danger); }
+.toast.info { border-left: 4px solid var(--accent); }
+@keyframes slideIn { from { transform: translateX(100%); opacity: 0; } to { transform: translateX(0); opacity: 1; } }
+.dist-input-area { position: relative; }
+.dist-toolbar { display: flex; align-items: center; gap: 8px; margin-bottom: 6px; }
+.dist-hint { font-size: 11px; color: var(--text-dim); }
+.dist-preview { margin-top: 8px; }
+.dist-bars { display: flex; flex-direction: column; gap: 4px; }
+.dist-bar-row { display: flex; align-items: center; gap: 8px; font-size: 12px; }
+.dist-bar-label { min-width: 140px; color: var(--text-muted); text-align: right; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.dist-bar-track { flex: 1; height: 8px; background: var(--border); border-radius: 4px; overflow: hidden; }
+.dist-bar-fill { height: 100%; background: linear-gradient(90deg,var(--primary),var(--accent)); border-radius: 4px; transition: width 0.3s ease; }
+.dist-bar-pct { min-width: 45px; text-align: right; color: var(--primary-light); font-weight: 500; }
+@media (max-width: 1024px) { .config-grid { grid-template-columns: 1fr; } .theory-grid { grid-template-columns: 1fr; } .warning-grid { grid-template-columns: 1fr; } .chart-grid { grid-template-columns: 1fr; } }
+@media (max-width: 768px) { .top-nav { flex-direction: column; height: auto; padding: 12px; } .nav-tabs { flex-wrap: wrap; } .main-content { padding: 12px; } .form-row { grid-template-columns: 1fr; } }
+::-webkit-scrollbar { width: 8px; height: 8px; }
+::-webkit-scrollbar-track { background: var(--bg); }
+::-webkit-scrollbar-thumb { background: var(--border); border-radius: 4px; }
+::-webkit-scrollbar-thumb:hover { background: var(--text-dim); }
+    </style>
+</head>
+<body>
+    <!-- 顶部导航 -->
+    <nav class="top-nav">
+        <div class="nav-brand">
+            <span class="nav-logo">🧪</span>
+            <span class="nav-title">Silicon Sampling</span>
+            <span class="nav-subtitle">硅采样平台</span>
+        </div>
+        <div class="nav-tabs">
+            <button class="nav-tab active" data-tab="config">⚙️ 配置</button>
+            <button class="nav-tab" data-tab="profiles">👥 人格列表</button>
+            <button class="nav-tab" data-tab="run">🚀 运行采样</button>
+            <button class="nav-tab" data-tab="results">📊 结果</button>
+            <button class="nav-tab" data-tab="about">📖 技术说明</button>
+        </div>
+    </nav>
+
+    <main class="main-content">
+        <!-- ============ TAB 1: 配置 ============ -->
+        <section id="tab-config" class="tab-panel active">
+            <div class="config-grid">
+                <!-- 左列 -->
+                <div class="config-col">
+                    <div class="card">
+                        <div class="card-header">
+                            <h2>📋 人口统计学设定</h2>
+                            <div class="mode-switch">
+                                <button class="mode-btn active" data-mode="manual">手动设定</button>
+                                <button class="mode-btn" data-mode="literature">文献提取</button>
+                            </div>
+                        </div>
+                        <!-- 手动设定面板 -->
+                        <div id="manual-panel" class="panel active">
+                            <div class="form-group"><label>年龄分布</label><div class="dist-input-area"><div class="dist-toolbar"><button class="btn btn-sm btn-secondary" onclick="loadDefaultDist('age')">加载默认分布</button><span class="dist-hint">粘贴格式：类别(Tab)频次 或 类别(Tab)百分数%</span></div><textarea id="dist_age" rows="4" placeholder="0-20岁&#9;29&#9;3.61%&#10;21-30岁&#9;467&#9;58.08%&#10;31-40岁&#9;227&#9;28.23%&#10;41-50岁&#9;48&#9;5.97%&#10;51-60岁&#9;30&#9;3.73%"></textarea><button class="btn btn-sm btn-primary" onclick="parseDist('age')">解析</button><div class="dist-preview" id="dist_age_preview"></div></div></div>
+                            <div class="form-group"><label>性别比例</label><select id="gender_mode"><option value="auto">按中国人口比例 (~51:49)</option><option value="male">仅男性</option><option value="female">仅女性</option><option value="custom">自定义（在下方粘贴）</option></select><div id="gender-custom-area" style="display:none;margin-top:8px"><textarea id="dist_gender" rows="2" placeholder="男&#9;411&#9;51.12%&#10;女&#9;393&#9;48.88%"></textarea><button class="btn btn-sm btn-primary" onclick="parseDist('gender')">解析</button><div class="dist-preview" id="dist_gender_preview"></div></div></div>
+                            <div class="form-group"><label>学历分布</label><div class="dist-input-area"><div class="dist-toolbar"><button class="btn btn-sm btn-secondary" onclick="loadDefaultDist('education')">加载默认分布</button></div><textarea id="dist_education" rows="5" placeholder="小学及以下&#9;4&#9;0.50%&#10;初中&#9;2&#9;0.25%&#10;普高/中专/技校/职高&#9;28&#9;3.48%&#10;专科&#9;77&#9;9.58%&#10;本科&#9;576&#9;71.64%&#10;硕士&#9;105&#9;13.06%&#10;博士&#9;12&#9;1.49%"></textarea><button class="btn btn-sm btn-primary" onclick="parseDist('education')">解析</button><div class="dist-preview" id="dist_education_preview"></div></div></div>
+                            <div class="form-group"><label>职业分布</label><div class="dist-input-area"><div class="dist-toolbar"><button class="btn btn-sm btn-secondary" onclick="loadDefaultDist('occupation')">加载默认分布</button></div><textarea id="dist_occupation" rows="5" placeholder="学生&#9;143&#9;17.79%&#10;国有企业&#9;107&#9;13.31%&#10;事业单位&#9;67&#9;8.33%&#10;公务员&#9;33&#9;4.10%&#10;民营企业&#9;408&#9;50.75%&#10;外资企业&#9;46&#9;5.72%"></textarea><button class="btn btn-sm btn-primary" onclick="parseDist('occupation')">解析</button><div class="dist-preview" id="dist_occupation_preview"></div></div></div>
+                            <div class="form-group"><label>月收入分布</label><div class="dist-input-area"><div class="dist-toolbar"><button class="btn btn-sm btn-secondary" onclick="loadDefaultDist('income')">加载默认分布</button></div><textarea id="dist_income" rows="5" placeholder="1-5000元&#9;216&#9;26.87%&#10;5001-8000元&#9;233&#9;28.98%&#10;8001-17000元&#9;261&#9;32.46%&#10;17001-30000元&#9;71&#9;8.83%"></textarea><button class="btn btn-sm btn-primary" onclick="parseDist('income')">解析</button><div class="dist-preview" id="dist_income_preview"></div></div></div>
+                            <div class="form-group"><label>婚姻状态分布</label><div class="dist-input-area"><div class="dist-toolbar"><button class="btn btn-sm btn-secondary" onclick="loadDefaultDist('marital')">加载默认分布</button></div><textarea id="dist_marital" rows="4" placeholder="已婚,有子女&#9;369&#9;45.90%&#10;已婚,无子女&#9;40&#9;4.98%&#10;未婚,有子女&#9;11&#9;1.37%&#10;未婚,无子女&#9;380&#9;47.26%"></textarea><button class="btn btn-sm btn-primary" onclick="parseDist('marital')">解析</button><div class="dist-preview" id="dist_marital_preview"></div></div></div>
+                            <div class="form-group"><label>城市选择 <span style="color:#FDCB6E">★ 一线</span> <span style="color:#00CEC9">● 新一线</span> <span style="color:#A29BFE">○ 二线</span></label><div class="city-grid" id="city-grid"></div></div>
+                            <div class="form-group"><label>采样人数（建议 500-2000）</label><div class="slider-row"><input type="range" id="sample_count" min="100" max="2000" value="500" step="50"><span class="slider-value" id="sample_count_val">500</span></div></div>
+                            <button class="btn btn-primary btn-lg" id="btn-generate">生成虚拟受访者</button>
+                        </div>
+                        <!-- 文献提取面板 -->
+                        <div id="literature-panel" class="panel" style="display:none">
+                            <div class="alert alert-info">📸 上传学术论文中的人口统计学表格截图（最多10张），系统将自动提取年龄、性别、学历、职业、收入、婚姻状态等分布数据。</div>
+                            <div class="upload-zone" id="screenshot-upload"><div class="upload-icon">📷</div><p>拖拽截图到此处，或点击上传</p><p class="upload-hint">支持 JPG/PNG，最多 10 张</p><input type="file" id="screenshot-files" multiple accept="image/*" style="display:none"></div>
+                            <div class="screenshot-preview" id="screenshot-preview"></div>
+                            <button class="btn btn-primary" id="btn-extract" disabled>🔍 提取 Demographics</button>
+                            <div class="extracted-result" id="extracted-result" style="display:none"></div>
+                            <div class="form-group" style="margin-top:16px"><label>采样人数（建议 500-2000）</label><div class="slider-row"><input type="range" id="sample_count_lit" min="100" max="2000" value="500" step="50"><span class="slider-value" id="sample_count_lit_val">500</span></div></div>
+                            <button class="btn btn-primary btn-lg" id="btn-generate-lit" disabled>基于文献数据生成虚拟受访者</button>
+                        </div>
+                    </div>
+                    <div class="card">
+                        <h2>📝 问卷上传</h2>
+                        <div class="upload-zone" id="questionnaire-upload"><div class="upload-icon">📄</div><p>上传问卷文件（TXT / CSV）</p><p class="upload-hint">每行一题，支持 Q1. / 1. / 第1题 格式</p><input type="file" id="questionnaire-file" accept=".txt,.csv,.md" style="display:none"></div>
+                        <div class="questionnaire-preview" id="questionnaire-preview" style="display:none"></div>
+                        <div class="form-group" style="margin-top:12px"><label>或直接输入问题（每行一题）</label><textarea id="manual-questions" rows="6" placeholder="1. 您对当前生活满意度如何？&#10;2. 您每周锻炼几次？&#10;3. 您最关注的健康问题是什么？"></textarea></div>
+                        <button class="btn btn-secondary" id="btn-parse-questions">解析问卷</button>
+                    </div>
+                </div>
+                <!-- 右列 -->
+                <div class="config-col">
+                    <div class="card">
+                        <h2>🤖 GenAI API 配置</h2>
+                        <div class="form-group"><label>API 提供商</label><select id="api_provider"><option value="deepseek">DeepSeek</option><option value="qwen">通义千问</option><option value="openai">OpenAI</option><option value="custom">自定义</option></select></div>
+                        <div class="form-group"><label>API Key</label><input type="password" id="api_key" placeholder="sk-..." autocomplete="off"></div>
+                        <div class="form-group"><label>Base URL</label><input type="text" id="api_base_url" value="https://api.deepseek.com"></div>
+                        <div class="form-group"><label>模型</label><input type="text" id="api_model" value="deepseek-chat" placeholder="deepseek-chat"></div>
+                        <div class="form-row"><div class="form-group"><label>Temperature</label><div class="slider-row"><input type="range" id="temperature" min="0" max="1.5" value="0.8" step="0.1"><span class="slider-value" id="temperature_val">0.8</span></div></div><div class="form-group"><label>Max Tokens</label><input type="number" id="max_tokens" value="500" min="50" max="4000"></div></div>
+                        <div class="alert alert-info" style="margin-top:8px">💡 API Key 仅在浏览器本地使用，不会发送到任何第三方服务器。LLM API 调用直接从您的浏览器发出。</div>
+                        <button class="btn btn-secondary" id="btn-test-api">🔗 测试连接</button>
+                        <div id="api-test-result" style="margin-top:8px"></div>
+                    </div>
+                    <div class="card">
+                        <h2>🎭 人格 Prompt 模板</h2>
+                        <div class="alert alert-info">可用变量: {age}, {gender}, {city}, {education}, {occupation}, {income}, {marital_status}, {id}</div>
+                        <textarea id="system_prompt_template" rows="10">你是一位{age}岁的{gender}性，生活在{city}，学历为{education}，职业是{occupation}，月收入{income}，婚姻状态为{marital_status}。
+
+请严格以这位角色的视角回答问题。回答要符合你的人生经历、社会认知和经济状况。
+- 不要以AI助手的身份回答，你就是这个人
+- 回答要自然，像真人在做问卷
+- 如果是选择题，只回答选项字母
+- 如果是开放题，用第一人称简短回答（2-5句话）
+- 你的观点应该符合你的年龄段、教育背景、收入水平、婚姻状态和生活城市的特点</textarea>
+                    </div>
+                    <div class="card" id="profile-summary-card" style="display:none">
+                        <h2>📊 受访者分布概览</h2>
+                        <div id="profile-summary"></div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- ============ TAB 2: 人格列表 ============ -->
+        <section id="tab-profiles" class="tab-panel">
+            <div class="card"><div class="card-header"><h2>👥 虚拟受访者列表</h2><div class="profile-actions"><button class="btn btn-secondary" id="btn-export-profiles">📥 导出 CSV</button><span class="profile-count" id="profile-count">0 人</span></div></div><div class="table-container"><table id="profiles-table"><thead><tr><th>ID</th><th>年龄</th><th>性别</th><th>城市</th><th>学历</th><th>职业</th><th>月收入</th><th>婚姻</th></tr></thead><tbody id="profiles-tbody"></tbody></table></div><div class="pagination" id="profiles-pagination"></div></div>
+            <div class="chart-grid" id="profile-charts">
+                <div class="card"><h3>年龄段分布</h3><canvas id="chart-age"></canvas></div>
+                <div class="card"><h3>性别分布</h3><canvas id="chart-gender"></canvas></div>
+                <div class="card"><h3>城市 Top 10</h3><canvas id="chart-city"></canvas></div>
+                <div class="card"><h3>学历分布</h3><canvas id="chart-education"></canvas></div>
+                <div class="card"><h3>职业分布</h3><canvas id="chart-occupation"></canvas></div>
+                <div class="card"><h3>收入分布</h3><canvas id="chart-income"></canvas></div>
+                <div class="card"><h3>婚姻状态</h3><canvas id="chart-marital"></canvas></div>
+            </div>
+        </section>
+
+        <!-- ============ TAB 3: 运行采样 ============ -->
+        <section id="tab-run" class="tab-panel">
+            <div class="card"><h2>🚀 运行 Silicon Sampling</h2><div class="run-checklist" id="run-checklist"><div class="check-item" id="check-profiles"><span class="check-icon">⬜</span> 已生成虚拟受访者</div><div class="check-item" id="check-questions"><span class="check-icon">⬜</span> 已配置问卷</div><div class="check-item" id="check-api"><span class="check-icon">⬜</span> 已配置 API</div></div><div class="run-summary" id="run-summary"></div><button class="btn btn-primary btn-xl" id="btn-run" disabled>▶️ 开始采样</button><div class="progress-container" id="progress-container" style="display:none"><div class="progress-bar"><div class="progress-fill" id="progress-fill"></div></div><div class="progress-text" id="progress-text">准备中...</div></div></div>
+        </section>
+
+        <!-- ============ TAB 4: 结果 ============ -->
+        <section id="tab-results" class="tab-panel">
+            <div class="card"><div class="card-header"><h2>📊 采样结果</h2><button class="btn btn-secondary" id="btn-export-results">📥 导出 JSON</button></div><div id="results-content"><div class="empty-state">暂无结果，请先运行采样</div></div></div>
+            <div class="results-detail" id="results-detail"></div>
+        </section>
+
+        <!-- ============ TAB 5: 技术说明 ============ -->
+        <section id="tab-about" class="tab-panel">
+            <div class="card about-card">
+                <h1>🧪 Silicon Sampling 技术说明</h1>
+                <div class="about-section"><h2>什么是 Silicon Sampling？</h2><p>Silicon Sampling（硅采样）是一种利用大语言模型（LLM）模拟不同人口统计学特征人群进行问卷调研的方法。通过为 LLM 设定特定的人格背景（年龄、性别、城市、学历、职业、收入、婚姻状态等），使其以该角色的视角回答问卷，从而在无法获取真实样本时提供替代性的调研数据。</p></div>
+                <div class="about-section"><h2>理论基础</h2><div class="theory-grid"><div class="theory-item"><h3>🎭 角色扮演理论</h3><p>LLM 在给定明确人口统计学背景后，能够生成与该群体特征相符的回答（Argyle et al., 2023）。研究表明，LLM 模拟的回答与真实人群的回答在分布上具有统计相似性。</p></div><div class="theory-item"><h3>📊 合成数据方法</h3><p>Silicon Sampling 属于合成数据（Synthetic Data）方法的一种。通过控制人口统计学变量，可以在没有真实受访者的情况下生成大规模问卷数据。</p></div><div class="theory-item"><h3>🔬 代表性采样</h3><p>基于真实人口统计分布（如中国人口普查数据或已有文献的 demographics）进行加权采样，确保虚拟样本的代表性。</p></div></div></div>
+                <div class="about-section"><h2>工作流程</h2><div class="workflow-steps"><div class="wf-step"><div class="wf-num">1</div><div class="wf-content"><h4>设定人口统计学参数</h4><p>手动设定年龄、性别、学历、职业、收入、婚姻状态等分布，或从文献截图中提取真实 demographics 数据作为采样基础。</p></div></div><div class="wf-step"><div class="wf-num">2</div><div class="wf-content"><h4>生成虚拟受访者</h4><p>按设定分布随机采样，生成 N 个具有完整人口统计学特征的虚拟人格 profile。</p></div></div><div class="wf-step"><div class="wf-num">3</div><div class="wf-content"><h4>构造人格 Prompt</h4><p>将每个 profile 嵌入 system prompt，使 LLM 以该角色的视角思考与回答。</p></div></div><div class="wf-step"><div class="wf-num">4</div><div class="wf-content"><h4>运行问卷采样</h4><p>对每个虚拟受访者调用 LLM API，获取其"回答"。支持选择题和开放式问题。</p></div></div><div class="wf-step"><div class="wf-num">5</div><div class="wf-content"><h4>结果统计与分析</h4><p>汇总所有回答，按人口统计学维度进行交叉分析，生成统计报告。</p></div></div></div></div>
+                <div class="about-section"><h2>关键参考文献</h2><ul class="ref-list"><li>Argyle, L. P., Busby, E. C., Fulda, N., Gubler, J. R., Rytting, C., & Wingate, D. (2023). <em>Out of One, Many: Using Language Models to Simulate Human Samples</em>. Political Analysis, 31(3), 337-351.</li><li>Aher, G., Arriaga, R. I., & Kalai, A. T. (2023). <em>Using Large Language Models to Simulate Multiple Humans and Replicate Human Subject Studies</em>. ICML 2023.</li><li>Horton, J. J. (2023). <em>Homo Silicus: Using LLMs as Economic Subjects</em>. NBER Working Paper.</li><li>Dillion, D., Tandon, N., Gu, Y., & Gray, K. (2023). <em>Can AI language models replace human participants?</em> Trends in Cognitive Sciences, 27(7), 597-598.</li><li>Kim, J., & Lee, M. (2023). <em>AI-generated synthetic data for survey research</em>. Journal of Survey Statistics and Methodology.</li></ul></div>
+                <div class="about-section"><h2>⚠️ 局限性与伦理</h2><div class="warning-grid"><div class="warning-item"><h3>🔄 表征偏差</h3><p>LLM 本身存在系统性偏差（如偏向高教育、城市、西方视角），即使设定了特定人格背景，回答仍可能偏离真实人群。</p></div><div class="warning-item"><h3>🎭 角色一致性</h3><p>LLM 对同一人格的多次回答可能不一致，人格"扮演"的深度有限，难以完全模拟复杂的社会认知。</p></div><div class="warning-item"><h3>📋 不可替代真实调研</h3><p>Silicon Sampling 不能替代真实的人类调研。它更适合作为预调研、假设检验、方法探索的工具。正式研究应使用真实样本。</p></div><div class="warning-item"><h3>⚖️ 伦理考量</h3><p>应在论文中透明报告使用了 AI 合成数据，不得误导读者认为数据来自真实人类受访者。</p></div></div></div>
+            </div>
+        </section>
+    </main>
+
+    <div class="toast-container" id="toast-container"></div>
+
+    <script>
+/* ============================================================
+   Silicon Sampling Platform - 纯前端版（无需后端）
+   所有逻辑在浏览器中运行，API 调用直接从浏览器发往 LLM 服务
+   ============================================================ */
+
+// ============================================================
+// 全局状态
+// ============================================================
+const STATE = {
+    profiles: [], questions: [], extractedDemographics: null,
+    screenshotFiles: [], screenshotDataURLs: [], apiTested: false,
+    results: null, currentPage: 1, pageSize: 50, charts: {},
+    parsedDist: { age: null, gender: null, education: null, occupation: null, income: null, marital: null },
+    samplingAbort: false
+};
+
+// 城市列表
+const CITIES = ["北京","上海","广州","深圳","成都","杭州","重庆","武汉","西安","苏州","南京","长沙","郑州","东莞","青岛","合肥","佛山","沈阳","昆明","济南","大连","厦门","福州","无锡","宁波","哈尔滨","石家庄","长春","南昌","贵阳","南宁","太原","珠海","中山","惠州","温州","常州","徐州","烟台","嘉兴"];
+const TIER1 = ["北京","上海","广州","深圳"];
+const NEW_TIER1 = ["成都","杭州","重庆","武汉","西安","苏州","南京","长沙","郑州","东莞","青岛","合肥","佛山","沈阳","昆明","济南","大连","厦门","福州","无锡","宁波","哈尔滨"];
+
+// 默认分布数据
+const DEFAULT_DISTS = {
+    age: { "0-20": 0.036, "21-30": 0.581, "31-40": 0.282, "41-50": 0.060, "51-60": 0.037, "60+": 0.004 },
+    gender: { "男": 0.511, "女": 0.489 },
+    education: { "小学及以下": 0.005, "初中": 0.003, "普高/中专/技校/职高": 0.035, "专科": 0.096, "本科": 0.716, "硕士": 0.131, "博士": 0.015 },
+    occupation: { "学生": 0.178, "国有企业": 0.133, "事业单位": 0.083, "公务员": 0.041, "民营企业": 0.508, "外资企业": 0.057, "个体经营/自由职业": 0.050, "退休/待业/其他": 0.050 },
+    income: { "1-5000元": 0.269, "5001-8000元": 0.290, "8001-17000元": 0.325, "17001-30000元": 0.088, "30001-40000元": 0.011, "40001-60000元": 0.001, "60001-85000元": 0.005, "85000元以上": 0.011 },
+    marital: { "已婚,有子女": 0.459, "已婚,无子女": 0.050, "未婚,有子女": 0.014, "未婚,无子女": 0.473, "离异": 0.005, "丧偶": 0.000 }
+};
+
+// ============================================================
+// 初始化
+// ============================================================
+document.addEventListener('DOMContentLoaded', () => {
+    initTabs(); initCityGrid(); initSliders(); initUploads();
+    initAPIProvider(); initModeSwitch(); initButtons(); initGenderSwitch();
+});
+
+function initTabs() {
+    document.querySelectorAll('.nav-tab').forEach(tab => {
+        tab.addEventListener('click', () => {
+            document.querySelectorAll('.nav-tab').forEach(t => t.classList.remove('active'));
+            document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
+            tab.classList.add('active');
+            document.getElementById('tab-' + tab.dataset.tab).classList.add('active');
+        });
+    });
+}
+
+function initCityGrid() {
+    const grid = document.getElementById('city-grid');
+    CITIES.forEach(city => {
+        const chip = document.createElement('label');
+        let tierClass = 'tier2', tierMark = '';
+        if (TIER1.includes(city)) { tierClass = 'tier1'; tierMark = ' ★'; }
+        else if (NEW_TIER1.includes(city)) { tierClass = 'new-tier1'; tierMark = ' ●'; }
+        chip.className = 'city-chip active ' + tierClass;
+        chip.innerHTML = '<input type="checkbox" checked data-city="' + city + '">' + city + tierMark;
+        chip.addEventListener('click', () => { setTimeout(() => chip.classList.toggle('active'), 0); });
+        grid.appendChild(chip);
+    });
+}
+
+function initSliders() {
+    [['sample_count','sample_count_val'],['sample_count_lit','sample_count_lit_val'],['temperature','temperature_val']].forEach(([sid, vid]) => {
+        const s = document.getElementById(sid), v = document.getElementById(vid);
+        if (s && v) s.addEventListener('input', () => { v.textContent = s.value; });
+    });
+}
+
+function initGenderSwitch() {
+    const sel = document.getElementById('gender_mode'), area = document.getElementById('gender-custom-area');
+    sel.addEventListener('change', () => { area.style.display = sel.value === 'custom' ? 'block' : 'none'; });
+}
+
+function initUploads() {
+    const sz = document.getElementById('screenshot-upload'), si = document.getElementById('screenshot-files');
+    sz.addEventListener('click', () => si.click());
+    sz.addEventListener('dragover', e => { e.preventDefault(); sz.classList.add('dragover'); });
+    sz.addEventListener('dragleave', () => sz.classList.remove('dragover'));
+    sz.addEventListener('drop', e => { e.preventDefault(); sz.classList.remove('dragover'); handleScreenshots(e.dataTransfer.files); });
+    si.addEventListener('change', () => handleScreenshots(si.files));
+
+    const qz = document.getElementById('questionnaire-upload'), qi = document.getElementById('questionnaire-file');
+    qz.addEventListener('click', () => qi.click());
+    qz.addEventListener('dragover', e => { e.preventDefault(); qz.classList.add('dragover'); });
+    qz.addEventListener('dragleave', () => qz.classList.remove('dragover'));
+    qz.addEventListener('drop', e => { e.preventDefault(); qz.classList.remove('dragover'); if (e.dataTransfer.files.length) handleQuestionnaireFile(e.dataTransfer.files[0]); });
+    qi.addEventListener('change', () => { if (qi.files.length) handleQuestionnaireFile(qi.files[0]); });
+}
+
+function initAPIProvider() {
+    const provider = document.getElementById('api_provider'), baseUrl = document.getElementById('api_base_url'), model = document.getElementById('api_model');
+    const configs = { deepseek: { url: 'https://api.deepseek.com', model: 'deepseek-chat' }, qwen: { url: 'https://dashscope.aliyuncs.com/compatible-mode/v1', model: 'qwen-plus' }, openai: { url: 'https://api.openai.com/v1', model: 'gpt-4o-mini' }, custom: { url: '', model: '' } };
+    provider.addEventListener('change', () => { const c = configs[provider.value]; if (c) { baseUrl.value = c.url; model.value = c.model; } });
+}
+
+function initModeSwitch() {
+    document.querySelectorAll('.mode-btn').forEach(btn => {
+        btn.addEventListener('click', () => {
+            document.querySelectorAll('.mode-btn').forEach(b => b.classList.remove('active'));
+            btn.classList.add('active');
+            const mode = btn.dataset.mode;
+            document.getElementById('manual-panel').style.display = mode === 'manual' ? 'block' : 'none';
+            document.getElementById('literature-panel').style.display = mode === 'literature' ? 'block' : 'none';
+        });
+    });
+}
+
+function initButtons() {
+    document.getElementById('btn-generate').addEventListener('click', generateProfiles);
+    document.getElementById('btn-generate-lit').addEventListener('click', generateProfilesFromLit);
+    document.getElementById('btn-extract').addEventListener('click', extractDemographics);
+    document.getElementById('btn-parse-questions').addEventListener('click', parseManualQuestions);
+    document.getElementById('btn-test-api').addEventListener('click', testAPI);
+    document.getElementById('btn-run').addEventListener('click', runSampling);
+    document.getElementById('btn-export-profiles').addEventListener('click', exportProfiles);
+    document.getElementById('btn-export-results').addEventListener('click', exportResults);
+}
+
+// ============================================================
+// 频次分布解析（纯前端）
+// ============================================================
+function loadDefaultDist(dim) {
+    const mapping = { age:'dist_age', gender:'dist_gender', education:'dist_education', occupation:'dist_occupation', income:'dist_income', marital:'dist_marital' };
+    const textarea = document.getElementById(mapping[dim]); if (!textarea) return;
+    const dist = DEFAULT_DISTS[dim]; if (!dist) return;
+    const total = Object.values(dist).reduce((s,v) => s+v, 0);
+    textarea.value = Object.entries(dist).map(([k,v]) => k + '\t' + ((v/total)*100).toFixed(2) + '%').join('\n');
+    const names = { age:'年龄', gender:'性别', education:'学历', occupation:'职业', income:'收入', marital:'婚姻' };
+    showToast('已加载' + names[dim] + '默认分布', 'info');
+}
+
+function parseDist(dim) {
+    const mapping = { age:'dist_age', gender:'dist_gender', education:'dist_education', occupation:'dist_occupation', income:'dist_income', marital:'dist_marital' };
+    const textarea = document.getElementById(mapping[dim]);
+    const text = textarea.value.trim();
+    if (!text) { showToast('请先输入或粘贴分布数据', 'error'); return; }
+    const result = {};
+    const lines = text.split('\n');
+    for (const line of lines) {
+        const trimmed = line.trim(); if (!trimmed) continue;
+        const parts = trimmed.split(/\t+|\s{2,}|\|/);
+        if (parts.length >= 2) {
+            const label = parts[0].trim();
+            const valStr = parts[1].trim().replace(/%$/, '');
+            try { let val = parseFloat(valStr); if (val > 1) val = val / 100; result[label] = val; } catch(e) { continue; }
+        } else if (parts.length === 1) {
+            const m = parts[0].match(/(.+?)\s+([\d.]+)%?/);
+            if (m) { let val = parseFloat(m[2]); if (val > 1) val = val / 100; result[m[1].trim()] = val; }
+        }
+    }
+    if (Object.keys(result).length === 0) { showToast('无法解析，请确认格式', 'error'); return; }
+    // 归一化
+    const total = Object.values(result).reduce((s,v) => s+v, 0);
+    if (total > 0 && Math.abs(total - 1.0) > 0.01) { for (const k in result) result[k] = Math.round(result[k] / total * 1e6) / 1e6; }
+    STATE.parsedDist[dim] = result;
+    // 预览
+    const preview = document.getElementById(mapping[dim] + '_preview');
+    if (preview) {
+        const entries = Object.entries(result);
+        preview.innerHTML = '<div class="dist-bars">' + entries.map(([k,v]) => {
+            const pct = (v*100).toFixed(1);
+            return '<div class="dist-bar-row"><span class="dist-bar-label">' + k + '</span><div class="dist-bar-track"><div class="dist-bar-fill" style="width:' + pct + '%"></div></div><span class="dist-bar-pct">' + pct + '%</span></div>';
+        }).join('') + '</div>';
+    }
+    showToast('解析成功：' + Object.keys(result).length + ' 个类别', 'success');
+}
+
+// ============================================================
+// 加权随机选择
+// ============================================================
+function weightedChoice(dist) {
+    const keys = Object.keys(dist);
+    const weights = keys.map(k => dist[k]);
+    const valid = keys.map((k,i) => [k, weights[i]]).filter(([,w]) => w && w > 0);
+    if (!valid.length) return keys[0] || '未知';
+    const total = valid.reduce((s,[,w]) => s+w, 0);
+    if (total <= 0) return valid[0][0];
+    let r = Math.random() * total, cum = 0;
+    for (const [k, w] of valid) { cum += w; if (r <= cum) return k; }
+    return valid[valid.length-1][0];
+}
+
+function parseAgeFromGroup(ageGroup) {
+    const m = String(ageGroup).match(/(\d+)\s*[-–—]\s*(\d+)/);
+    if (m) return Math.floor(Math.random() * (parseInt(m[2]) - parseInt(m[1]) + 1)) + parseInt(m[1]);
+    const plus = String(ageGroup).match(/(\d+)\+/);
+    if (plus) return parseInt(plus[1]);
+    try { return parseInt(ageGroup); } catch { return 30; }
+}
+
+// ============================================================
+// 生成虚拟受访者（纯前端）
+// ============================================================
+function collectCustomDist() {
+    const dist = {};
+    if (STATE.parsedDist.age) dist.age_groups = STATE.parsedDist.age;
+    if (STATE.parsedDist.gender) dist.gender_ratio = STATE.parsedDist.gender;
+    if (STATE.parsedDist.education) dist.education = STATE.parsedDist.education;
+    if (STATE.parsedDist.occupation) dist.occupation = STATE.parsedDist.occupation;
+    if (STATE.parsedDist.income) dist.income = STATE.parsedDist.income;
+    if (STATE.parsedDist.marital) dist.marital_status = STATE.parsedDist.marital;
+    return Object.keys(dist).length > 0 ? dist : null;
+}
+
+function generateProfilesInternal(count, genderMode, cities, customDist) {
+    const profiles = [];
+    for (let i = 0; i < count; i++) {
+        // 年龄
+        let age, ageGroup;
+        if (customDist && customDist.age_groups) {
+            ageGroup = weightedChoice(customDist.age_groups);
+            age = parseAgeFromGroup(ageGroup);
+        } else {
+            ageGroup = weightedChoice(DEFAULT_DISTS.age);
+            age = parseAgeFromGroup(ageGroup);
+        }
+        // 性别
+        let gender;
+        if (genderMode === 'male') gender = '男';
+        else if (genderMode === 'female') gender = '女';
+        else if (customDist && customDist.gender_ratio) gender = weightedChoice(customDist.gender_ratio);
+        else if (genderMode === 'custom' && STATE.parsedDist.gender) gender = weightedChoice(STATE.parsedDist.gender);
+        else gender = weightedChoice(DEFAULT_DISTS.gender);
+        // 城市
+        const city = cities[Math.floor(Math.random() * cities.length)];
+        // 学历
+        const education = (customDist && customDist.education) ? weightedChoice(customDist.education) : weightedChoice(DEFAULT_DISTS.education);
+        // 职业
+        const occupation = (customDist && customDist.occupation) ? weightedChoice(customDist.occupation) : weightedChoice(DEFAULT_DISTS.occupation);
+        // 收入
+        const income = (customDist && customDist.income) ? weightedChoice(customDist.income) : weightedChoice(DEFAULT_DISTS.income);
+        // 婚姻
+        const marital = (customDist && customDist.marital_status) ? weightedChoice(customDist.marital_status) : weightedChoice(DEFAULT_DISTS.marital);
+
+        profiles.push({
+            id: 'P' + String(i+1).padStart(4,'0'), age, gender, city, education, occupation,
+            income, marital_status: marital, age_group: Math.floor(age/5)*5 + '-' + (Math.floor(age/5)*5+4)
+        });
+    }
+    return profiles;
+}
+
+function computeSummary(profiles) {
+    const ages = profiles.map(p => p.age);
+    const counters = { age_groups: {}, gender: {}, city: {}, education: {}, occupation: {}, income: {}, marital_status: {} };
+    profiles.forEach(p => {
+        counters.age_groups[p.age_group] = (counters.age_groups[p.age_group] || 0) + 1;
+        counters.gender[p.gender] = (counters.gender[p.gender] || 0) + 1;
+        counters.city[p.city] = (counters.city[p.city] || 0) + 1;
+        counters.education[p.education] = (counters.education[p.education] || 0) + 1;
+        counters.occupation[p.occupation] = (counters.occupation[p.occupation] || 0) + 1;
+        counters.income[p.income || '未知'] = (counters.income[p.income || '未知'] || 0) + 1;
+        counters.marital_status[p.marital_status || '未知'] = (counters.marital_status[p.marital_status || '未知'] || 0) + 1;
+    });
+    const topCities = Object.entries(counters.city).sort((a,b) => b[1]-a[1]).slice(0,10);
+    return { count: profiles.length, age: { min: Math.min(...ages), max: Math.max(...ages), mean: (ages.reduce((s,a)=>s+a,0)/ages.length).toFixed(1) }, age_groups: counters.age_groups, gender: counters.gender, top_cities: topCities, education: counters.education, occupation: counters.occupation, income: counters.income, marital_status: counters.marital_status };
+}
+
+function generateProfiles() {
+    const count = parseInt(document.getElementById('sample_count').value);
+    const genderMode = document.getElementById('gender_mode').value;
+    const cities = []; document.querySelectorAll('#city-grid .city-chip input:checked').forEach(cb => cities.push(cb.dataset.city));
+    if (!cities.length) { showToast('请至少选择一个城市', 'error'); return; }
+    const customDist = collectCustomDist();
+    showToast('正在生成 ' + count + ' 个虚拟受访者...', 'info');
+    STATE.profiles = generateProfilesInternal(count, genderMode, cities, customDist);
+    const summary = computeSummary(STATE.profiles);
+    renderProfileSummary(summary); renderProfilesTable(); updateRunChecklist();
+    showToast('已生成 ' + count + ' 个虚拟受访者', 'success');
+}
+
+function generateProfilesFromLit() {
+    if (!STATE.extractedDemographics) { showToast('请先提取文献 demographics', 'error'); return; }
+    const count = parseInt(document.getElementById('sample_count_lit').value);
+    const cities = []; document.querySelectorAll('#city-grid .city-chip input:checked').forEach(cb => cities.push(cb.dataset.city));
+    showToast('基于文献数据生成 ' + count + ' 个虚拟受访者...', 'info');
+    STATE.profiles = generateProfilesInternal(count, 'custom', cities.length ? cities : CITIES, STATE.extractedDemographics);
+    const summary = computeSummary(STATE.profiles);
+    renderProfileSummary(summary); renderProfilesTable(); updateRunChecklist();
+    showToast('已基于文献数据生成 ' + count + ' 个虚拟受访者', 'success');
+}
+
+// ============================================================
+// 截图处理 & 文献提取
+// ============================================================
+function handleScreenshots(files) {
+    const preview = document.getElementById('screenshot-preview'), btnExtract = document.getElementById('btn-extract');
+    STATE.screenshotFiles = Array.from(files).slice(0, 10);
+    STATE.screenshotDataURLs = [];
+    preview.innerHTML = '';
+    let loaded = 0;
+    STATE.screenshotFiles.forEach((file, idx) => {
+        const thumb = document.createElement('div'); thumb.className = 'screenshot-thumb';
+        const img = document.createElement('img');
+        const reader = new FileReader();
+        reader.onload = (e) => {
+            img.src = e.target.result;
+            STATE.screenshotDataURLs[idx] = e.target.result;
+            loaded++;
+        };
+        reader.readAsDataURL(file);
+        const removeBtn = document.createElement('button'); removeBtn.className = 'remove-btn'; removeBtn.textContent = '\u00d7';
+        removeBtn.onclick = () => { STATE.screenshotFiles.splice(idx,1); STATE.screenshotDataURLs.splice(idx,1); handleScreenshots(STATE.screenshotFiles); };
+        thumb.appendChild(img); thumb.appendChild(removeBtn); preview.appendChild(thumb);
+    });
+    btnExtract.disabled = STATE.screenshotFiles.length === 0;
+    showToast('已添加 ' + STATE.screenshotFiles.length + ' 张截图', 'info');
+}
+
+async function extractDemographics() {
+    const apiKey = document.getElementById('api_key').value;
+    const baseUrl = document.getElementById('api_base_url').value;
+    const model = document.getElementById('api_model').value;
+    if (!apiKey) { showToast('请先填写 API Key', 'error'); return; }
+    if (!STATE.screenshotDataURLs.length) { showToast('请先上传截图', 'error'); return; }
+    const btn = document.getElementById('btn-extract');
+    btn.disabled = true; btn.textContent = '⏳ 提取中...';
+
+    const extractionPrompt = '你是一个人口统计学数据提取专家。请从以下学术文献截图中提取所有 demographics（人口统计学）数据。\n\n请提取以下信息（如果存在），并以 JSON 格式返回：\n\n{"age_groups": {"20-24": 0.12, "25-29": 0.16}, "gender_ratio": {"男": 0.51, "女": 0.49}, "education": {"本科": 0.716, "硕士": 0.131}, "occupation": {"民营企业": 0.508, "国有企业": 0.133}, "income": {"1-5000元": 0.269, "5001-8000元": 0.290}, "marital_status": {"已婚,有子女": 0.459, "未婚,无子女": 0.473}, "source_info": "作者, 年份, 期刊", "notes": "其他统计信息"}\n\n注意：1. 所有比例值请转为 0-1 之间的小数 2. 如果某个维度没有数据设为 null 3. 年龄组请用 "XX-XX" 格式 4. 保持原文类别名称';
+
+    try {
+        const content = [{ type: 'text', text: extractionPrompt }];
+        STATE.screenshotDataURLs.forEach(url => { content.push({ type: 'image_url', image_url: { url: url } }); });
+
+        const resp = await callLLMAPI(baseUrl, apiKey, model, [{ role: 'user', content }], 0.1, 2000);
+        const text = resp.trim();
+        try {
+            const jsonStart = text.indexOf('{'), jsonEnd = text.lastIndexOf('}') + 1;
+            STATE.extractedDemographics = jsonStart >= 0 ? JSON.parse(text.substring(jsonStart, jsonEnd)) : { raw: text };
+        } catch { STATE.extractedDemographics = { raw: text }; }
+
+        const resultDiv = document.getElementById('extracted-result');
+        resultDiv.style.display = 'block';
+        resultDiv.innerHTML = '<h4>✅ 提取完成</h4><pre>' + JSON.stringify(STATE.extractedDemographics, null, 2) + '</pre>';
+        document.getElementById('btn-generate-lit').disabled = false;
+        showToast('Demographics 提取成功！', 'success');
+    } catch (err) { showToast('提取失败: ' + err.message, 'error'); }
+    finally { btn.disabled = false; btn.textContent = '🔍 提取 Demographics'; }
+}
+
+// ============================================================
+// LLM API 调用（纯前端，直接从浏览器调用）
+// ============================================================
+async function callLLMAPI(baseUrl, apiKey, model, messages, temperature, maxTokens) {
+    // 兼容不同 API 的 chat/completions 路径
+    let endpoint = baseUrl;
+    if (!endpoint.endsWith('/chat/completions') && !endpoint.endsWith('/chat/completions/')) {
+        endpoint = endpoint.replace(/\/+$/, '') + '/chat/completions';
+    }
+    const resp = await fetch(endpoint, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + apiKey },
+        body: JSON.stringify({ model, messages, temperature, max_tokens: maxTokens })
+    });
+    if (!resp.ok) {
+        const errBody = await resp.text();
+        throw new Error('API 返回 ' + resp.status + ': ' + errBody.substring(0, 200));
+    }
+    const data = await resp.json();
+    return data.choices[0].message.content;
+}
+
+// ============================================================
+// 问卷解析（纯前端）
+// ============================================================
+function parseQuestionnaireContent(content) {
+    const questions = [];
+    const lines = content.trim().split('\n');
+    let currentQ = null, qIdx = 0;
+    for (const line of lines) {
+        const trimmed = line.trim(); if (!trimmed) continue;
+        const qMatch = trimmed.match(/^(?:Q|第)?(\d+)[\.、．\s]\s*(.*)/);
+        if (qMatch) {
+            if (currentQ) questions.push(currentQ);
+            qIdx++; currentQ = { id: qIdx, text: qMatch[2].trim(), type: 'open', options: [] };
+        } else if (currentQ && /^[A-Ea-e][\.、]/.test(trimmed)) {
+            currentQ.options.push(trimmed.replace(/^[A-Ea-e][\.、]\s*/, ''));
+            currentQ.type = 'choice';
+        } else if (currentQ && currentQ.text) {
+            currentQ.text += ' ' + trimmed;
+        }
+    }
+    if (currentQ) questions.push(currentQ);
+    if (!questions.length) questions.push({ id: 1, text: content.trim(), type: 'open', options: [] });
+    return questions;
+}
+
+function handleQuestionnaireFile(file) {
+    const reader = new FileReader();
+    reader.onload = (e) => {
+        const questions = parseQuestionnaireContent(e.target.result);
+        STATE.questions = questions;
+        renderQuestionnairePreview(questions);
+        updateRunChecklist();
+        showToast('解析成功：' + questions.length + ' 道题', 'success');
+    };
+    reader.readAsText(file);
+}
+
+function renderQuestionnairePreview(questions) {
+    const preview = document.getElementById('questionnaire-preview');
+    preview.style.display = 'block';
+    preview.innerHTML = questions.map(q =>
+        '<div class="q-item"><strong>Q' + q.id + '</strong> ' + q.text +
+        ' <span class="q-type ' + q.type + '">' + (q.type === 'choice' ? '选择题' : '开放题') + '</span>' +
+        (q.options.length ? '<br><small style="color:var(--text-dim)">选项: ' + q.options.join(' / ') + '</small>' : '') +
+        '</div>'
+    ).join('');
+}
+
+function parseManualQuestions() {
+    const text = document.getElementById('manual-questions').value.trim();
+    if (!text) { showToast('请输入问题', 'error'); return; }
+    const questions = parseQuestionnaireContent(text);
+    STATE.questions = questions;
+    renderQuestionnairePreview(questions);
+    updateRunChecklist();
+    showToast('解析成功：' + questions.length + ' 道题', 'success');
+}
+
+// ============================================================
+// API 测试
+// ============================================================
+async function testAPI() {
+    const apiKey = document.getElementById('api_key').value;
+    const baseUrl = document.getElementById('api_base_url').value;
+    const model = document.getElementById('api_model').value;
+    const resultDiv = document.getElementById('api-test-result');
+    if (!apiKey) { showToast('请填写 API Key', 'error'); return; }
+    resultDiv.innerHTML = '<span style="color:var(--text-muted)">⏳ 测试中...</span>';
+    try {
+        const answer = await callLLMAPI(baseUrl, apiKey, model, [
+            { role: 'system', content: '你是一位30岁的男性，生活在杭州。请用一句话介绍自己。' },
+            { role: 'user', content: '你好，请用一句话介绍自己。' }
+        ], 0.8, 100);
+        resultDiv.innerHTML = '<span style="color:var(--success)">✅ 连接成功！回答: "' + answer.substring(0, 100) + '"</span>';
+        STATE.apiTested = true; updateRunChecklist();
+    } catch (err) {
+        resultDiv.innerHTML = '<span style="color:var(--danger)">❌ 连接失败: ' + err.message + '</span>';
+    }
+}
+
+// ============================================================
+// 运行采样
+// ============================================================
+function buildPersonaPrompt(profile, template) {
+    if (template) { try { return template.replace(/\{(\w+)\}/g, (m, k) => profile[k] || ''); } catch(e) {} }
+    return '你是一位' + profile.age + '岁的' + profile.gender + '性，生活在' + profile.city + '，学历为' + profile.education + '，职业是' + profile.occupation + '，月收入' + profile.income + '，婚姻状态为' + profile.marital_status + '。\n\n请严格以这位角色的视角回答问题。回答要符合你的人生经历、社会认知和经济状况。\n- 不要以AI助手的身份回答，你就是这个人\n- 回答要自然，像真人在做问卷\n- 如果是选择题，只回答选项字母\n- 如果是开放题，用第一人称简短回答（2-5句话）';
+}
+
+async function runSampling() {
+    if (!STATE.profiles.length) { showToast('请先生成虚拟受访者', 'error'); return; }
+    if (!STATE.questions.length) { showToast('请先配置问卷', 'error'); return; }
+    const apiKey = document.getElementById('api_key').value;
+    if (!apiKey) { showToast('请先配置 API', 'error'); return; }
+
+    const btn = document.getElementById('btn-run');
+    btn.disabled = true;
+    document.getElementById('progress-container').style.display = 'block';
+    STATE.samplingAbort = false;
+
+    const baseUrl = document.getElementById('api_base_url').value;
+    const model = document.getElementById('api_model').value;
+    const template = document.getElementById('system_prompt_template').value;
+    const temperature = parseFloat(document.getElementById('temperature').value);
+    const maxTokens = parseInt(document.getElementById('max_tokens').value);
+
+    const allResults = [], allErrors = [];
+    let completed = 0;
+    const batchSize = 3; // 并发数
+    const delayBetweenBatches = 500; // 批次间延迟 ms
+
+    for (let i = 0; i < STATE.profiles.length; i += batchSize) {
+        if (STATE.samplingAbort) break;
+        const batch = STATE.profiles.slice(i, i + batchSize);
+        const promises = batch.map(async (profile) => {
+            const personaPrompt = buildPersonaPrompt(profile, template);
+            const personResp = { profile, answers: {} };
+            for (let qidx = 0; qidx < STATE.questions.length; qidx++) {
+                const q = STATE.questions[qidx];
+                try {
+                    const messages = [
+                        { role: 'system', content: personaPrompt },
+                        { role: 'user', content: q.text }
+                    ];
+                    const answer = await callLLMAPI(baseUrl, apiKey, model, messages, temperature, maxTokens);
+                    personResp.answers['Q' + (qidx+1)] = answer;
+                } catch (err) {
+                    personResp.answers['Q' + (qidx+1)] = '[ERROR: ' + err.message + ']';
+                    allErrors.push({ profile_id: profile.id, question: 'Q' + (qidx+1), error: err.message });
+                }
+            }
+            return personResp;
+        });
+
+        const batchResults = await Promise.all(promises);
+        allResults.push(...batchResults);
+        completed += batch.length;
+        const progress = Math.round((completed / STATE.profiles.length) * 100);
+        document.getElementById('progress-fill').style.width = progress + '%';
+        document.getElementById('progress-text').textContent = completed + '/' + STATE.profiles.length + ' 受访者完成 (' + progress + '%)';
+
+        // 批次间延迟，避免 rate limit
+        if (i + batchSize < STATE.profiles.length) {
+            await new Promise(r => setTimeout(r, delayBetweenBatches));
+        }
+    }
+
+    STATE.results = { results: allResults, errors: allErrors };
+    renderResults();
+    btn.disabled = false;
+    showToast('采样完成！' + allResults.length + ' 个受访者，' + allErrors.length + ' 个错误', 'success');
+    document.querySelector('[data-tab="results"]').click();
+}
+
+// ============================================================
+// 渲染函数
+// ============================================================
+function renderProfileSummary(summary) {
+    document.getElementById('profile-summary-card').style.display = 'block';
+    const div = document.getElementById('profile-summary');
+    const incHtml = Object.entries(summary.income).slice(0,4).map(([k,v]) => k + '(' + v + ')').join(', ');
+    const marHtml = Object.entries(summary.marital_status).map(([k,v]) => k + '(' + v + ')').join(', ');
+    div.innerHTML = '<div class="result-stats"><div class="stat-card"><div class="stat-value">' + summary.count + '</div><div class="stat-label">总人数</div></div><div class="stat-card"><div class="stat-value">' + summary.age.min + '-' + summary.age.max + '</div><div class="stat-label">年龄范围</div></div><div class="stat-card"><div class="stat-value">' + summary.age.mean + '</div><div class="stat-label">平均年龄</div></div><div class="stat-card"><div class="stat-value">' + (summary.gender['男']||0) + '/' + (summary.gender['女']||0) + '</div><div class="stat-label">男/女</div></div></div><div style="margin-top:12px;font-size:13px;line-height:1.8"><strong>城市 Top 5:</strong> ' + summary.top_cities.slice(0,5).map(([c,n]) => c + '(' + n + ')').join(', ') + '<br><strong>学历:</strong> ' + Object.entries(summary.education).map(([e,n]) => e + '(' + n + ')').join(', ') + '<br><strong>职业:</strong> ' + Object.entries(summary.occupation).map(([e,n]) => e + '(' + n + ')').join(', ') + '<br>' + (incHtml ? '<strong>收入:</strong> ' + incHtml + '<br>' : '') + (marHtml ? '<strong>婚姻:</strong> ' + marHtml : '') + '</div>';
+}
+
+function renderProfilesTable() {
+    const tbody = document.getElementById('profiles-tbody');
+    const totalPages = Math.ceil(STATE.profiles.length / STATE.pageSize);
+    const start = (STATE.currentPage - 1) * STATE.pageSize;
+    const pageData = STATE.profiles.slice(start, start + STATE.pageSize);
+    tbody.innerHTML = pageData.map(p => '<tr><td>' + p.id + '</td><td>' + p.age + '</td><td>' + p.gender + '</td><td>' + p.city + '</td><td>' + p.education + '</td><td>' + p.occupation + '</td><td>' + (p.income||'-') + '</td><td>' + (p.marital_status||'-') + '</td></tr>').join('');
+    document.getElementById('profile-count').textContent = STATE.profiles.length + ' 人';
+    const pagination = document.getElementById('profiles-pagination');
+    if (totalPages <= 1) { pagination.innerHTML = ''; renderProfileCharts(); return; }
+    let html = '';
+    for (let i = 1; i <= Math.min(totalPages,20); i++) html += '<button class="' + (i===STATE.currentPage?'active':'') + '" onclick="goToPage(' + i + ')">' + i + '</button>';
+    if (totalPages > 20) html += '<button disabled>... 共' + totalPages + '页</button>';
+    pagination.innerHTML = html;
+    renderProfileCharts();
+}
+
+function goToPage(page) { STATE.currentPage = page; renderProfilesTable(); }
+
+function renderProfileCharts() {
+    Object.values(STATE.charts).forEach(c => c.destroy && c.destroy()); STATE.charts = {};
+    const barOpts = { responsive: true, maintainAspectRatio: true, plugins: { legend: { labels: { color: '#8888AA', font: { size: 11 } } } }, scales: { x: { ticks: { color: '#8888AA', font: { size: 10 } }, grid: { color: '#2D2D50' } }, y: { ticks: { color: '#8888AA', font: { size: 10 } }, grid: { color: '#2D2D50' } } } };
+    const pieOpts = { responsive: true, maintainAspectRatio: true, plugins: { legend: { labels: { color: '#8888AA', font: { size: 10 } }, position: 'bottom' } } };
+
+    // 年龄段
+    const ageGroups = {}; STATE.profiles.forEach(p => { ageGroups[p.age_group] = (ageGroups[p.age_group]||0)+1; });
+    const sortedAges = Object.entries(ageGroups).sort((a,b) => a[0].localeCompare(b[0]));
+    STATE.charts.age = new Chart(document.getElementById('chart-age'), { type:'bar', data:{ labels:sortedAges.map(a=>a[0]), datasets:[{label:'人数',data:sortedAges.map(a=>a[1]),backgroundColor:'rgba(108,92,231,0.6)',borderColor:'#6C5CE7',borderWidth:1}] }, options:barOpts });
+
+    // 性别
+    const genders = {}; STATE.profiles.forEach(p => { genders[p.gender] = (genders[p.gender]||0)+1; });
+    STATE.charts.gender = new Chart(document.getElementById('chart-gender'), { type:'doughnut', data:{ labels:Object.keys(genders), datasets:[{data:Object.values(genders),backgroundColor:['rgba(108,92,231,0.7)','rgba(0,206,201,0.7)']}] }, options:pieOpts });
+
+    // 城市 Top 10
+    const cities = {}; STATE.profiles.forEach(p => { cities[p.city] = (cities[p.city]||0)+1; });
+    const topCities = Object.entries(cities).sort((a,b) => b[1]-a[1]).slice(0,10);
+    STATE.charts.city = new Chart(document.getElementById('chart-city'), { type:'bar', data:{ labels:topCities.map(c=>c[0]), datasets:[{label:'人数',data:topCities.map(c=>c[1]),backgroundColor:'rgba(0,206,201,0.6)',borderColor:'#00CEC9',borderWidth:1}] }, options:{...barOpts,indexAxis:'y'} });
+
+    // 学历
+    const edu = {}; STATE.profiles.forEach(p => { edu[p.education] = (edu[p.education]||0)+1; });
+    STATE.charts.education = new Chart(document.getElementById('chart-education'), { type:'doughnut', data:{ labels:Object.keys(edu), datasets:[{data:Object.values(edu),backgroundColor:['#FDCB6E','#E17055','#6C5CE7','#00CEC9','#A29BFE','#FF7675','#55EFC4']}] }, options:pieOpts });
+
+    // 职业
+    const occ = {}; STATE.profiles.forEach(p => { occ[p.occupation] = (occ[p.occupation]||0)+1; });
+    STATE.charts.occupation = new Chart(document.getElementById('chart-occupation'), { type:'bar', data:{ labels:Object.keys(occ), datasets:[{label:'人数',data:Object.values(occ),backgroundColor:'rgba(253,203,110,0.6)',borderColor:'#FDCB6E',borderWidth:1}] }, options:{...barOpts,indexAxis:'y'} });
+
+    // 收入
+    const inc = {}; STATE.profiles.forEach(p => { if(p.income) inc[p.income] = (inc[p.income]||0)+1; });
+    if (Object.keys(inc).length) STATE.charts.income = new Chart(document.getElementById('chart-income'), { type:'bar', data:{ labels:Object.keys(inc), datasets:[{label:'人数',data:Object.values(inc),backgroundColor:'rgba(0,206,201,0.6)',borderColor:'#00CEC9',borderWidth:1}] }, options:barOpts });
+
+    // 婚姻
+    const mar = {}; STATE.profiles.forEach(p => { if(p.marital_status) mar[p.marital_status] = (mar[p.marital_status]||0)+1; });
+    if (Object.keys(mar).length) STATE.charts.marital = new Chart(document.getElementById('chart-marital'), { type:'doughnut', data:{ labels:Object.keys(mar), datasets:[{data:Object.values(mar),backgroundColor:['#6C5CE7','#A29BFE','#00CEC9','#81ECEC','#FF7675','#FDCB6E']}] }, options:pieOpts });
+}
+
+function renderResults() {
+    const content = document.getElementById('results-content'), detail = document.getElementById('results-detail');
+    if (!STATE.results || !STATE.results.results.length) { content.innerHTML = '<div class="empty-state">暂无结果</div>'; return; }
+    const results = STATE.results.results, errors = STATE.results.errors || [];
+    content.innerHTML = '<div class="result-stats"><div class="stat-card"><div class="stat-value">' + results.length + '</div><div class="stat-label">完成受访者</div></div><div class="stat-card"><div class="stat-value">' + STATE.questions.length + '</div><div class="stat-label">问题数</div></div><div class="stat-card"><div class="stat-value">' + errors.length + '</div><div class="stat-label">错误数</div></div><div class="stat-card"><div class="stat-value">' + (results.length * STATE.questions.length) + '</div><div class="stat-label">总回答数</div></div></div>';
+
+    detail.innerHTML = STATE.questions.map((q, qidx) => {
+        const qkey = 'Q' + (qidx+1);
+        const answers = results.map(r => ({ profile: r.profile, answer: r.answers[qkey] || '' })).filter(a => !a.answer.startsWith('[ERROR'));
+        let statsHtml = '';
+        if (q.type === 'choice' && q.options.length) {
+            const optCounts = {}; q.options.forEach(o => optCounts[o] = 0);
+            answers.forEach(a => { const ans = a.answer.trim().toUpperCase(); const matched = q.options.find((o,i) => ans === String.fromCharCode(65+i) || ans === o || o.includes(a.answer.trim())); if (matched) optCounts[matched]++; else optCounts[a.answer.trim()] = (optCounts[a.answer.trim()]||0)+1; });
+            statsHtml = Object.entries(optCounts).sort((a,b) => b[1]-a[1]).map(([opt,count]) => { const pct = ((count/answers.length)*100).toFixed(1); return '<div style="display:flex;align-items:center;gap:8px;margin:4px 0"><span style="min-width:120px">' + opt + '</span><div style="flex:1;height:8px;background:var(--border);border-radius:4px;overflow:hidden"><div style="width:' + pct + '%;height:100%;background:var(--primary);border-radius:4px"></div></div><span style="color:var(--primary-light);min-width:60px;text-align:right">' + count + ' (' + pct + '%)</span></div>'; }).join('');
+        } else {
+            statsHtml = '<p style="color:var(--text-muted)">平均回答长度: ' + (answers.reduce((s,a) => s+a.answer.length, 0) / Math.max(answers.length,1)).toFixed(0) + ' 字</p>';
+        }
+        const sampleAnswers = answers.slice(0,5).map(a => '<div class="sample-answer"><div class="answer-profile">' + a.profile.id + ' | ' + a.profile.age + '岁 ' + a.profile.gender + ' | ' + a.profile.city + ' | ' + a.profile.education + ' | ' + (a.profile.occupation||'') + ' | ' + (a.profile.income||'') + ' | ' + (a.profile.marital_status||'') + '</div>' + a.answer + '</div>').join('');
+        return '<div class="result-question"><h3>' + qkey + ': ' + q.text + '</h3>' + statsHtml + '<details style="margin-top:12px"><summary style="cursor:pointer;color:var(--primary-light);font-size:13px">查看抽样回答</summary><div class="sample-answers">' + sampleAnswers + '</div></details></div>';
+    }).join('');
+}
+
+// ============================================================
+// 运行检查
+// ============================================================
+function updateRunChecklist() {
+    const checks = { profiles: STATE.profiles.length > 0, questions: STATE.questions.length > 0, api: !!document.getElementById('api_key').value };
+    Object.entries(checks).forEach(([key, ok]) => {
+        const el = document.getElementById('check-' + key), icon = el.querySelector('.check-icon');
+        icon.textContent = ok ? '✅' : '⬜'; el.className = 'check-item ' + (ok ? 'done' : 'pending');
+    });
+    document.getElementById('btn-run').disabled = !Object.values(checks).every(v => v);
+    const summary = document.getElementById('run-summary');
+    if (STATE.profiles.length || STATE.questions.length) {
+        const apiCost = STATE.profiles.length * STATE.questions.length;
+        summary.innerHTML = '<strong>采样概要:</strong><br>👥 受访者: ' + STATE.profiles.length + ' 人<br>📝 问题: ' + STATE.questions.length + ' 道<br>🔢 总 API 调用: ' + apiCost + ' 次<br>⏱️ 预计耗时: ~' + Math.round(apiCost*1.5/60) + ' 分钟<br>💰 预估费用: ¥' + (apiCost*0.002).toFixed(2) + ' - ¥' + (apiCost*0.01).toFixed(2);
+    }
+}
+
+// ============================================================
+// 导出
+// ============================================================
+function exportProfiles() {
+    if (!STATE.profiles.length) { showToast('没有数据可导出', 'error'); return; }
+    const csv = 'ID,年龄,性别,城市,学历,职业,月收入,婚姻状态\n' + STATE.profiles.map(p => p.id+','+p.age+','+p.gender+','+p.city+','+p.education+','+p.occupation+','+(p.income||'')+','+(p.marital_status||'')).join('\n');
+    downloadFile(csv, 'silicon_sampling_profiles.csv', 'text/csv');
+}
+
+function exportResults() {
+    if (!STATE.results) { showToast('没有结果可导出', 'error'); return; }
+    downloadFile(JSON.stringify(STATE.results, null, 2), 'silicon_sampling_results.json', 'application/json');
+}
+
+function downloadFile(content, filename, type) {
+    const blob = new Blob([content], { type: type + ';charset=utf-8' });
+    const url = URL.createObjectURL(blob), a = document.createElement('a');
+    a.href = url; a.download = filename; a.click(); URL.revokeObjectURL(url);
+}
+
+// ============================================================
+// Toast
+// ============================================================
+function showToast(message, type) {
+    const container = document.getElementById('toast-container'), toast = document.createElement('div');
+    toast.className = 'toast ' + (type||'info'); toast.textContent = message;
+    container.appendChild(toast); setTimeout(() => toast.remove(), 4000);
+}
+    </script>
+</body>
+</html>
