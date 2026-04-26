@@ -261,8 +261,8 @@ const $ = id => document.getElementById(id);
 let fullText = '';          // full text extracted from paper
 let refSectionText = '';    // raw text of the references section
 let bodyText = '';          // text before references (for citation extraction)
-let references = [];        // [{index, text, doi, firstAuthor, year, title, verified, status, matchCount, verifiedTitle}]
-let citations = [];         // [{text, matchedRef, matchType, position, source:'regex'|'ai'|'both'}]
+let references = [];        // [{index, text, doi, firstAuthor, allAuthors, year, title, verified, status, matchCount, verifiedTitle}]
+let citations = [];         // [{text, matchedRef, matchType, position, source:'regex'|'ai'|'both', authors:[], year}]
 let settings = { deepseekKey: '', openaiKey: '', geminiKey: '' };
 
 // Load settings
@@ -402,7 +402,7 @@ async function handleFile(file) {
         if (anyMatched) { cit.matchedRef = nums[0]; cit.matchType = 'exact'; }
         else unmatched++;
       } else {
-        const best = findBestMatch(cit.text, references);
+        const best = findBestMatch(cit, references);
         if (best) {
           cit.matchedRef = best.ref.index;
           cit.matchType = best.confidence > 0.8 ? 'exact' : 'fuzzy';
@@ -786,22 +786,47 @@ function parseOneRef(text) {
     if (yearBare) year = yearBare[0];
   }
 
-  // Extract first author — multiple patterns (supports hyphenated names like Quan-Haase)
+  // Extract ALL authors from reference
+  // Formats: "Last, F. M., & Last2, F. (Year)" or "Last, F. M., Last2, F., and Last3, F. (Year)"
+  //          "Last, F. and Last2, F. (Year)" or "Last F. & Last2 F. (Year)"
+  let allAuthors = [];
   let firstAuthor = '';
-  // APA: "Lastname, F. M." or "Lastname, F." or "Lastname, F. M., &"
-  const apaAuthor = text.match(new RegExp('^(' + _nameP + '(?:\\s+[a-z]+)*),\\s+(?:[A-Z]\\.|[a-z]+)'));
-  if (apaAuthor) firstAuthor = apaAuthor[1].replace(/,/g, '');
-  // "Lastname FM" or "Lastname &" or "Lastname and"
-  if (!firstAuthor) {
-    const simpleAuthor = text.match(new RegExp('^(' + _nameP + ')\\s+(?:&|and\\s)'));
-    if (simpleAuthor) firstAuthor = simpleAuthor[1];
-  }
-  // "Lastname, " at very start
-  if (!firstAuthor) {
-    const commaAuthor = text.match(new RegExp('^(' + _nameP + ')'));
-    if (commaAuthor && text.charAt(commaAuthor[0].length) === ',') {
-      firstAuthor = commaAuthor[1];
+
+  // Find the author section: everything before (Year) — this is crucial
+  let authorArea = '';
+  if (year) {
+    const yearIdx = text.indexOf('(' + year);
+    if (yearIdx > 0) {
+      authorArea = text.substring(0, yearIdx).trim();
     }
+  }
+  if (!authorArea || authorArea.length < 3) {
+    authorArea = text.substring(0, 150);
+  }
+
+  // Extract names from author area
+  // Skip names that look like common words / journal / publisher names
+  const skipWords = /^(?:the|this|that|these|those|available|retrieved|from|http|doi|vol|pp|in|for|with|note|see|also|journal|review|letters|science|nature|proceedings|advances|research|studies|psychology|education|management|communications|technology|new|york|academic|press|university|department|school|college|center|institute|volume|issue|pages|social|personality|consumer|marketing|behavior|computers|human|public|health|media|information|systems|interactive|organizational|journal|american|european|british|international|chinese|online|digital|global|annual|conference|working|paper|report|manuscript)$/i;
+
+  const nameRegex = new RegExp(_nameP, 'g');
+  let nameMatch;
+  const seenNames = new Set();
+  while ((nameMatch = nameRegex.exec(authorArea)) !== null) {
+    const name = nameMatch[0];
+    if (name.length < 2) continue;
+    if (skipWords.test(name)) continue;
+    // Skip if it's preceded by "Vol" or "No" or numeric indicators
+    const before = authorArea.substring(Math.max(0, nameMatch.index - 10), nameMatch.index);
+    if (/\b(?:vol|no|issue|pp|pages?|ed|edn|rev|edt)\s*\.?\s*$/i.test(before)) continue;
+    const key = name.toLowerCase();
+    if (!seenNames.has(key)) {
+      seenNames.add(key);
+      allAuthors.push(name);
+    }
+  }
+
+  if (allAuthors.length > 0) {
+    firstAuthor = allAuthors[0];
   }
 
   // Extract title — prefer quoted title, then text between year and journal
@@ -827,7 +852,7 @@ function parseOneRef(text) {
   }
 
   return {
-    doi, firstAuthor, year,
+    doi, firstAuthor, allAuthors, year,
     title: title.replace(/[""\u201C\u201D]/g, '')
   };
 }
@@ -840,7 +865,7 @@ function extractCitationsFromText(text) {
   citations = [];
   const seen = new Set();
 
-  function addCit(txt, pos, extra) {
+  function addCit(txt, pos, extra, authors, year) {
     txt = txt.trim();
     if (txt.length < 4) return;
     // Filter false positives
@@ -850,7 +875,7 @@ function extractCitationsFromText(text) {
     const key = txt.toLowerCase();
     if (!seen.has(key)) {
       seen.add(key);
-      citations.push({ text: txt, matchedRef: null, matchType: null, position: pos, ...extra });
+      citations.push({ text: txt, matchedRef: null, matchType: null, position: pos, authors: authors || [], year: year || '', ...extra });
     }
   }
 
@@ -876,32 +901,37 @@ function extractCitationsFromText(text) {
       // Pattern A1: Author, Year / Author et al., Year  (supports hyphenated names)
       const a1 = trimmed.match(new RegExp('^(' + _nameP + '(?:\\s+(?:et\\s+al\\.?))?)\\s*,?\\s*((?:19|20)\\d{2}[a-z]?)'));
       if (a1) {
-        addCit(`${a1[1].trim()}, ${a1[2]}`, pos);
+        const authors = [a1[1].trim()];
+        addCit(`${a1[1].trim()}, ${a1[2]}`, pos, null, authors, a1[2]);
         continue;
       }
-      // Pattern A2: Author & Author, Year
-      const a2 = trimmed.match(new RegExp('^(' + _nameP + ')\\s*&\\s*' + _nameP + '\\s*,?\\s*((?:19|20)\\d{2}[a-z]?)'));
+      // Pattern A2: Author & Author, Year — extract BOTH authors
+      const a2 = trimmed.match(new RegExp('^(' + _nameP + ')\\s*&\\s*(' + _nameP + ')\\s*,?\\s*((?:19|20)\\d{2}[a-z]?)'));
       if (a2) {
-        addCit(`${a2[1].trim()}, ${a2[2]}`, pos);
+        const authors = [a2[1].trim(), a2[2].trim()];
+        addCit(`${a2[1].trim()}, ${a2[2]}`, pos, null, authors, a2[3]);
         continue;
       }
-      // Pattern A3: Author and Author, Year
-      const a3 = trimmed.match(new RegExp('^(' + _nameP + ')\\s+and\\s+' + _nameP + '\\s*,?\\s*((?:19|20)\\d{2}[a-z]?)'));
+      // Pattern A3: Author and Author, Year — extract BOTH authors
+      const a3 = trimmed.match(new RegExp('^(' + _nameP + ')\\s+and\\s+(' + _nameP + ')\\s*,?\\s*((?:19|20)\\d{2}[a-z]?)'));
       if (a3) {
-        addCit(`${a3[1].trim()}, ${a3[2]}`, pos);
+        const authors = [a3[1].trim(), a3[2].trim()];
+        addCit(`${a3[1].trim()}, ${a3[2]}`, pos, null, authors, a3[3]);
         continue;
       }
       // Pattern A4: Multiple years: Author (2020, 2021)
       const a4 = trimmed.match(new RegExp('^(' + _nameP + '(?:\\s+et\\s+al\\.?)?)\\s*\\((\\d{4}[a-z]?(?:\\s*,\\s*\\d{4}[a-z]?)*)\\)'));
       if (a4) {
+        const authors = [a4[1].trim()];
         const years = a4[2].split(/\s*,\s*/);
-        for (const y of years) addCit(`${a4[1].trim()}, ${y.trim()}`, pos);
+        for (const y of years) addCit(`${a4[1].trim()}, ${y.trim()}`, pos, null, authors, y.trim());
         continue;
       }
       // Pattern A5: Author (Year) inside a larger parenthetical
       const a5 = trimmed.match(new RegExp('(' + _nameP + '(?:\\s+et\\s+al\\.?)?)\\s*\\((\\d{4}[a-z]?)\\)'));
       if (a5) {
-        addCit(`${a5[1].trim()}, ${a5[2]}`, pos);
+        const authors = [a5[1].trim()];
+        addCit(`${a5[1].trim()}, ${a5[2]}`, pos, null, authors, a5[2]);
         continue;
       }
     }
@@ -917,14 +947,21 @@ function extractCitationsFromText(text) {
   while ((m = b1.exec(text)) !== null) {
     const author = m[1].trim();
     if (/^(?:the|this|that|these|those|figure|table|section|chapter|page|eq|vol|no|issue|available|retrieved|see|also|model|study|h\d)/i.test(author)) continue;
-    addCit(`${author}, ${m[2]}`, m.index);
+    addCit(`${author}, ${m[2]}`, m.index, null, [author], m[2]);
   }
   // B2: Author and Author (Year) — two authors without outer parens
-  const b2 = new RegExp('\\b(' + _nameP + ')\\s+and\\s+' + _nameP + '\\s*\\((\\d{4}[a-z]?)\\)', 'g');
+  const b2 = new RegExp('\\b(' + _nameP + ')\\s+and\\s+(' + _nameP + ')\\s*\\((\\d{4}[a-z]?)\\)', 'g');
   while ((m = b2.exec(text)) !== null) {
     const author = m[1].trim();
     if (/^(?:the|this|that|these|those|figure|table|section|chapter|page|eq|vol|no|issue)/i.test(author)) continue;
-    addCit(`${author}, ${m[2]}`, m.index);
+    addCit(`${author}, ${m[3]}`, m.index, null, [author, m[2].trim()], m[3]);
+  }
+  // B3: Author & Author (Year) — two authors with ampersand, no outer parens
+  const b3 = new RegExp('\\b(' + _nameP + ')\\s*&\\s+(' + _nameP + ')\\s*\\((\\d{4}[a-z]?)\\)', 'g');
+  while ((m = b3.exec(text)) !== null) {
+    const author = m[1].trim();
+    if (/^(?:the|this|that|these|those|figure|table|section|chapter|page|eq|vol|no|issue)/i.test(author)) continue;
+    addCit(`${author}, ${m[3]}`, m.index, null, [author, m[2].trim()], m[3]);
   }
 
   // =============================================
@@ -1133,7 +1170,7 @@ function matchCitations() {
       }
     } else {
       // Author-year style: find best match
-      const best = findBestMatch(cit.text, references);
+      const best = findBestMatch(cit, references);
       if (best) {
         cit.matchedRef = best.ref.index;
         cit.matchType = best.confidence > 0.8 ? 'exact' : 'fuzzy';
@@ -1172,46 +1209,98 @@ function parseNumericCit(text) {
 
 function findBestMatch(citText, refs) {
   // Parse citation: "Smith et al., 2020" or "Smith, 2020" or "Quan-Haase & Young, 2010"
-  // Supports hyphenated names, accented chars, and multi-word last names
-  const citMatch = citText.match(new RegExp('^(' + _nameP + ')(?:\\s+(et\\s+al\\.?))?(?:,\\s*|[\\s(])(\\d{4}[a-z]?)'));
-  if (!citMatch) return null;
+  // Also use pre-parsed authors/year if available (from extraction phase)
+  let citAuthors = [];
+  let citYear = '';
 
-  const citAuthor = citMatch[1].trim().toLowerCase();
-  const citYear = citMatch[3];
+  // Try using pre-parsed data first
+  if (typeof citText === 'object' && citText.authors) {
+    citAuthors = citText.authors.map(a => a.toLowerCase());
+    citYear = citText.year || '';
+    citText = citText.text;
+  }
+
+  // Parse from text if not pre-parsed
+  if (citAuthors.length === 0) {
+    const citMatch = citText.match(new RegExp('^(' + _nameP + '(?:\\s+(?:et\\s+al\\.?))?)(?:\\s*[&,]\\s*' + _nameP + ')*(?:,\\s*|[\\s(])(\\d{4}[a-z]?)'));
+    if (!citMatch) return null;
+    citYear = citMatch[citMatch.length - 1];
+    // Extract all authors from citation text
+    const authorPart = citText.substring(0, citText.lastIndexOf(citYear)).replace(/[,&]/g, ' ');
+    const nameMatches = authorPart.match(new RegExp(_nameP, 'gi'));
+    if (nameMatches) {
+      citAuthors = nameMatches.map(n => n.toLowerCase()).filter(n => n.length > 1);
+    }
+  }
+
+  if (citAuthors.length === 0 || !citYear) return null;
+
   let bestScore = 0, bestRef = null;
 
   for (const ref of refs) {
     let score = 0;
-    const refAuthor = (ref.firstAuthor || '').toLowerCase();
+    const refAuthors = (ref.allAuthors || [ref.firstAuthor]).map(a => (a || '').toLowerCase()).filter(a => a);
 
-    // Author matching — multiple strategies
-    if (refAuthor) {
-      if (refAuthor === citAuthor) score += 0.5;
-      else if (refAuthor.startsWith(citAuthor) || citAuthor.startsWith(refAuthor)) score += 0.3;
-      else if (refAuthor.includes(citAuthor) || citAuthor.includes(refAuthor)) score += 0.15;
+    // Year matching — must match
+    if (ref.year === citYear) {
+      score += 0.3;
+    } else {
+      // Year doesn't match — skip this reference entirely
+      continue;
     }
 
-    // Year matching
-    if (ref.year === citYear) score += 0.5;
+    // Author matching: check ALL citation authors against ALL reference authors
+    if (refAuthors.length > 0) {
+      let authorMatchCount = 0;
+      let bestAuthorScore = 0;
 
-    // Title-based fallback when author is weak
-    if (score < 0.3 && ref.title) {
+      for (const citAuth of citAuthors) {
+        if (citAuth === 'et') continue;
+        let found = false;
+        for (const refAuth of refAuthors) {
+          if (refAuth === citAuth) {
+            authorMatchCount++;
+            bestAuthorScore = Math.max(bestAuthorScore, 0.5);
+            found = true;
+            break;
+          } else if (refAuth.startsWith(citAuth) || citAuth.startsWith(refAuth)) {
+            bestAuthorScore = Math.max(bestAuthorScore, 0.3);
+            found = true;
+            break;
+          } else if (refAuth.includes(citAuth) || citAuth.includes(refAuth)) {
+            bestAuthorScore = Math.max(bestAuthorScore, 0.15);
+            found = true;
+            break;
+          }
+        }
+        if (found) authorMatchCount++;
+      }
+
+      score += bestAuthorScore;
+
+      // Bonus: if ALL citation authors matched
+      const effectiveCitAuthors = citAuthors.filter(a => a !== 'et' && a.length > 1);
+      if (effectiveCitAuthors.length > 0 && authorMatchCount >= effectiveCitAuthors.length) {
+        score += 0.2;
+      }
+    }
+
+    // Title-based fallback when author score is weak but year matches
+    if (score < 0.5 && ref.title) {
       const refTitleWords = ref.title.toLowerCase().split(/\s+/).filter(w => w.length > 4);
       if (refTitleWords.length > 0) {
-        // Extract any non-author, non-year words from citation (might contain title fragments)
-        const citExtra = citText.replace(citMatch[1], '').replace(citMatch[3], '').replace(/et\s+al\.?/gi, '').trim();
-        if (citExtra.length > 3) {
-          const matchCount = refTitleWords.filter(w => citExtra.toLowerCase().includes(w)).length;
-          if (matchCount >= 2) score += 0.3;
-        }
+        const citExtra = citText.toLowerCase().replace(/et\s+al\.?/gi, '').replace(/\d{4}[a-z]?/g, '').replace(/[&,]/g, ' ').trim();
+        const citWords = citExtra.split(/\s+/).filter(w => w.length > 3);
+        const matchCount = citWords.filter(w => refTitleWords.some(rw => rw.includes(w) || w.includes(rw))).length;
+        if (matchCount >= 2) score += 0.2;
       }
     }
 
     if (score > bestScore) { bestScore = score; bestRef = ref; }
   }
 
-  // Lower threshold from 0.4 to 0.3 to catch more matches
-  return bestScore >= 0.3 ? { ref: bestRef, confidence: bestScore } : null;
+  // Threshold: need year match (0.3) + at least some author match (0.15) = 0.45 minimum
+  return bestScore >= 0.4 ? { ref: bestRef, confidence: bestScore } : null;
 }
 
 // ============ AI FEATURES ============
@@ -1374,13 +1463,24 @@ Reply ONLY with a JSON array of strings. Each string is one citation, e.g. ["Smi
   for (const citText of deduped) {
     const key = citText.toLowerCase();
     if (!existingKeys.has(key)) {
+      // Parse authors and year from AI citation text
+      let aiAuthors = [], aiYear = '';
+      const aiM = citText.match(new RegExp('^(' + _nameP + '(?:\\s+(?:et\\s+al\\.?))?)(?:\\s*[&,]\\s*' + _nameP + ')*(?:,\\s*|[\\s(])(\\d{4}[a-z]?)'));
+      if (aiM) {
+        aiYear = aiM[aiM.length - 1];
+        const authorPart = citText.substring(0, citText.lastIndexOf(aiYear)).replace(/[&,]/g, ' ');
+        const nameMatches = authorPart.match(new RegExp(_nameP, 'gi'));
+        if (nameMatches) aiAuthors = nameMatches.map(n => n).filter(n => n.length > 1);
+      }
       citations.push({
         text: citText,
         matchedRef: null,
         matchType: null,
         position: -1,
         isNumeric: /^\d/.test(citText),
-        source: 'ai'
+        source: 'ai',
+        authors: aiAuthors,
+        year: aiYear
       });
       existingKeys.add(key);
       newCount++;
@@ -1407,7 +1507,7 @@ Reply ONLY with a JSON array of strings. Each string is one citation, e.g. ["Smi
       if (anyMatched) { cit.matchedRef = nums[0]; cit.matchType = 'exact'; }
       else unmatched++;
     } else {
-      const best = findBestMatch(cit.text, references);
+      const best = findBestMatch(cit, references);
       if (best) {
         cit.matchedRef = best.ref.index;
         cit.matchType = best.confidence > 0.8 ? 'exact' : 'fuzzy';
