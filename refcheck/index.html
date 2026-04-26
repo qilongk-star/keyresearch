@@ -206,8 +206,8 @@ body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-
     <div class="card-title">📝 In-text Citations <span class="badge badge-info" id="cit-count">0</span></div>
     <div class="status-text" id="cit-status">Extracted from the body text of your paper</div>
     <div class="input-row" style="display:flex;gap:10px;margin-bottom:12px;flex-wrap:wrap;">
-      <button class="btn btn-primary" onclick="matchCitations()">🔗 Match Citations → References</button>
-      <button class="btn btn-secondary" onclick="aiMatchUnmatched()">🤖 AI Match Unmatched</button>
+      <button class="btn btn-primary" onclick="matchCitations()">🔗 Re-match Citations</button>
+      <button class="btn btn-secondary" onclick="aiRescanCitations()">🤖 AI Re-scan Citations</button>
     </div>
     <div class="ref-list" id="cit-list"></div>
   </div>
@@ -796,37 +796,97 @@ function extractCitationsFromText(text) {
   citations = [];
   const seen = new Set();
 
-  // Pattern 1: (Author, Year) or (Author et al., Year) — with optional multiple years
-  const p1 = /\(([A-Z][a-z'öüäéèêëàâîïôûçñ]+(?:\s+(?:et\s+al\.?|[A-Z][a-z]+))?(?:\s*,\s*\d{4}[a-z]?)?(?:\s*[;,]\s*\d{4}[a-z]?)*\s*(?:;\s*[A-Z][a-z]+(?:\s+(?:et\s+al\.?|[A-Z][a-z]+))?(?:\s*,\s*\d{4}[a-z]?)?)*)\)/g;
+  function addCit(txt, pos, extra) {
+    txt = txt.trim();
+    if (txt.length < 4) return;
+    // Filter false positives
+    if (/^(?:the|this|that|these|those|figure|table|section|chapter|page|eq|e\.g|i\.e|see|also|such)/i.test(txt)) return;
+    if (/^\d{4}$/.test(txt)) return; // bare year like "(2020)"
+    if (/^\d+[a-z]?$/.test(txt)) return; // bare year like "(2020a)"
+    const key = txt.toLowerCase();
+    if (!seen.has(key)) {
+      seen.add(key);
+      citations.push({ text: txt, matchedRef: null, matchType: null, position: pos, ...extra });
+    }
+  }
+
+  // =============================================
+  // Pattern A: (Author, Year) / (Author et al., Year)
+  //   Includes multiple citations: (Author et al., 2020; Chen & Xia, 2024)
+  // =============================================
+  const parenBlock = /\(([^)]{3,200})\)/g;
   let m;
-  while ((m = p1.exec(text)) !== null) {
-    const txt = m[1].trim();
-    // Filter out common false positives
-    if (txt.length < 4 || /^(?:the|this|that|these|those|figure|table|section|chapter|page|eq|e\.g|i\.e)/i.test(txt)) continue;
-    const key = txt.toLowerCase();
-    if (!seen.has(key)) {
-      seen.add(key);
-      citations.push({ text: txt, matchedRef: null, matchType: null, position: m.index });
+  while ((m = parenBlock.exec(text)) !== null) {
+    const block = m[1];
+    const pos = m.index;
+
+    // Check if this block looks like citations (must have author-name-like content + year)
+    // Quick check: contains at least one 4-digit year and a capitalized word
+    if (!/\b(19|20)\d{2}[a-z]?\b/.test(block)) continue;
+    if (!/[A-Z][a-z]{2,}/.test(block)) continue;
+
+    // Now split the block by ";" to get individual citations
+    const parts = block.split(/\s*;\s*/);
+
+    for (const part of parts) {
+      const trimmed = part.trim();
+      // Try to match individual citation patterns within this part
+      // Pattern A1: Author, Year / Author et al., Year
+      const a1 = trimmed.match(/^([A-Z][a-z'öüäéèêëàâîïôûçñ]+(?:\s+(?:et\s+al\.?))?)\s*,?\s*((?:19|20)\d{2}[a-z]?)/);
+      if (a1) {
+        addCit(`${a1[1].trim()}, ${a1[2]}`, pos);
+        continue;
+      }
+      // Pattern A2: Author & Author, Year
+      const a2 = trimmed.match(/^([A-Z][a-z'öüäéèêëàâîïôûçñ]+)\s*&\s*[A-Z][a-z'öüäéèêëàâîïôûçñ]+\s*,?\s*((?:19|20)\d{2}[a-z]?)/);
+      if (a2) {
+        addCit(`${a2[1].trim()}, ${a2[2]}`, pos);
+        continue;
+      }
+      // Pattern A3: Author and Author, Year
+      const a3 = trimmed.match(/^([A-Z][a-z'öüäéèêëàâîïôûçñ]+)\s+and\s+[A-Z][a-z'öüäéèêëàâîïôûçñ]+\s*,?\s*((?:19|20)\d{2}[a-z]?)/);
+      if (a3) {
+        addCit(`${a3[1].trim()}, ${a3[2]}`, pos);
+        continue;
+      }
+      // Pattern A4: Multiple years for same author: Author (2020, 2021)
+      const a4 = trimmed.match(/^([A-Z][a-z'öüäéèêëàâîïôûçñ]+(?:\s+et\s+al\.?)?)\s*\((\d{4}[a-z]?(?:\s*,\s*\d{4}[a-z]?)*)\)/);
+      if (a4) {
+        // Split multiple years into separate citations
+        const years = a4[2].split(/\s*,\s*/);
+        for (const y of years) addCit(`${a4[1].trim()}, ${y.trim()}`, pos);
+        continue;
+      }
+      // Pattern A5: Author (Year) inside a larger parenthetical
+      const a5 = trimmed.match(/([A-Z][a-z'öüäéèêëàâîïôûçñ]+(?:\s+et\s+al\.?)?)\s*\((\d{4}[a-z]?)\)/);
+      if (a5) {
+        addCit(`${a5[1].trim()}, ${a5[2]}`, pos);
+        continue;
+      }
     }
   }
 
-  // Pattern 2: Author (Year) without parentheses around the whole thing
-  const p2 = /\b([A-Z][a-z'öüäéèêëàâîïôûçñ]+(?:\s+(?:et\s+al\.?))?)\s*\((\d{4}[a-z]?)\)/g;
-  while ((m = p2.exec(text)) !== null) {
-    const txt = `${m[1].trim()}, ${m[2]}`;
-    const key = txt.toLowerCase();
-    if (!seen.has(key)) {
-      seen.add(key);
-      citations.push({ text: txt, matchedRef: null, matchType: null, position: m.index });
-    }
+  // =============================================
+  // Pattern B: Author (Year) — not wrapped in outer parentheses
+  //   e.g., "Barhorst et al. (2020) found that..."
+  // =============================================
+  const authorYear = /\b([A-Z][a-z'öüäéèêëàâîïôûçñ]+(?:\s+(?:et\s+al\.?|[A-Z][a-z]+))?)\s*\((\d{4}[a-z]?)\)/g;
+  while ((m = authorYear.exec(text)) !== null) {
+    const author = m[1].trim();
+    // Skip common false-positive words
+    if (/^(?:the|this|that|these|those|figure|table|section|chapter|page|eq|vol|no|issue|available|retrieved|see|also)/i.test(author)) continue;
+    addCit(`${author}, ${m[2]}`, m.index);
   }
 
-  // Pattern 3: [number] style citations like [1], [12,13], [1-5]
-  const p3 = /\[(\d+(?:\s*[,;]\s*\d+)*(?:\s*[-–]\s*\d+)?)\]/g;
-  while ((m = p3.exec(text)) !== null) {
+  // =============================================
+  // Pattern C: [number] style citations
+  //   e.g., [1], [12,13], [1-5]
+  // =============================================
+  const numCit = /\[(\d+(?:\s*[,;]\s*\d+)*(?:\s*[-–]\s*\d+)?)\]/g;
+  while ((m = numCit.exec(text)) !== null) {
     const txt = m[1];
-    // Skip if it's part of a reference (check if position is after refSectionText start)
-    if (refSectionText && m.index > fullText.indexOf(refSectionText.substring(0, 20))) continue;
+    // Skip if position is inside references section
+    if (refSectionText && m.index > fullText.indexOf(refSectionText.substring(0, Math.min(50, refSectionText.length)))) continue;
     if (!seen.has(txt)) {
       seen.add(txt);
       citations.push({ text: txt, matchedRef: null, matchType: null, position: m.index, isNumeric: true });
@@ -834,7 +894,7 @@ function extractCitationsFromText(text) {
   }
 
   $('cit-count').textContent = citations.length;
-  $('cit-status').textContent = `Extracted ${citations.length} in-text citations from body text`;
+  $('cit-status').textContent = `Extracted ${citations.length} in-text citations`;
 }
 
 // ============ RENDER ============
@@ -1165,51 +1225,122 @@ Reply ONLY with the JSON array, no other text.`;
   }
 }
 
-async function aiMatchUnmatched() {
-  const unmatched = citations.filter(c => !c.matchedRef);
-  if (!unmatched.length) return toast('All citations matched', 'info');
-  if (!references.length) return toast('No references loaded', 'error');
-  toast(`AI matching ${unmatched.length} unmatched citations...`, 'info');
+async function aiRescanCitations() {
+  if (!bodyText || !references.length) return toast('No paper text or references loaded', 'error');
+  toast('AI scanning body text for in-text citations...', 'info');
 
-  const citTexts = unmatched.map((c, i) => `[${i}] "${c.text}"`).join('\n');
-  const refTexts = references.map(r => `[${r.index}] ${r.firstAuthor || '?'} ${r.year || '?'} — ${r.title || r.text.substring(0,80)}`).join('\n');
-
-  const prompt = `Match each in-text citation to the best reference. Reply in JSON: array of objects with "idx" (citation number), "refIdx" (reference number, or null if no match).
-
-Unmatched Citations:
-${citTexts}
-
-Available References:
-${refTexts}
-
-Reply ONLY with the JSON array.`;
-
-  const result = await callAI(prompt, 4000);
-  if (!result) return;
-
-  try {
-    const jsonMatch = result.match(/\[[\s\S]*\]/);
-    if (!jsonMatch) throw new Error('No JSON found');
-    const results = JSON.parse(jsonMatch[0]);
-
-    let matched = 0;
-    for (const r of results) {
-      if (!r.refIdx) continue;
-      const cit = unmatched[parseInt(r.idx)];
-      const ref = references.find(rr => rr.index === parseInt(r.refIdx));
-      if (!cit || !ref) continue;
-      cit.matchedRef = ref.index;
-      cit.matchType = 'ai';
-      ref.matchCount++;
-      matched++;
-    }
-    renderCitations();
-    renderReferences();
-    generateReport();
-    toast(`AI matched ${matched} citations`, 'success');
-  } catch(e) {
-    toast('Failed to parse AI response: ' + e.message, 'error');
+  // Send a chunk of body text to AI, ask it to extract ALL citations
+  // Send in chunks if too long (max ~6000 chars per chunk)
+  const chunkSize = 6000;
+  const chunks = [];
+  const textLen = bodyText.length;
+  for (let i = 0; i < textLen; i += chunkSize) {
+    chunks.push(bodyText.substring(i, i + chunkSize));
   }
+
+  const allAICitations = [];
+
+  for (let ci = 0; ci < chunks.length; ci++) {
+    const chunk = chunks[ci];
+    const prompt = `You are a citation extraction expert. Read this text from an academic paper and extract ALL in-text citations.
+
+Citation formats include:
+- Author-year: (Smith, 2020), (Smith et al., 2020), Smith (2020)
+- Multiple in one parenthesis: (Smith et al., 2020; Chen & Xia, 2024), (Barhorst et al., 2020, 2022)
+- Numeric: [1], [1,2], [1-3]
+
+Rules:
+- Split multiple citations in the same parenthesis into SEPARATE entries
+- Include "et al." when present
+- For numeric citations, expand ranges (e.g. [1-3] → [1], [2], [3])
+- Only extract citations in the body text, NOT in reference lists
+- Ignore false positives like (see also), (Figure 1), etc.
+
+Text excerpt (part ${ci+1}/${chunks.length}):
+---
+${chunk}
+---
+
+Reply ONLY with a JSON array of strings. Each string is one citation, e.g. ["Smith et al., 2020", "Chen & Xia, 2024", "[1]"]`;
+
+    const result = await callAI(prompt, 4000);
+    if (!result) continue;
+
+    try {
+      const jsonMatch = result.match(/\[[\s\S]*\]/);
+      if (!jsonMatch) continue;
+      const items = JSON.parse(jsonMatch[0]);
+      for (const item of items) {
+        if (typeof item === 'string' && item.trim().length > 2) {
+          allAICitations.push(item.trim());
+        }
+      }
+    } catch(e) {
+      console.warn('AI chunk parse error:', e);
+    }
+
+    // Small delay between chunks
+    if (ci < chunks.length - 1) await sleep(500);
+  }
+
+  if (allAICitations.length === 0) {
+    toast('AI did not find any citations', 'warning');
+    return;
+  }
+
+  // Deduplicate
+  const uniqueCits = [...new Set(allAICitations.map(c => c.toLowerCase()))];
+  const deduped = uniqueCits.map(c => allAICitations.find(orig => orig.toLowerCase() === c)).filter(Boolean);
+
+  // Merge with existing citations: add AI-found ones that regex missed
+  const existingKeys = new Set(citations.map(c => c.text.toLowerCase()));
+  let newCount = 0;
+  for (const citText of deduped) {
+    if (!existingKeys.has(citText.toLowerCase())) {
+      citations.push({
+        text: citText,
+        matchedRef: null,
+        matchType: null,
+        position: -1,
+        isNumeric: /^\d/.test(citText),
+        source: 'ai'
+      });
+      existingKeys.add(citText.toLowerCase());
+      newCount++;
+    }
+  }
+
+  // Re-run matching
+  let matched = 0, unmatched = 0;
+  references.forEach(r => r.matchCount = 0);
+  citations.forEach(c => { c.matchedRef = null; c.matchType = null; });
+
+  for (const cit of citations) {
+    if (cit.isNumeric) {
+      const nums = parseNumericCit(cit.text);
+      let anyMatched = false;
+      for (const n of nums) {
+        const ref = references.find(r => r.index === n);
+        if (ref) { ref.matchCount++; anyMatched = true; matched++; }
+      }
+      if (anyMatched) { cit.matchedRef = nums[0]; cit.matchType = 'exact'; }
+      else unmatched++;
+    } else {
+      const best = findBestMatch(cit.text, references);
+      if (best && best.confidence > 0.4) {
+        cit.matchedRef = best.ref.index;
+        cit.matchType = best.confidence > 0.8 ? 'exact' : 'fuzzy';
+        references[best.ref.index].matchCount++;
+        matched++;
+      } else unmatched++;
+    }
+  }
+
+  renderCitations();
+  renderReferences();
+  generateReport();
+
+  toast(`AI found ${deduped.length} citations (${newCount} new). Total: ${citations.length}, matched: ${matched}, unmatched: ${unmatched}`, 'success');
 }
 
 // ============ REPORT ============
