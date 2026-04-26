@@ -576,7 +576,7 @@ function splitBodyAndRefs() {
   const sectionNames = [
     'References', 'Bibliography', 'Reference List', 'Works Cited',
     'References Cited', 'Literature Cited', 'List of References',
-    '参考文献', '引用文献', '参考书目'
+    '参考文献', '引用文献', '参考书目', 'Reference'
   ];
 
   // Find all positions where a section heading appears on its own line
@@ -597,21 +597,19 @@ function splitBodyAndRefs() {
   let detectedFormat = '';
   if (headingPositions.length > 0) {
     const best = headingPositions[0];
-    // Clean up any text after the section heading that might be garbage (page numbers, etc.)
     refSectionText = cleaned.substring(best.pos).trim();
     bodyText = cleaned.substring(0, best.pos).trim();
 
-    // Remove trailing appendix/acknowledgment sections if they appear before References
-    const appendixPatterns = /\n\s*(?:Appendix|Appendices|Acknowledgments?|Declaration|Supplementary|Appendix)\s*[\w]*\s*\n/i;
-    const appMatch = refSectionText.match(appendixPatterns);
-    if (appMatch && appMatch.index > 100) {
-      refSectionText = refSectionText.substring(0, appMatch.index).trim();
+    // Trim non-reference sections AFTER References (Appendix, Supplementary, etc.)
+    const trailingSectionPattern = /\n\s*(?:Appendix|Appendices|Supplementary(?:\s+Material)?|Supplement|Online\s+Supplement|Table\s+[A-Z]\.\d|Figure\s+[A-Z]\.\d|Appendix\s+Table)\b/i;
+    const trailMatch = refSectionText.match(trailingSectionPattern);
+    if (trailMatch && trailMatch.index > 50) {
+      refSectionText = refSectionText.substring(0, trailMatch.index).trim();
     }
 
     detectedFormat = best.name;
   } else {
     // 2) Fallback: detect numbered references pattern near the end of the document
-    //    Look for sequences like "[1]", "1.", etc. starting after the 60% mark
     const tailText = cleaned.substring(cleaned.length * 0.5);
     const numRefPattern = /(?:^|\n)\s*(?:\[\d+\]|\d+\.\s)/;
     const firstNumMatch = tailText.match(numRefPattern);
@@ -628,12 +626,21 @@ function splitBodyAndRefs() {
     }
   }
 
+  // Trim non-reference sections BEFORE the References heading in bodyText
+  // These sections commonly appear between Discussion and References:
+  const preRefSectionPattern = /\n\s*(?:Author\s+Contributions|Declaration\b|Data\s+Availability|Funding\b|Acknowledgments?|Conflicts?\s+of\s+Interest|Ethical\s+(?:Approval|Statement|Considerations)|Institutional\s+Review|Informed\s+Consent|Declarations?|Supplementary\s+Material|Competing\s+Interests|ORCID)\b/i;
+  const preMatch = bodyText.match(preRefSectionPattern);
+  if (preMatch && preMatch.index > bodyText.length * 0.3) {
+    // Trim bodyText to remove these sections — they are NOT part of the main body
+    bodyText = bodyText.substring(0, preMatch.index).trim();
+  }
+
   // Clean the ref section: remove standalone page numbers, column-break artifacts
   refSectionText = refSectionText
     // Remove lines that are just a number (page numbers from PDF extraction)
     .replace(/(?:^|\n)\s*\d{1,3}\s*(?:\n|$)/g, '\n')
     // Remove "References" or similar heading if it appears again at the top
-    .replace(/^\s*(?:References|Bibliography|Reference List|Works Cited|参考文献|引用文献)\s*/i, '')
+    .replace(/^\s*(?:References|Bibliography|Reference List|Works Cited|参考文献|引用文献|Reference)\s*/i, '')
     .trim();
 
   console.log('[RefCheck] Section detected:', detectedFormat);
@@ -1000,14 +1007,14 @@ function extractCitationsFromText(text) {
       const a2 = trimmed.match(new RegExp('^(' + _nameP + ')\\s*&\\s*(' + _nameP + ')\\s*,?\\s*((?:19|20)\\d{2}[a-z]?)'));
       if (a2) {
         const authors = [a2[1].trim(), a2[2].trim()];
-        addCit(`${a2[1].trim()}, ${a2[2]}`, pos, null, authors, a2[3]);
+        addCit(`${a2[1].trim()} & ${a2[2].trim()}, ${a2[3]}`, pos, null, authors, a2[3]);
         continue;
       }
       // Pattern A3: Author and Author, Year — extract BOTH authors
       const a3 = trimmed.match(new RegExp('^(' + _nameP + ')\\s+and\\s+(' + _nameP + ')\\s*,?\\s*((?:19|20)\\d{2}[a-z]?)'));
       if (a3) {
         const authors = [a3[1].trim(), a3[2].trim()];
-        addCit(`${a3[1].trim()}, ${a3[2]}`, pos, null, authors, a3[3]);
+        addCit(`${a3[1].trim()} & ${a3[2].trim()}, ${a3[3]}`, pos, null, authors, a3[3]);
         continue;
       }
       // Pattern A4: Multiple years: Author (2020, 2021)
@@ -1045,14 +1052,14 @@ function extractCitationsFromText(text) {
   while ((m = b2.exec(text)) !== null) {
     const author = m[1].trim();
     if (/^(?:the|this|that|these|those|figure|table|section|chapter|page|eq|vol|no|issue)/i.test(author)) continue;
-    addCit(`${author}, ${m[3]}`, m.index, null, [author, m[2].trim()], m[3]);
+    addCit(`${author} & ${m[2].trim()}, ${m[3]}`, m.index, null, [author, m[2].trim()], m[3]);
   }
   // B3: Author & Author (Year) — two authors with ampersand, no outer parens
   const b3 = new RegExp('\\b(' + _nameP + ')\\s*&\\s+(' + _nameP + ')\\s*\\((\\d{4}[a-z]?)\\)', 'g');
   while ((m = b3.exec(text)) !== null) {
     const author = m[1].trim();
     if (/^(?:the|this|that|these|those|figure|table|section|chapter|page|eq|vol|no|issue)/i.test(author)) continue;
-    addCit(`${author}, ${m[3]}`, m.index, null, [author, m[2].trim()], m[3]);
+    addCit(`${author} & ${m[2].trim()}, ${m[3]}`, m.index, null, [author, m[2].trim()], m[3]);
   }
 
   // =============================================
