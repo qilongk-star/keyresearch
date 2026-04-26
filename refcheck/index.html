@@ -959,134 +959,197 @@ function parseOneRef(text) {
 // Shared author name pattern: "Smith", "Quan-Haase", "De La Ronde"
 // CRITICAL: does NOT match past "&" or " and " — those are author separators
 const _nameP = '[A-Z][a-z\x27öüäéèêëàâîïôûçñ-]*(?:[-\\s][A-Z][a-z\x27öüäéèêëàâîïôûçñ-]*)*';
-// Non-ampersand name — for A1 pattern, must not consume past & or "and"
-const _nameNoAmp = '[A-Z][a-z\x27öüäéèêëàâîïôûçñ-]*(?:[-\\s][A-Z][a-z\x27öüäéèêëàâîïôûçñ-]*)*';
+// Stop words that are NOT author names
+const _citStopWords = /^(?:the|this|that|these|those|figure|table|section|chapter|page|eq|e\.g|i\.e|see|also|such|model|study|h\d|promotion|prevention|mediation|moderation|spt|apt|rct|apa|mla)$/i;
 
 function extractCitationsFromText(text) {
   citations = [];
-  // NO dedup — keep all citations including repeated ones at different positions
 
-  function addCit(txt, pos, extra, authors, year) {
+  function addCit(txt, pos, authors, year) {
     txt = txt.trim();
     if (txt.length < 4) return;
-    // Filter false positives
-    if (/^(?:the|this|that|these|those|figure|table|section|chapter|page|eq|e\.g|i\.e|see|also|such|model|study|h\d|promotion|prevention|mediation|moderation|spt|apt|rct)$/i.test(txt)) return;
+    if (_citStopWords.test(txt)) return;
     if (/^\d{4}$/.test(txt)) return;
     if (/^\d+[a-z]?$/.test(txt)) return;
-    // Filter bare abbreviations (all caps, no lowercase letters, < 5 chars)
     if (/^[A-Z]{2,5}$/.test(txt)) return;
-    citations.push({ text: txt, matchedRef: null, matchType: null, position: pos, authors: authors || [], year: year || '', ...extra });
+    citations.push({ text: txt, matchedRef: null, matchType: null, position: pos, authors: authors || [], year: year || '' });
   }
 
-  // =============================================
-  // Pattern A: (Author, Year) / (Author et al., Year) / (Author & Author, Year)
-  //   Includes multiple citations: (Author et al., 2020; Chen & Xia, 2024)
-  // =============================================
-  const parenBlock = /\(([^)]{3,300})\)/g;
-  let m;
-  while ((m = parenBlock.exec(text)) !== null) {
-    const block = m[1];
-    const pos = m.index;
+  // ==================================================================
+  // STRATEGY 0: Year-first scanning
+  // Find every YYYY inside a parenthetical, split by ";",
+  // and extract the author by looking backwards from the year.
+  // ==================================================================
+  const yearRegex = /\b((?:19|20)\d{2}[a-z]?)\b/g;
+  const yearPositions = [];
+  let ym;
+  while ((ym = yearRegex.exec(text)) !== null) {
+    yearPositions.push({ year: ym[1], index: ym.index, end: ym.index + ym[1].length });
+  }
+  const claimedYears = new Set();
 
-    // Quick check: contains at least one 4-digit year and a capitalized word
-    if (!/\b(19|20)\d{2}[a-z]?\b/.test(block)) continue;
-    if (!/[A-Z][a-z]{2,}/.test(block)) continue;
+  for (let yi = 0; yi < yearPositions.length; yi++) {
+    const { year, index: yearPos, end: yearEnd } = yearPositions[yi];
+    const searchStart = Math.max(0, yearPos - 80);
+    const segment = text.substring(searchStart, Math.min(text.length, yearEnd + 20));
 
-    // Split by ";" to get individual citations
-    const parts = block.split(/\s*;\s*/);
+    // Find the LAST "(" before the year
+    let openParenIdx = -1;
+    for (let k = segment.length - 1; k >= 0; k--) {
+      if (segment[k] === '(') { openParenIdx = k; break; }
+    }
+    if (openParenIdx < 0) continue;
 
-    for (const part of parts) {
-      const trimmed = part.trim();
+    // Find ")" after the year
+    let closeParenIdx = -1;
+    for (let k = yearEnd - searchStart; k < Math.min(segment.length, yearEnd - searchStart + 20); k++) {
+      if (segment[k] === ')') { closeParenIdx = k; break; }
+    }
+    if (closeParenIdx < 0) continue;
 
-      // Try A2 FIRST: Author & Author, Year — two authors with ampersand
-      const a2 = trimmed.match(new RegExp('^(' + _nameP + ')\\s*&\\s*(' + _nameP + ')\\s*,?\\s*((?:19|20)\\d{2}[a-z]?)'));
-      if (a2) {
-        const authors = [a2[1].trim(), a2[2].trim()];
-        addCit(`${a2[1].trim()} & ${a2[2].trim()}, ${a2[3]}`, pos, null, authors, a2[3]);
-        continue;
+    const innerContent = segment.substring(openParenIdx + 1, closeParenIdx);
+    if (!/[A-Z][a-z]{2,}/.test(innerContent)) continue;
+    if (/^\s*(see|e\.g|i\.e|also|cf|pp|p\.|vol|no|eq|figure|fig|table)/i.test(innerContent)) continue;
+
+    // Mark years in this block as claimed
+    const absOpenParen = searchStart + openParenIdx;
+    const yrRe2 = /\b((?:19|20)\d{2}[a-z]?)\b/g;
+    let yr2;
+    while ((yr2 = yrRe2.exec(innerContent)) !== null) {
+      const absYr = absOpenParen + 1 + yr2.index;
+      for (let j = 0; j < yearPositions.length; j++) {
+        if (yearPositions[j].index === absYr && yearPositions[j].year === yr2[1]) claimedYears.add(j);
       }
-      // Try A3 SECOND: Author and Author, Year — two authors with "and"
-      const a3 = trimmed.match(new RegExp('^(' + _nameP + ')\\s+and\\s+(' + _nameP + ')\\s*,?\\s*((?:19|20)\\d{2}[a-z]?)'));
-      if (a3) {
-        const authors = [a3[1].trim(), a3[2].trim()];
-        addCit(`${a3[1].trim()} & ${a3[2].trim()}, ${a3[3]}`, pos, null, authors, a3[3]);
-        continue;
-      }
-      // Try A1 THIRD: Single author or Author et al., Year (must not match "Author & Author")
-      // Use a stricter pattern: name must not be followed by & or "and" before the year
-      const a1 = trimmed.match(new RegExp('^(' + _nameP + '(?:\\s+et\\s+al\\.?)?)\\s*,\\s*((?:19|20)\\d{2}[a-z]?)'));
-      if (a1 && !/\s*[&]\s*/.test(trimmed.substring(a1[1].length)) && !/\s+and\s+/i.test(trimmed.substring(a1[1].length))) {
-        const authors = [a1[1].trim()];
-        addCit(`${a1[1].trim()}, ${a1[2]}`, pos, null, authors, a1[2]);
-        continue;
-      }
-      // Pattern A4: Multiple years: Author (2020, 2021)
-      const a4 = trimmed.match(new RegExp('^(' + _nameP + '(?:\\s+et\\s+al\\.?)?)\\s*\\((\\d{4}[a-z]?(?:\\s*,\\s*\\d{4}[a-z]?)*)\\)'));
-      if (a4) {
-        const authors = [a4[1].trim()];
-        const years = a4[2].split(/\s*,\s*/);
-        for (const y of years) addCit(`${a4[1].trim()}, ${y.trim()}`, pos, null, authors, y.trim());
-        continue;
-      }
-      // Pattern A5: Author (Year) inside a larger parenthetical — fallback
-      const a5 = trimmed.match(new RegExp('(' + _nameP + '(?:\\s+et\\s+al\\.?)?)\\s*\\((\\d{4}[a-z]?)\\)'));
-      if (a5) {
-        const authors = [a5[1].trim()];
-        addCit(`${a5[1].trim()}, ${a5[2]}`, pos, null, authors, a5[2]);
-        continue;
-      }
+    }
+
+    // Split by ";" and extract each citation
+    const citSegments = innerContent.split(/\s*;\s*/);
+    for (const seg of citSegments) {
+      extractOneCitFromSegment(seg, absOpenParen + 1 + innerContent.indexOf(seg), addCit);
     }
   }
 
-  // =============================================
-  // Pattern B: Author (Year) — not wrapped in outer parentheses
-  //   e.g., "Barhorst et al. (2020) found that..."
-  //   e.g., "Yanovski and Yanovski (2002) argued..."
-  // =============================================
-  // B3 FIRST: Author & Author (Year) — two authors with ampersand, no outer parens
+  // ==================================================================
+  // STRATEGY 1: Fallback - Pattern B for Author (Year) outside parens
+  // Only process years NOT already claimed by Strategy 0.
+  // ==================================================================
+  let m;
+  function isYearClaimed(yearStr, nearPos) {
+    for (let j = 0; j < yearPositions.length; j++) {
+      if (yearPositions[j].year === yearStr && Math.abs(yearPositions[j].index - nearPos) < 5) {
+        return claimedYears.has(j);
+      }
+    }
+    return false;
+  }
+  // B3: Author & Author (Year)
   const b3 = new RegExp('\\b(' + _nameP + ')\\s*&\\s*(' + _nameP + ')\\s*\\((\\d{4}[a-z]?)\\)', 'g');
   while ((m = b3.exec(text)) !== null) {
-    const author = m[1].trim();
-    if (/^(?:the|this|that|these|those|figure|table|section|chapter|page|eq|vol|no|issue|available|retrieved|see|also|model|study|h\d)/i.test(author)) continue;
-    addCit(`${author} & ${m[2].trim()}, ${m[3]}`, m.index, null, [author, m[2].trim()], m[3]);
+    if (_citStopWords.test(m[1].trim())) continue;
+    if (isYearClaimed(m[3], m.index + m[0].length - 5)) continue;
+    addCit(m[1].trim() + ' & ' + m[2].trim() + ', ' + m[3], m.index, [m[1].trim(), m[2].trim()], m[3]);
   }
-  // B2 SECOND: Author and Author (Year) — two authors without outer parens
-  const b2 = new RegExp('\\b(' + _nameP + ')\\s+and\\s+(' + _nameP + ')\\s*\\((\\d{4}[a-z]?)\\)', 'g');
+  // B2: Author and Author (Year)
+  const b2 = new RegExp('\\b(' + _nameP + ')\\s+and\\s*(' + _nameP + ')\\s*\\((\\d{4}[a-z]?)\\)', 'g');
   while ((m = b2.exec(text)) !== null) {
-    const author = m[1].trim();
-    if (/^(?:the|this|that|these|those|figure|table|section|chapter|page|eq|vol|no|issue|available|retrieved|see|also|model|study|h\d)/i.test(author)) continue;
-    addCit(`${author} & ${m[2].trim()}, ${m[3]}`, m.index, null, [author, m[2].trim()], m[3]);
+    if (_citStopWords.test(m[1].trim())) continue;
+    if (isYearClaimed(m[3], m.index + m[0].length - 5)) continue;
+    addCit(m[1].trim() + ' & ' + m[2].trim() + ', ' + m[3], m.index, [m[1].trim(), m[2].trim()], m[3]);
   }
-  // B1 LAST: Single author or et al. (Year)
+  // B1: Single author or et al. (Year)
   const b1 = new RegExp('\\b(' + _nameP + '(?:\\s+(?:et\\s+al\\.?))?)\\s*\\((\\d{4}[a-z]?)\\)', 'g');
   while ((m = b1.exec(text)) !== null) {
     const author = m[1].trim();
-    if (/^(?:the|this|that|these|those|figure|table|section|chapter|page|eq|vol|no|issue|available|retrieved|see|also|model|study|h\d)/i.test(author)) continue;
-    // Skip if this was already matched by B2 or B3 (check for & or "and" before the (Year))
-    const beforeParen = text.substring(m.index, m.index + m[0].length);
-    const authorPart = beforeParen.replace(/\s*\(\d{4}[a-z]?\)\s*$/, '');
-    if (/\s+and\s+/i.test(authorPart) || /\s*&\s*/.test(authorPart)) continue;
-    addCit(`${author}, ${m[2]}`, m.index, null, [author], m[2]);
+    if (_citStopWords.test(author)) continue;
+    const beforeP = text.substring(m.index, m.index + m[0].length);
+    const authPart = beforeP.replace(/\s*\(\d{4}[a-z]?\)\s*$/, '');
+    if (/\s+and\s+/i.test(authPart) || /\s*&\s*/.test(authPart)) continue;
+    if (isYearClaimed(m[2], m.index + m[0].length - 5)) continue;
+    addCit(author + ', ' + m[2], m.index, [author], m[2]);
   }
 
-  // =============================================
-  // Pattern C: [number] style citations
-  //   e.g., [1], [12,13], [1-5]
-  // =============================================
+  // ==================================================================
+  // STRATEGY 2: [number] style citations
+  // ==================================================================
   const numCit = /\[(\d+(?:\s*[,;]\s*\d+)*(?:\s*[-–]\s*\d+)?)\]/g;
   while ((m = numCit.exec(text)) !== null) {
-    const txt = m[1];
-    // Skip if position is inside references section
     if (refSectionText && m.index > fullText.indexOf(refSectionText.substring(0, Math.min(50, refSectionText.length)))) continue;
-    citations.push({ text: txt, matchedRef: null, matchType: null, position: m.index, isNumeric: true });
+    citations.push({ text: m[1], matchedRef: null, matchType: null, position: m.index, isNumeric: true });
   }
+
+  // Deduplicate: same text at same position only once
+  const seenPos = new Set();
+  const deduped = [];
+  for (const cit of citations) {
+    const key = cit.position + '::' + cit.text.toLowerCase();
+    if (!seenPos.has(key)) {
+      seenPos.add(key);
+      deduped.push(cit);
+    }
+  }
+  citations = deduped;
 
   $('cit-count').textContent = citations.length;
   const uniqueCits = new Set(citations.map(c => c.text.toLowerCase())).size;
   $('cit-status').textContent = `Extracted ${citations.length} in-text citations (${uniqueCits} unique)`;
 }
 
+// Helper: Extract author(s) from text before a year inside a citation segment
+function extractAuthorFromBefore(beforeText, year) {
+  let t = beforeText.trim().replace(/,\s*$/, '').trim();
+  if (!t || t.length < 2) return null;
+  if (!/[A-Z][a-z]{2,}/.test(t)) return null;
+
+  // Try: Author & Author (with optional et al.)
+  const amp = t.match(new RegExp('^(' + _nameP + ')\\s*&\\s*(' + _nameP + ')(?:\\s+et\\s+al\\.?)?$'));
+  if (amp) return { text: amp[1].trim() + ' & ' + amp[2].trim() + ', ' + year, authors: [amp[1].trim(), amp[2].trim()] };
+
+  // Try: Author and Author
+  const and = t.match(new RegExp('^(' + _nameP + ')\\s+and\\s*(' + _nameP + ')(?:\\s+et\\s+al\\.?)?$'));
+  if (and) return { text: and[1].trim() + ' & ' + and[2].trim() + ', ' + year, authors: [and[1].trim(), and[2].trim()] };
+
+  // Try: Author et al.
+  const etal = t.match(new RegExp('^(' + _nameP + ')\\s+et\\s+al\\.?'));
+  if (etal) return { text: etal[1].trim() + ' et al., ' + year, authors: [etal[1].trim()] };
+
+  // Try: Author, Author and Author (three authors)
+  const tri = t.match(new RegExp('^(' + _nameP + ')\\s*,\\s*(' + _nameP + ')\\s+and\\s*(' + _nameP + ')$'));
+  if (tri) return { text: tri[1].trim() + ', ' + tri[2].trim() + ' & ' + tri[3].trim() + ', ' + year, authors: [tri[1].trim(), tri[2].trim(), tri[3].trim()] };
+
+  // Fallback: Single Author
+  const words = t.split(/\s+/);
+  const lastWord = words[words.length - 1];
+  if (_citStopWords.test(lastWord)) return null;
+  if (/^[A-Z][a-z]/.test(lastWord) || /^[A-Z][a-z]/.test(words[0])) {
+    let nameEnd = t.length;
+    const etalIdx = t.search(/\s+et\s+al\.?/);
+    if (etalIdx >= 0) nameEnd = etalIdx + 8;
+    let authorName = t.substring(0, nameEnd).replace(/,\s*$/, '').replace(/[.,;:]+$/, '').trim();
+    if (authorName.length >= 2 && /[A-Z][a-z]{2,}/.test(authorName)) {
+      return { text: authorName + ', ' + year, authors: [authorName] };
+    }
+  }
+  return null;
+}
+
+// Helper: Extract one citation from a semicolon-separated segment
+function extractOneCitFromSegment(seg, absPos, addCit) {
+  seg = seg.trim();
+  if (seg.length < 3) return;
+  const yrMatch = seg.match(/\b((?:19|20)\d{2}[a-z]?)\b/);
+  if (!yrMatch) return;
+  const year = yrMatch[1];
+  const beforeYear = seg.substring(0, yrMatch.index).trim();
+  if (!beforeYear || beforeYear.length < 2) return;
+  if (_citStopWords.test(beforeYear)) return;
+  if (!/[A-Z][a-z]{2,}/.test(beforeYear)) return;
+  const cit = extractAuthorFromBefore(beforeYear, year);
+  if (cit) addCit(cit.text, absPos, cit.authors, year);
+}
+
+
 // ============ RENDER ============
+
 function renderReferences() {
   references = references || [];
   $('ref-count').textContent = references.length;
@@ -1623,6 +1686,11 @@ Reply ONLY with a JSON array of strings. Each string is one citation, e.g. ["Smi
   renderCitations();
   renderReferences();
   generateReport();
+
+  // Update Visual Mode if it's open
+  if ($('vm-overlay').classList.contains('active')) {
+    renderVisualMode();
+  }
 
   toast(`AI found ${deduped.length} citations (${newCount} new). Total: ${citations.length}, matched: ${matched}, unmatched: ${unmatched}`, 'success');
 }
