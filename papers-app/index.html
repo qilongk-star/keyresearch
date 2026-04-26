@@ -2149,6 +2149,7 @@ async function renderSinglePage(pageNum) {
 
   const textLayer = document.createElement('div');
   textLayer.className = 'text-layer';
+  textLayer.style.setProperty('--scale-factor', viewport.scale);
 
   const hlLayer = document.createElement('div');
   hlLayer.className = 'highlight-layer';
