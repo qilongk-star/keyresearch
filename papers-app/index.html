@@ -2469,17 +2469,23 @@ async function insertAnnotation(annoData) {
 async function deleteAnnotationFromDb(id) {
   console.log('deleteAnnotationFromDb called for id:', id);
   try {
-    const { data, error } = await sb.from('annotations').delete().eq('id', id);
+    // Use RPC to bypass RLS (SECURITY DEFINER function runs as table owner)
+    const { error } = await sb.rpc('delete_annotation', { anno_id: id });
     if (error) {
-      console.error('deleteAnnotationFromDb supabase error:', error);
-      toast('Delete failed: ' + error.message, 'error');
-      return false;
+      console.error('deleteAnnotationFromDb rpc error:', error);
+      // Fallback: try direct delete
+      const { error: e2 } = await sb.from('annotations').delete().eq('id', id);
+      if (e2) {
+        console.error('deleteAnnotationFromDb fallback error:', e2);
+        toast('Delete failed: ' + e2.message, 'error');
+        return false;
+      }
     }
-    console.log('deleteAnnotationFromDb success for id:', id, 'rows:', data);
+    console.log('deleteAnnotationFromDb success for id:', id);
     return true;
   } catch (e) {
     console.error('deleteAnnotationFromDb exception:', e);
-    toast('Network error — browser may be blocking requests. Try: Edge Settings → Privacy → Tracking Prevention → add site exception, or use Chrome/Incognito.', 'error');
+    toast('Network error — browser may be blocking requests.', 'error');
     return false;
   }
 }
@@ -3406,8 +3412,8 @@ async function deletePaper(paperId) {
 
   const { error } = await sb.from('papers').delete().eq('id', paperId);
   if (error) { toast('Delete failed: ' + error.message, 'error'); return; }
-  // Also delete annotations
-  await sb.from('annotations').delete().eq('paper_id', paperId);
+  // Also delete annotations via RPC
+  try { await sb.rpc('delete_paper_annotations', { paper_id: paperId }); } catch(e) { console.error(e); }
   toast('Paper deleted', 'success');
   loadPapers();
 }
