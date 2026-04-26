@@ -2341,25 +2341,28 @@ function handleMouseUp() {
     rawRects.push({ x, y, right: x + w, bottom: y + h, width: w, height: h });
   }
 
-  // Merge rects that are on the same line (y overlap > 50%) to avoid
-  // per-character tiny boxes caused by char-span splitting.
-  // IMPORTANT: In 2-column journal layouts, left and right column rects
-  // may have similar y values but should NOT be merged. We detect this
-  // by checking for a large horizontal gap between adjacent rects.
+  // Determine page column layout by analyzing rect horizontal positions.
+  // Find the largest horizontal gap between rect centers — this is the
+  // column separator. Use it to cluster rects into column groups.
+  const midPoints = rawRects.map(r => r.x + r.width / 2).sort((a, b) => a - b);
+  let maxGap = 0, maxGapPos = pageW / 2;
+  for (let i = 1; i < midPoints.length; i++) {
+    const gap = midPoints[i] - midPoints[i - 1];
+    if (gap > maxGap) { maxGap = gap; maxGapPos = (midPoints[i] + midPoints[i - 1]) / 2; }
+  }
+  const hasColumns = maxGap > pageW * 0.12; // significant gap = multi-column layout
+
+  // Sort rects by y then x for merging
   rawRects.sort((a, b) => a.y - b.y || a.x - b.x);
   const merged = [];
   for (const r of rawRects) {
     const last = merged[merged.length - 1];
     if (last && Math.abs(r.y - last.y) < last.height * 0.5) {
-      // Check for column gap: if there's a significant horizontal gap
-      // between last rect's right edge and current rect's left edge,
-      // they belong to different columns — don't merge
-      const gap = r.x - last.right;
-      const gapThreshold = Math.max(last.width * 0.3, r.width * 0.3, 20);
-      if (gap > gapThreshold) {
-        // Different columns — start a new merged rect
-        merged.push({ ...r });
-      } else {
+      // Same line — check if same column
+      const sameColumn = !hasColumns ||
+        (r.x + r.width / 2 < maxGapPos && last.x + last.width / 2 < maxGapPos) ||
+        (r.x + r.width / 2 >= maxGapPos && last.x + last.width / 2 >= maxGapPos);
+      if (sameColumn) {
         // Same line & same column — extend the band
         last.x = Math.min(last.x, r.x);
         last.right = Math.max(last.right, r.right);
@@ -2367,6 +2370,9 @@ function handleMouseUp() {
         last.bottom = Math.max(last.bottom, r.bottom);
         last.width = last.right - last.x;
         last.height = last.bottom - last.y;
+      } else {
+        // Different columns — don't merge
+        merged.push({ ...r });
       }
     } else {
       merged.push({ ...r });
