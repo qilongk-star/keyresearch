@@ -956,32 +956,33 @@ function parseOneRef(text) {
 }
 
 // ============ CITATION EXTRACTION ============
-// Shared author name pattern: supports "Smith", "Quan-Haase", "De La Ronde"
+// Shared author name pattern: "Smith", "Quan-Haase", "De La Ronde"
+// CRITICAL: does NOT match past "&" or " and " — those are author separators
 const _nameP = '[A-Z][a-z\x27öüäéèêëàâîïôûçñ-]*(?:[-\\s][A-Z][a-z\x27öüäéèêëàâîïôûçñ-]*)*';
+// Non-ampersand name — for A1 pattern, must not consume past & or "and"
+const _nameNoAmp = '[A-Z][a-z\x27öüäéèêëàâîïôûçñ-]*(?:[-\\s][A-Z][a-z\x27öüäéèêëàâîïôûçñ-]*)*';
 
 function extractCitationsFromText(text) {
   citations = [];
-  const seen = new Set();
+  // NO dedup — keep all citations including repeated ones at different positions
 
   function addCit(txt, pos, extra, authors, year) {
     txt = txt.trim();
     if (txt.length < 4) return;
     // Filter false positives
-    if (/^(?:the|this|that|these|those|figure|table|section|chapter|page|eq|e\.g|i\.e|see|also|such|model|study|h\d|promotion|prevention|mediation|moderation)/i.test(txt)) return;
+    if (/^(?:the|this|that|these|those|figure|table|section|chapter|page|eq|e\.g|i\.e|see|also|such|model|study|h\d|promotion|prevention|mediation|moderation|spt|apt|rct)$/i.test(txt)) return;
     if (/^\d{4}$/.test(txt)) return;
     if (/^\d+[a-z]?$/.test(txt)) return;
-    const key = txt.toLowerCase();
-    if (!seen.has(key)) {
-      seen.add(key);
-      citations.push({ text: txt, matchedRef: null, matchType: null, position: pos, authors: authors || [], year: year || '', ...extra });
-    }
+    // Filter bare abbreviations (all caps, no lowercase letters, < 5 chars)
+    if (/^[A-Z]{2,5}$/.test(txt)) return;
+    citations.push({ text: txt, matchedRef: null, matchType: null, position: pos, authors: authors || [], year: year || '', ...extra });
   }
 
   // =============================================
   // Pattern A: (Author, Year) / (Author et al., Year) / (Author & Author, Year)
   //   Includes multiple citations: (Author et al., 2020; Chen & Xia, 2024)
   // =============================================
-  const parenBlock = /\(([^)]{3,200})\)/g;
+  const parenBlock = /\(([^)]{3,300})\)/g;
   let m;
   while ((m = parenBlock.exec(text)) !== null) {
     const block = m[1];
@@ -996,25 +997,27 @@ function extractCitationsFromText(text) {
 
     for (const part of parts) {
       const trimmed = part.trim();
-      // Pattern A1: Author, Year / Author et al., Year  (supports hyphenated names)
-      const a1 = trimmed.match(new RegExp('^(' + _nameP + '(?:\\s+(?:et\\s+al\\.?))?)\\s*,?\\s*((?:19|20)\\d{2}[a-z]?)'));
-      if (a1) {
-        const authors = [a1[1].trim()];
-        addCit(`${a1[1].trim()}, ${a1[2]}`, pos, null, authors, a1[2]);
-        continue;
-      }
-      // Pattern A2: Author & Author, Year — extract BOTH authors
+
+      // Try A2 FIRST: Author & Author, Year — two authors with ampersand
       const a2 = trimmed.match(new RegExp('^(' + _nameP + ')\\s*&\\s*(' + _nameP + ')\\s*,?\\s*((?:19|20)\\d{2}[a-z]?)'));
       if (a2) {
         const authors = [a2[1].trim(), a2[2].trim()];
         addCit(`${a2[1].trim()} & ${a2[2].trim()}, ${a2[3]}`, pos, null, authors, a2[3]);
         continue;
       }
-      // Pattern A3: Author and Author, Year — extract BOTH authors
+      // Try A3 SECOND: Author and Author, Year — two authors with "and"
       const a3 = trimmed.match(new RegExp('^(' + _nameP + ')\\s+and\\s+(' + _nameP + ')\\s*,?\\s*((?:19|20)\\d{2}[a-z]?)'));
       if (a3) {
         const authors = [a3[1].trim(), a3[2].trim()];
         addCit(`${a3[1].trim()} & ${a3[2].trim()}, ${a3[3]}`, pos, null, authors, a3[3]);
+        continue;
+      }
+      // Try A1 THIRD: Single author or Author et al., Year (must not match "Author & Author")
+      // Use a stricter pattern: name must not be followed by & or "and" before the year
+      const a1 = trimmed.match(new RegExp('^(' + _nameP + '(?:\\s+et\\s+al\\.?)?)\\s*,\\s*((?:19|20)\\d{2}[a-z]?)'));
+      if (a1 && !/\s*[&]\s*/.test(trimmed.substring(a1[1].length)) && !/\s+and\s+/i.test(trimmed.substring(a1[1].length))) {
+        const authors = [a1[1].trim()];
+        addCit(`${a1[1].trim()}, ${a1[2]}`, pos, null, authors, a1[2]);
         continue;
       }
       // Pattern A4: Multiple years: Author (2020, 2021)
@@ -1025,7 +1028,7 @@ function extractCitationsFromText(text) {
         for (const y of years) addCit(`${a4[1].trim()}, ${y.trim()}`, pos, null, authors, y.trim());
         continue;
       }
-      // Pattern A5: Author (Year) inside a larger parenthetical
+      // Pattern A5: Author (Year) inside a larger parenthetical — fallback
       const a5 = trimmed.match(new RegExp('(' + _nameP + '(?:\\s+et\\s+al\\.?)?)\\s*\\((\\d{4}[a-z]?)\\)'));
       if (a5) {
         const authors = [a5[1].trim()];
@@ -1040,26 +1043,30 @@ function extractCitationsFromText(text) {
   //   e.g., "Barhorst et al. (2020) found that..."
   //   e.g., "Yanovski and Yanovski (2002) argued..."
   // =============================================
-  // B1: Single author or et al.
+  // B3 FIRST: Author & Author (Year) — two authors with ampersand, no outer parens
+  const b3 = new RegExp('\\b(' + _nameP + ')\\s*&\\s*(' + _nameP + ')\\s*\\((\\d{4}[a-z]?)\\)', 'g');
+  while ((m = b3.exec(text)) !== null) {
+    const author = m[1].trim();
+    if (/^(?:the|this|that|these|those|figure|table|section|chapter|page|eq|vol|no|issue|available|retrieved|see|also|model|study|h\d)/i.test(author)) continue;
+    addCit(`${author} & ${m[2].trim()}, ${m[3]}`, m.index, null, [author, m[2].trim()], m[3]);
+  }
+  // B2 SECOND: Author and Author (Year) — two authors without outer parens
+  const b2 = new RegExp('\\b(' + _nameP + ')\\s+and\\s+(' + _nameP + ')\\s*\\((\\d{4}[a-z]?)\\)', 'g');
+  while ((m = b2.exec(text)) !== null) {
+    const author = m[1].trim();
+    if (/^(?:the|this|that|these|those|figure|table|section|chapter|page|eq|vol|no|issue|available|retrieved|see|also|model|study|h\d)/i.test(author)) continue;
+    addCit(`${author} & ${m[2].trim()}, ${m[3]}`, m.index, null, [author, m[2].trim()], m[3]);
+  }
+  // B1 LAST: Single author or et al. (Year)
   const b1 = new RegExp('\\b(' + _nameP + '(?:\\s+(?:et\\s+al\\.?))?)\\s*\\((\\d{4}[a-z]?)\\)', 'g');
   while ((m = b1.exec(text)) !== null) {
     const author = m[1].trim();
     if (/^(?:the|this|that|these|those|figure|table|section|chapter|page|eq|vol|no|issue|available|retrieved|see|also|model|study|h\d)/i.test(author)) continue;
+    // Skip if this was already matched by B2 or B3 (check for & or "and" before the (Year))
+    const beforeParen = text.substring(m.index, m.index + m[0].length);
+    const authorPart = beforeParen.replace(/\s*\(\d{4}[a-z]?\)\s*$/, '');
+    if (/\s+and\s+/i.test(authorPart) || /\s*&\s*/.test(authorPart)) continue;
     addCit(`${author}, ${m[2]}`, m.index, null, [author], m[2]);
-  }
-  // B2: Author and Author (Year) — two authors without outer parens
-  const b2 = new RegExp('\\b(' + _nameP + ')\\s+and\\s+(' + _nameP + ')\\s*\\((\\d{4}[a-z]?)\\)', 'g');
-  while ((m = b2.exec(text)) !== null) {
-    const author = m[1].trim();
-    if (/^(?:the|this|that|these|those|figure|table|section|chapter|page|eq|vol|no|issue)/i.test(author)) continue;
-    addCit(`${author} & ${m[2].trim()}, ${m[3]}`, m.index, null, [author, m[2].trim()], m[3]);
-  }
-  // B3: Author & Author (Year) — two authors with ampersand, no outer parens
-  const b3 = new RegExp('\\b(' + _nameP + ')\\s*&\\s+(' + _nameP + ')\\s*\\((\\d{4}[a-z]?)\\)', 'g');
-  while ((m = b3.exec(text)) !== null) {
-    const author = m[1].trim();
-    if (/^(?:the|this|that|these|those|figure|table|section|chapter|page|eq|vol|no|issue)/i.test(author)) continue;
-    addCit(`${author} & ${m[2].trim()}, ${m[3]}`, m.index, null, [author, m[2].trim()], m[3]);
   }
 
   // =============================================
@@ -1071,14 +1078,12 @@ function extractCitationsFromText(text) {
     const txt = m[1];
     // Skip if position is inside references section
     if (refSectionText && m.index > fullText.indexOf(refSectionText.substring(0, Math.min(50, refSectionText.length)))) continue;
-    if (!seen.has(txt)) {
-      seen.add(txt);
-      citations.push({ text: txt, matchedRef: null, matchType: null, position: m.index, isNumeric: true });
-    }
+    citations.push({ text: txt, matchedRef: null, matchType: null, position: m.index, isNumeric: true });
   }
 
   $('cit-count').textContent = citations.length;
-  $('cit-status').textContent = `Extracted ${citations.length} in-text citations`;
+  const uniqueCits = new Set(citations.map(c => c.text.toLowerCase())).size;
+  $('cit-status').textContent = `Extracted ${citations.length} in-text citations (${uniqueCits} unique)`;
 }
 
 // ============ RENDER ============
@@ -1632,10 +1637,12 @@ function generateReport() {
   const unmatchedCits = totalCits - matchedCits;
   const unreferencedRefs = references.filter(r => r.matchCount === 0).length;
 
+  const uniqueCits = new Set(citations.map(c => c.text.toLowerCase())).size;
   $('report-stats').innerHTML = `
     <div class="stat-card"><div class="stat-val" style="color:var(--accent)">${totalRefs}</div><div class="stat-label">Total References</div></div>
     <div class="stat-card"><div class="stat-val" style="color:var(--success)">${verifiedRefs}</div><div class="stat-label">Verified</div></div>
     <div class="stat-card"><div class="stat-val" style="color:var(--info)">${totalCits}</div><div class="stat-label">In-text Citations</div></div>
+    <div class="stat-card"><div class="stat-val" style="color:var(--muted)">${uniqueCits}</div><div class="stat-label">Unique Citations</div></div>
     <div class="stat-card"><div class="stat-val" style="color:${unmatchedCits?'var(--danger)':'var(--success)'}">${unmatchedCits}</div><div class="stat-label">Unmatched</div></div>
     <div class="stat-card"><div class="stat-val" style="color:${unreferencedRefs?'var(--warning)':'var(--success)'}">${unreferencedRefs}</div><div class="stat-label">Unreferenced</div></div>
   `;
@@ -1698,7 +1705,9 @@ function showReportTab(tabEl, tab) {
     html += '</div>';
     $('report-content').innerHTML = html;
   } else {
-    $('report-content').innerHTML = references.map(r => `
+    // All References tab — sorted by matchCount ascending (unreferenced first)
+    const sortedRefs = [...references].sort((a, b) => a.matchCount - b.matchCount);
+    $('report-content').innerHTML = sortedRefs.map(r => `
       <div class="ref-item">
         <div class="ref-num" style="${r.matchCount?'':'background:var(--warning);color:#000'}">${r.index}</div>
         <div class="ref-body">
@@ -1719,7 +1728,8 @@ function exportReport() {
   lines.push(`Verified: ${references.filter(r=>r.status==='verified').length}`);
   lines.push(`Likely: ${references.filter(r=>r.status==='likely').length}`);
   lines.push(`Not Found: ${references.filter(r=>r.status==='not_found').length}`);
-  lines.push(`In-text Citations: ${citations.length}`);
+  const uniqueCits = new Set(citations.map(c => c.text.toLowerCase())).size;
+  lines.push(`In-text Citations: ${citations.length} (${uniqueCits} unique)`);
   lines.push(`Matched: ${citations.filter(c=>c.matchedRef!==null).length}`);
   lines.push(`Unmatched: ${citations.filter(c=>c.matchedRef===null).length}`);
   lines.push(`Unreferenced: ${references.filter(r=>r.matchCount===0).length}`);
@@ -1729,6 +1739,9 @@ function exportReport() {
   lines.push('');
   lines.push('--- Unreferenced References ---');
   references.filter(r => r.matchCount === 0).forEach(r => lines.push(`  [${r.index}] ${r.text}`));
+  lines.push('');
+  lines.push('--- All References (sorted by citation frequency) ---');
+  [...references].sort((a, b) => b.matchCount - a.matchCount).forEach(r => lines.push(`  [${r.index}] Cited ${r.matchCount}× — ${r.text}`));
 
   navigator.clipboard.writeText(lines.join('\n')).then(() => toast('Report copied to clipboard', 'success'));
 }
@@ -1740,7 +1753,8 @@ function exportMarkdown() {
   md += `| Verified | ${references.filter(r=>r.status==='verified').length} |\n`;
   md += `| Likely | ${references.filter(r=>r.status==='likely').length} |\n`;
   md += `| Not Found | ${references.filter(r=>r.status==='not_found').length} |\n`;
-  md += `| In-text Citations | ${citations.length} |\n`;
+  const uniqueCits = new Set(citations.map(c => c.text.toLowerCase())).size;
+  md += `| In-text Citations | ${citations.length} (${uniqueCits} unique) |\n`;
   md += `| Matched | ${citations.filter(c=>c.matchedRef!==null).length} |\n`;
   md += `| Unmatched | ${citations.filter(c=>c.matchedRef===null).length} |\n`;
   md += `| Unreferenced | ${references.filter(r=>r.matchCount===0).length} |\n\n`;
@@ -1755,7 +1769,15 @@ function exportMarkdown() {
   if (unref.length) {
     md += `## ⚠️ Unreferenced References\n\n`;
     unref.forEach(r => md += `[${r.index}] ${r.text}\n`);
+    md += '\n';
   }
+
+  // Citation frequency table
+  md += `## 📊 Citation Frequency\n\n`;
+  md += `| Ref # | Times Cited | Reference |\n|-------|-------------|----------|\n`;
+  [...references].sort((a, b) => b.matchCount - a.matchCount).forEach(r => {
+    md += `| ${r.index} | ${r.matchCount} | ${r.text.substring(0, 80)}${r.text.length > 80 ? '...' : ''} |\n`;
+  });
 
   navigator.clipboard.writeText(md).then(() => toast('Markdown copied to clipboard', 'success'));
 }
