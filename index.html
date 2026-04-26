@@ -15,6 +15,7 @@
     --accent-hover: #818cf8;
     --danger: #ef4444;
     --success: #22c55e;
+    --warning: #f59e0b;
   }
   * { margin: 0; padding: 0; box-sizing: border-box; }
   body {
@@ -91,6 +92,8 @@
     border-color: var(--accent); transform: translateY(-2px);
     box-shadow: 0 8px 24px rgba(0,0,0,0.3);
   }
+  .project-card.no-link { cursor: default; }
+  .project-card.no-link:hover { transform: none; box-shadow: none; }
   .card-icon { font-size: 32px; }
   .card-title { font-size: 18px; font-weight: 600; }
   .card-desc { color: var(--muted); font-size: 13px; line-height: 1.5; }
@@ -98,6 +101,30 @@
     display: inline-flex; align-items: center; gap: 4px;
     font-size: 11px; padding: 3px 8px; border-radius: 6px;
     background: rgba(99,102,241,0.1); color: var(--accent); width: fit-content;
+  }
+
+  /* ===== Stats Card ===== */
+  .stats-grid {
+    display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px;
+    margin-top: 4px;
+  }
+  .stat-item {
+    background: rgba(255,255,255,0.04); border-radius: 8px;
+    padding: 10px 12px; text-align: center;
+  }
+  .stat-value {
+    font-size: 24px; font-weight: 700; color: var(--accent);
+    line-height: 1.2;
+  }
+  .stat-label {
+    font-size: 11px; color: var(--muted); margin-top: 2px;
+  }
+  .stat-loading {
+    color: var(--muted); font-size: 13px; padding: 16px 0;
+    text-align: center;
+  }
+  .stat-error {
+    color: var(--danger); font-size: 12px; padding: 8px 0;
   }
 </style>
 </head>
@@ -110,7 +137,7 @@
   <div class="login-subtitle">Enter team password to access projects</div>
   <form class="login-form" id="login-form" onsubmit="handleLogin(event)">
     <div class="input-group">
-      <label>Password</label>
+      <label for="password-input">Password</label>
       <input type="password" id="password-input" placeholder="Team access password" autofocus>
     </div>
     <div class="error-msg" id="error-msg"></div>
@@ -143,29 +170,28 @@
       <div class="card-desc">Team paper library with annotations, folders, and real-time collaboration.</div>
       <div class="card-badge">● Active</div>
     </a>
-    <a class="project-card" href="pdf-annotator/">
-      <div class="card-icon">✏️</div>
-      <div class="card-title">PDF Annotator</div>
-      <div class="card-desc">Lightweight PDF reader with highlight, note, and export support.</div>
-      <div class="card-badge">● Active</div>
-    </a>
-
-    <a class="project-card" href="papers/">
-      <div class="card-icon">📚</div>
+    <div class="project-card no-link" id="stats-card">
+      <div class="card-icon">📊</div>
       <div class="card-title">Paper Archive</div>
-      <div class="card-desc">Raw PDF file storage for the team research papers.</div>
-      <div class="card-badge">● Storage</div>
-    </a>
+      <div class="card-desc">Overview of team paper library status and activity.</div>
+      <div class="card-badge">● Overview</div>
+      <div id="stats-content">
+        <div class="stat-loading">Loading stats...</div>
+      </div>
+    </div>
   </div>
 </div>
 
 <script>
 const ACCESS_PASSWORD = 'keyresearch2026';
+const SUPABASE_URL = 'https://hhgundxzxiqeglzbatmd.supabase.co';
+const SUPABASE_KEY = 'sb_publishable_U2qfHiGyIWB9QZtsU6K0QA_a2U4bxDH';
 
 // Check session on load
 (function() {
   if (sessionStorage.getItem('kr_auth') === '1') {
     showPortal();
+    loadStats();
   }
 })();
 
@@ -178,6 +204,7 @@ function handleLogin(e) {
   if (pwd === ACCESS_PASSWORD) {
     sessionStorage.setItem('kr_auth', '1');
     showPortal();
+    loadStats();
   } else {
     errEl.textContent = 'Incorrect password';
     document.getElementById('password-input').classList.add('error');
@@ -197,11 +224,62 @@ function handleLogout() {
   document.getElementById('error-msg').textContent = '';
 }
 
-// Clear error styling on input
 document.getElementById('password-input').addEventListener('input', function() {
   this.classList.remove('error');
   document.getElementById('error-msg').textContent = '';
 });
+
+// ===== Load PapersHub Stats =====
+async function loadStats() {
+  const container = document.getElementById('stats-content');
+  try {
+    // Load supabase SDK dynamically (same CDN as papers-app)
+    if (typeof supabase === 'undefined') {
+      await new Promise((resolve, reject) => {
+        const s = document.createElement('script');
+        s.src = 'https://unpkg.com/@supabase/supabase-js@2.49.1/dist/umd/supabase.js';
+        s.onload = resolve;
+        s.onerror = reject;
+        document.head.appendChild(s);
+      });
+    }
+
+    const sb = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+
+    // Fetch papers count
+    const { count: paperCount } = await sb.from('papers').select('*', { count: 'exact', head: true });
+
+    // Fetch annotations count
+    const { count: annoCount } = await sb.from('annotations').select('*', { count: 'exact', head: true });
+
+    // Fetch unique contributors
+    const { data: papers } = await sb.from('papers').select('uploaded_by');
+    const contributors = [...new Set((papers || []).map(p => p.uploaded_by))];
+
+    // Fetch folders count
+    const { count: folderCount } = await sb.from('folders').select('*', { count: 'exact', head: true });
+
+    container.innerHTML = `
+      <div class="stats-grid">
+        <div class="stat-item">
+          <div class="stat-value">${paperCount || 0}</div>
+          <div class="stat-label">Papers</div>
+        </div>
+        <div class="stat-item">
+          <div class="stat-value">${annoCount || 0}</div>
+          <div class="stat-label">Annotations</div>
+        </div>
+        <div class="stat-item">
+          <div class="stat-value">${contributors.length}</div>
+          <div class="stat-label">Contributors</div>
+        </div>
+      </div>
+    `;
+  } catch (e) {
+    console.error('Stats load error:', e);
+    container.innerHTML = `<div class="stat-error">Failed to load stats</div>`;
+  }
+}
 </script>
 </body>
 </html>
