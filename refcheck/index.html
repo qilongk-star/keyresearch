@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>RefCheck - Citation Verification</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
-<script src="https://unpkg.com/@supabase/supabase-js@2.49.1/dist/umd/supabase.js"></script>
+<script src="https://unpkg.com/mammoth@1.6.0/mammoth.browser.min.js"></script>
 <style>
 :root {
   --bg: #0f172a; --surface: #1e293b; --surface2: #252f3f; --border: #334155;
@@ -37,10 +37,7 @@ body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-
 .card { background: var(--surface); border: 1px solid var(--border); border-radius: 14px; padding: 24px; margin-bottom: 20px; }
 .card-title { font-size: 16px; font-weight: 600; margin-bottom: 16px; display: flex; align-items: center; gap: 8px; }
 
-/* Input */
-.input-row { display: flex; gap: 10px; margin-bottom: 16px; flex-wrap: wrap; }
-.input-row input { flex: 1; min-width: 250px; padding: 12px 16px; border-radius: 10px; border: 1px solid var(--border); background: var(--bg); color: var(--text); font-size: 14px; outline: none; }
-.input-row input:focus { border-color: var(--accent); }
+/* Buttons */
 .btn { padding: 10px 20px; border-radius: 10px; border: none; font-size: 13px; font-weight: 600; cursor: pointer; transition: all 0.2s; white-space: nowrap; }
 .btn-primary { background: var(--accent); color: #fff; }
 .btn-primary:hover { background: var(--accent-hover); }
@@ -51,7 +48,7 @@ body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-
 .btn-sm { padding: 6px 12px; font-size: 12px; border-radius: 8px; }
 
 /* File upload zone */
-.upload-zone { border: 2px dashed var(--border); border-radius: 12px; padding: 32px; text-align: center; cursor: pointer; transition: all 0.2s; margin-bottom: 16px; }
+.upload-zone { border: 2px dashed var(--border); border-radius: 12px; padding: 40px; text-align: center; cursor: pointer; transition: all 0.2s; margin-bottom: 16px; }
 .upload-zone:hover, .upload-zone.drag-over { border-color: var(--accent); background: rgba(99,102,241,0.05); }
 .upload-zone p { color: var(--muted); font-size: 14px; }
 .upload-zone .icon { font-size: 36px; margin-bottom: 8px; }
@@ -66,7 +63,6 @@ body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-
 .tab { padding: 8px 16px; border-radius: 8px 8px 0 0; cursor: pointer; font-size: 13px; font-weight: 500; color: var(--muted); transition: all 0.2s; }
 .tab:hover { color: var(--text); }
 .tab.active { color: var(--accent); background: rgba(99,102,241,0.1); }
-.tab-badge { font-size: 11px; padding: 1px 6px; border-radius: 10px; margin-left: 4px; }
 
 /* Table-like lists */
 .ref-list { display: flex; flex-direction: column; gap: 6px; max-height: 500px; overflow-y: auto; }
@@ -92,12 +88,6 @@ body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-
 .stat-val { font-size: 28px; font-weight: 700; line-height: 1.2; }
 .stat-label { font-size: 11px; color: var(--muted); margin-top: 4px; }
 
-/* Citation bubbles */
-.citation-tags { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 6px; }
-.citation-tag { font-size: 11px; padding: 2px 8px; border-radius: 6px; background: var(--surface2); color: var(--text); cursor: default; }
-.citation-tag.unmatched { background: rgba(239,68,68,0.15); color: var(--danger); }
-.citation-tag:hover { opacity: 0.8; }
-
 /* Settings */
 .settings-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
 .settings-group { display: flex; flex-direction: column; gap: 4px; }
@@ -107,7 +97,7 @@ body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-
 
 /* Toast */
 .toast-container { position: fixed; top: 20px; right: 20px; z-index: 9999; display: flex; flex-direction: column; gap: 8px; }
-.toast { padding: 12px 20px; border-radius: 10px; font-size: 13px; font-weight: 500; color: #fff; animation: slideIn 0.3s; max-width: 360px; }
+.toast { padding: 12px 20px; border-radius: 10px; font-size: 13px; font-weight: 500; color: #fff; animation: slideIn 0.3s; max-width: 400px; }
 .toast-success { background: var(--success); }
 .toast-error { background: var(--danger); }
 .toast-info { background: var(--info); }
@@ -124,8 +114,20 @@ body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-
 .spinner { display: inline-block; width: 16px; height: 16px; border: 2px solid var(--border); border-top-color: var(--accent); border-radius: 50%; animation: spin 0.6s linear infinite; }
 @keyframes spin { to { transform: rotate(360deg); } }
 
+/* Processing overlay */
+.processing-overlay { position: relative; }
+.processing-overlay::after { content: ''; position: absolute; inset: 0; background: rgba(15,23,42,0.5); border-radius: 14px; z-index: 1; }
+.processing-text { text-align: center; padding: 16px; color: var(--accent); font-size: 14px; }
+.processing-text .spinner { margin-right: 8px; vertical-align: middle; }
+
 /* Hidden */
 .hidden { display: none !important; }
+
+/* Editable ref */
+.ref-edit-input { width: 100%; padding: 8px; border-radius: 8px; border: 1px solid var(--accent); background: var(--bg); color: var(--text); font-size: 13px; font-family: inherit; resize: vertical; min-height: 60px; }
+
+/* Reference section preview */
+.ref-section-preview { max-height: 200px; overflow-y: auto; background: var(--bg); border-radius: 10px; padding: 12px; margin-top: 12px; font-size: 12px; line-height: 1.6; color: var(--muted); white-space: pre-wrap; word-break: break-word; border: 1px solid var(--border); }
 </style>
 </head>
 <body>
@@ -137,63 +139,73 @@ body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-
   <div class="header" style="position:relative;">
     <a class="back-link" href="../">← Portal</a>
     <h1>Ref<span>Check</span></h1>
-    <p>Upload a paper → Verify references → Match intext citations → AI-enhanced accuracy</p>
+    <p>Upload your paper → Extract & verify references → Match in-text citations → Generate report</p>
   </div>
 
   <!-- Steps -->
   <div class="steps">
-    <div class="step active" id="step1"><div class="step-num">1</div>Input Paper</div>
-    <div class="step" id="step2"><div class="step-num">2</div>Load References</div>
+    <div class="step active" id="step1"><div class="step-num">1</div>Upload Paper</div>
+    <div class="step" id="step2"><div class="step-num">2</div>References</div>
     <div class="step" id="step3"><div class="step-num">3</div>Verify Refs</div>
     <div class="step" id="step4"><div class="step-num">4</div>Match Citations</div>
     <div class="step" id="step5"><div class="step-num">5</div>Report</div>
   </div>
 
-  <!-- Step 1: Input -->
-  <div class="card" id="card-input">
-    <div class="card-title">📄 Input Paper</div>
-    <div class="input-row">
-      <input type="text" id="doi-input" placeholder="Enter DOI (e.g., 10.1038/s41586-020-2649-2)">
-      <button class="btn btn-primary" onclick="loadByDoi()">Load by DOI</button>
-    </div>
-    <div style="text-align:center;color:var(--muted);font-size:13px;margin:8px 0;">— or —</div>
-    <div class="upload-zone" id="upload-zone" onclick="$('pdf-file').click()">
+  <!-- Step 1: Upload -->
+  <div class="card" id="card-upload">
+    <div class="card-title">📄 Upload Your Paper</div>
+    <div class="upload-zone" id="upload-zone">
       <div class="icon">📥</div>
-      <p>Drop PDF here or click to upload</p>
-      <p style="font-size:12px;margin-top:4px;">Will auto-extract DOI from first page</p>
+      <p>Drop PDF or Word (.docx) file here, or click to upload</p>
+      <p style="font-size:12px;margin-top:4px;">Supports PDF and Word documents (.docx)</p>
     </div>
-    <input type="file" id="pdf-file" accept=".pdf" style="display:none" onchange="handlePdfUpload(this.files[0])">
+    <input type="file" id="file-input" accept=".pdf,.docx" style="display:none">
 
-    <!-- Paper info preview -->
-    <div id="paper-info" class="hidden" style="margin-top:16px;padding:16px;border-radius:10px;background:var(--bg);">
-      <div style="font-weight:600;margin-bottom:6px;" id="paper-title"></div>
-      <div style="color:var(--muted);font-size:13px;" id="paper-authors"></div>
-      <div style="color:var(--muted);font-size:12px;margin-top:4px;" id="paper-meta"></div>
+    <!-- File info preview -->
+    <div id="file-info" class="hidden" style="margin-top:16px;padding:16px;border-radius:10px;background:var(--bg);">
+      <div style="font-weight:600;margin-bottom:6px;" id="file-name"></div>
+      <div style="color:var(--muted);font-size:13px;" id="file-meta"></div>
+    </div>
+
+    <!-- Processing status -->
+    <div id="processing-status" class="hidden" style="margin-top:16px;">
+      <div class="status-text" id="process-text"></div>
+      <div class="progress-bar"><div class="progress-fill" id="process-fill"></div></div>
     </div>
   </div>
 
-  <!-- Step 2-3: References -->
+  <!-- Step 2: References -->
   <div class="card hidden" id="card-refs">
-    <div class="card-title">📚 References <span class="badge badge-info" id="ref-count">0</span></div>
-    <div class="status-text" id="ref-status"></div>
-    <div class="progress-bar" id="ref-progress"><div class="progress-fill" id="ref-progress-fill"></div></div>
-    <div class="input-row" style="margin-bottom:12px;">
-      <button class="btn btn-primary" onclick="verifyAllRefs()">🔍 Verify All References</button>
+    <div class="card-title">📚 Extracted References <span class="badge badge-info" id="ref-count">0</span></div>
+    <div class="status-text" id="ref-status">References parsed from the "References" section of your paper</div>
+    <div class="input-row" style="display:flex;gap:10px;margin-bottom:12px;flex-wrap:wrap;">
+      <button class="btn btn-primary" onclick="startVerifyAllRefs()">🔍 Verify All References</button>
       <button class="btn btn-secondary" onclick="aiVerifyUnmatched()">🤖 AI Verify Unmatched</button>
+      <button class="btn btn-secondary" onclick="showRefSection()">👁️ View Raw Text</button>
       <select id="ai-provider" style="padding:8px 12px;border-radius:8px;border:1px solid var(--border);background:var(--bg);color:var(--text);font-size:13px;">
         <option value="deepseek">DeepSeek</option>
         <option value="openai">OpenAI GPT</option>
         <option value="gemini">Google Gemini</option>
       </select>
     </div>
-    <div class="ref-list" id="ref-list"></div>
+    <!-- Ref section raw text (hidden by default) -->
+    <div id="ref-raw-section" class="ref-section-preview hidden"></div>
+    <div class="ref-list" id="ref-list" style="margin-top:12px;"></div>
+  </div>
+
+  <!-- Step 3: Verify progress (shown during verification) -->
+  <div class="card hidden" id="card-verify">
+    <div class="card-title">🔍 Verifying References...</div>
+    <div class="status-text" id="verify-status">Starting verification...</div>
+    <div class="progress-bar" id="verify-progress"><div class="progress-fill" id="verify-fill"></div></div>
+    <div class="ref-list" id="verify-list"></div>
   </div>
 
   <!-- Step 4: Citations -->
   <div class="card hidden" id="card-citations">
     <div class="card-title">📝 In-text Citations <span class="badge badge-info" id="cit-count">0</span></div>
-    <div class="status-text" id="cit-status"></div>
-    <div class="input-row">
+    <div class="status-text" id="cit-status">Extracted from the body text of your paper</div>
+    <div class="input-row" style="display:flex;gap:10px;margin-bottom:12px;flex-wrap:wrap;">
       <button class="btn btn-primary" onclick="matchCitations()">🔗 Match Citations → References</button>
       <button class="btn btn-secondary" onclick="aiMatchUnmatched()">🤖 AI Match Unmatched</button>
     </div>
@@ -205,20 +217,20 @@ body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-
     <div class="card-title">📊 Verification Report</div>
     <div class="stats-row" id="report-stats"></div>
     <div class="tabs" id="report-tabs">
-      <div class="tab active" onclick="showReportTab('unmatched')">❌ Unmatched Citations</div>
-      <div class="tab" onclick="showReportTab('unreferenced')">⚠️ Unreferenced</div>
-      <div class="tab" onclick="showReportTab('all')">📋 All References</div>
+      <div class="tab active" onclick="showReportTab(this, 'unmatched')">❌ Unmatched Citations</div>
+      <div class="tab" onclick="showReportTab(this, 'unreferenced')">⚠️ Unreferenced</div>
+      <div class="tab" onclick="showReportTab(this, 'all')">📋 All References</div>
     </div>
     <div id="report-content" class="ref-list"></div>
-    <div class="input-row" style="margin-top:16px;">
-      <button class="btn btn-primary" onclick="exportReport()">📋 Export Report</button>
-      <button class="btn btn-secondary" onclick="exportMarkdown()">📝 Export Markdown</button>
+    <div class="input-row" style="margin-top:16px;display:flex;gap:10px;flex-wrap:wrap;">
+      <button class="btn btn-primary" onclick="exportReport()">📋 Copy Report</button>
+      <button class="btn btn-secondary" onclick="exportMarkdown()">📝 Copy Markdown</button>
     </div>
   </div>
 
   <!-- Settings -->
   <div class="card" style="margin-top:20px;">
-    <div class="card-title">⚙️ Settings</div>
+    <div class="card-title">⚙️ AI Settings</div>
     <div class="settings-grid">
       <div class="settings-group">
         <label>DeepSeek API Key</label>
@@ -245,10 +257,11 @@ pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs
 const $ = id => document.getElementById(id);
 
 // ============ STATE ============
-let paperInfo = null;
-let references = [];     // [{index, text, doi, verified, status, matchCount, verifiedTitle}]
-let citations = [];      // [{text, matchedRef, matchType, position}]
-let pdfFullText = '';
+let fullText = '';          // full text extracted from paper
+let refSectionText = '';    // raw text of the references section
+let bodyText = '';          // text before references (for citation extraction)
+let references = [];        // [{index, text, doi, firstAuthor, year, title, verified, status, matchCount, verifiedTitle}]
+let citations = [];         // [{text, matchedRef, matchType, position}]
 let settings = { deepseekKey: '', openaiKey: '', geminiKey: '' };
 
 // Load settings
@@ -267,115 +280,301 @@ function saveSettings() {
 }
 loadSettingsUI();
 
-// Drag & Drop
+// ============ FILE UPLOAD ============
 const zone = $('upload-zone');
+const fileInput = $('file-input');
+
+zone.addEventListener('click', () => fileInput.click());
 zone.addEventListener('dragover', e => { e.preventDefault(); zone.classList.add('drag-over'); });
 zone.addEventListener('dragleave', () => zone.classList.remove('drag-over'));
-zone.addEventListener('drop', e => { e.preventDefault(); zone.classList.remove('drag-over'); if (e.dataTransfer.files[0]) handlePdfUpload(e.dataTransfer.files[0]); });
+zone.addEventListener('drop', e => {
+  e.preventDefault();
+  zone.classList.remove('drag-over');
+  const f = e.dataTransfer.files[0];
+  if (f) handleFile(f);
+});
+fileInput.addEventListener('change', e => { if (e.target.files[0]) handleFile(e.target.files[0]); });
 
-// ============ STEP 1: INPUT ============
-async function loadByDoi() {
-  const doi = $('doi-input').value.trim();
-  if (!doi) return toast('Please enter a DOI', 'error');
-  toast('Fetching from CrossRef...', 'info');
+async function handleFile(file) {
+  const name = file.name.toLowerCase();
+  const isPDF = name.endsWith('.pdf');
+  const isDocx = name.endsWith('.docx');
+
+  if (!isPDF && !isDocx) return toast('Please upload a PDF or Word (.docx) file', 'error');
+
+  // Show file info
+  $('file-info').classList.remove('hidden');
+  $('file-name').textContent = file.name;
+  $('file-meta').textContent = `${(file.size / 1024).toFixed(1)} KB · ${isPDF ? 'PDF' : 'Word Document'}`;
+
+  // Show processing
+  $('processing-status').classList.remove('hidden');
+  setProcessStatus('Extracting text from document...', 10);
+
   try {
-    const resp = await fetch(`https://api.crossref.org/works/${encodeURIComponent(doi)}?mailto=RefCheck@example.com`);
-    if (!resp.ok) throw new Error(`DOI not found (${resp.status})`);
-    const data = await resp.json();
-    const msg = data.message;
-    paperInfo = {
-      doi: msg.DOI || doi,
-      title: (msg.title || [''])[0],
-      authors: (msg.author || []).map(a => `${a.given||''} ${a.family||''}`.trim()).join(', '),
-      journal: (msg['container-title'] || [''])[0],
-      year: (msg.published?.['date-parts']?.[0]?.[0] || msg.created?.['date-parts']?.[0]?.[0] || ''),
-      refs: (msg.reference || []).map((r, i) => ({
-        index: i + 1,
-        text: buildRefText(r),
-        doi: r.DOI || '',
-        firstAuthor: r.author?.[0]?.family || '',
-        year: extractRefYear(r) || '',
-        title: r.article_title || r.book_title || '',
-        verified: false,
-        status: 'pending',
-        matchCount: 0,
-        verifiedTitle: '',
-        crossrefData: null
-      }))
-    };
-    showPaperInfo();
+    if (isPDF) {
+      await extractFromPDF(file);
+    } else {
+      await extractFromDocx(file);
+    }
+
+    setProcessStatus('Splitting body text and references section...', 50);
+    await sleep(200);
+    splitBodyAndRefs();
+
+    setProcessStatus('Parsing references...', 70);
+    await sleep(200);
+    parseReferences();
+
+    setProcessStatus('Extracting in-text citations...', 90);
+    await sleep(200);
+    extractCitationsFromText(bodyText);
+
+    setProcessStatus('Done!', 100);
+    await sleep(300);
+    $('processing-status').classList.add('hidden');
+
+    // Show results
     setStep(2);
+    $('card-refs').classList.remove('hidden');
+    $('card-citations').classList.remove('hidden');
     renderReferences();
-    toast(`Loaded: ${paperInfo.refs.length} references`, 'success');
+    renderCitations();
+
+    toast(`Extracted ${references.length} references and ${citations.length} in-text citations`, 'success');
+
   } catch(e) {
     toast('Error: ' + e.message, 'error');
+    $('processing-status').classList.add('hidden');
+    console.error(e);
   }
 }
 
-function buildRefText(r) {
-  const parts = [];
-  if (r.author) parts.push(r.author.map(a => `${a.given||''} ${a.family||''}`.trim()).join(', '));
-  if (r.year) parts.push(`(${r.year})`);
-  if (r.article_title) parts.push(r.article_title);
-  else if (r.book_title) parts.push(`*${r.book_title}*`);
-  if (r.journal) parts.push(r.journal);
-  if (r.volume) parts.push(`Vol. ${r.volume}`);
-  if (r.issue) parts.push(`No. ${r.issue}`);
-  if (r.page) parts.push(`pp. ${r.page}`);
-  if (r.DOI) parts.push(`DOI: ${r.DOI}`);
-  return parts.join('. ');
+async function extractFromPDF(file) {
+  setProcessStatus('Reading PDF...', 20);
+  const arrayBuf = await file.arrayBuffer();
+  const pdf = await pdfjsLib.getDocument({ data: arrayBuf }).promise;
+
+  let text = '';
+  const total = pdf.numPages;
+  for (let i = 1; i <= total; i++) {
+    const page = await pdf.getPage(i);
+    const tc = await page.getTextContent();
+    const strings = tc.items.map(item => item.str);
+    text += strings.join(' ') + '\n\n';
+    setProcessStatus(`Extracting page ${i}/${total}...`, 20 + (i / total) * 25);
+  }
+  fullText = text;
 }
 
-function extractRefYear(r) {
-  if (r.year) return r.year;
-  if (r.published?.['date-parts']?.[0]?.[0]) return String(r.published['date-parts'][0][0]);
-  if (r['published-print']?.['date-parts']?.[0]?.[0]) return String(r['published-print']['date-parts'][0][0]);
-  return '';
+async function extractFromDocx(file) {
+  setProcessStatus('Reading Word document...', 20);
+  const arrayBuf = await file.arrayBuffer();
+  const result = await mammoth.extractRawText({ arrayBuffer: arrayBuf });
+  fullText = result.value;
 }
 
-async function handlePdfUpload(file) {
-  if (!file || !file.name.endsWith('.pdf')) return toast('Please upload a PDF', 'error');
-  toast('Processing PDF...', 'info');
-  try {
-    const arrayBuf = await file.arrayBuffer();
-    const pdf = await pdfjsLib.getDocument({ data: arrayBuf }).promise;
-    let fullText = '';
-    // Extract text from all pages
-    for (let i = 1; i <= pdf.numPages; i++) {
-      const page = await pdf.getPage(i);
-      const tc = await page.getTextContent();
-      const strings = tc.items.map(item => item.str);
-      fullText += strings.join(' ') + '\n';
+function setProcessStatus(text, percent) {
+  $('process-text').textContent = text;
+  $('process-fill').style.width = percent + '%';
+}
+
+// ============ TEXT PROCESSING ============
+function splitBodyAndRefs() {
+  // Try multiple patterns to find the References section
+  const refPatterns = [
+    // English patterns
+    /\n(?:References|Bibliography|Reference List|Works Cited)\s*\n/i,
+    // Chinese patterns
+    /\n(?:参考文献|引用文献)\s*\n/,
+    // Patterns with numbering prefix
+    /\n(?:\d+\.?\s+)?(?:References|Bibliography)\s*\n/i,
+  ];
+
+  let refStart = -1;
+  for (const pat of refPatterns) {
+    const m = fullText.match(pat);
+    if (m) {
+      refStart = m.index + m[0].length;
+      break;
     }
-    pdfFullText = fullText;
+  }
 
-    // Try to extract DOI from first page
-    const doiMatch = fullText.match(/10\.\d{4,}\/[^\s]+/);
-    if (doiMatch) {
-      $('doi-input').value = doiMatch[0].replace(/[.,;:]+$/, '');
-      toast(`DOI found: ${doiMatch[0]}`, 'success');
-      await loadByDoi();
+  if (refStart >= 0) {
+    bodyText = fullText.substring(0, refStart).trim();
+    refSectionText = fullText.substring(refStart).trim();
+  } else {
+    // Fallback: try to find where numbered references start near the end
+    bodyText = fullText;
+    refSectionText = '';
+    toast('Could not auto-detect "References" section. You may need to manually review.', 'warning');
+  }
+}
+
+function parseReferences() {
+  references = [];
+  if (!refSectionText) return;
+
+  // Strategy 1: Split by numbered patterns like [1], [2] or 1. 2. etc.
+  const refSplitPatterns = [
+    // [1] Author...
+    /(?:^|\n)\s*\[(\d+)\]\s+/,
+    // 1. Author... or 1 Author... (numbered at start of line)
+    /(?:^|\n)\s*(\d+)\.\s+/,
+    // (1) Author...
+    /(?:^|\n)\s*\((\d+)\)\s+/,
+  ];
+
+  let rawRefs = [];
+  let usedPattern = null;
+
+  for (const pat of refSplitPatterns) {
+    const parts = refSectionText.split(pat);
+    // First part is before any reference, rest are ref entries
+    if (parts.length > 2) {
+      usedPattern = pat;
+      // parts[0] = header text, parts[1] = first ref text, parts[2] = second ref number, etc.
+      // So refs are at odd indices
+      for (let i = 1; i < parts.length; i += 2) {
+        const text = parts[i].trim();
+        if (text.length > 5) {
+          rawRefs.push(text);
+        }
+      }
+      break;
+    }
+  }
+
+  if (rawRefs.length === 0) {
+    // Strategy 2: Split by lines that start with a number pattern
+    const lines = refSectionText.split('\n').filter(l => l.trim());
+    let currentRef = '';
+    let currentNum = 0;
+
+    for (const line of lines) {
+      const numMatch = line.match(/^\s*\[?(\d+)\]?\.\s*(.+)$/);
+      if (numMatch) {
+        if (currentRef && currentNum > 0) {
+          rawRefs.push(currentRef);
+        }
+        currentNum = parseInt(numMatch[1]);
+        currentRef = numMatch[2].trim();
+      } else if (currentRef) {
+        // Continuation line
+        currentRef += ' ' + line.trim();
+      }
+    }
+    if (currentRef && currentNum > 0) {
+      rawRefs.push(currentRef);
+    }
+  }
+
+  if (rawRefs.length === 0) {
+    // Strategy 3: Try splitting by double newlines
+    const blocks = refSectionText.split(/\n\s*\n/).filter(b => b.trim().length > 10);
+    rawRefs = blocks;
+  }
+
+  // Parse each raw reference
+  references = rawRefs.map((text, i) => {
+    const parsed = parseOneRef(text);
+    return {
+      index: i + 1,
+      text: text,
+      rawText: text,
+      ...parsed,
+      verified: false,
+      status: 'pending',
+      matchCount: 0,
+      verifiedTitle: ''
+    };
+  });
+}
+
+function parseOneRef(text) {
+  // Extract DOI
+  const doiMatch = text.match(/10\.\d{4,}\/[^\s,;]+)/);
+  const doi = doiMatch ? doiMatch[0].replace(/[.,;:]+$/, '') : '';
+
+  // Extract year
+  const yearMatch = text.match(/\b(19|20)\d{2}\b/);
+  const year = yearMatch ? yearMatch[0] : '';
+
+  // Extract first author: typically "Lastname, F." or "Lastname F" at start
+  const authorMatch = text.match(/^([A-Z][a-z'öüäéèêëàâîïôûçñ]+(?:[-\s][A-Z][a-z'öüäéèêëàâîïôûçñ]+)*?),?\s+(?:[A-Z]\.|[a-z]+|and)/);
+  const firstAuthor = authorMatch ? authorMatch[1].replace(/,/g, '') : '';
+
+  // Extract title: typically in quotes or after year. Heuristic: longest meaningful segment
+  let title = '';
+  // Try to find quoted title
+  const titleMatch = text.match(/[""\u201C]([^""\u201D]+)[""\u201D]/);
+  if (titleMatch) {
+    title = titleMatch[1];
+  } else {
+    // Try: text after year and before journal/publisher
+    const afterYear = year ? text.substring(text.indexOf(year) + 4) : text;
+    const journalMatch = afterYear.match(/(?:,\s*)(?:[A-Z][a-z]+.*?(?:Journal|Review|Letters|Science|Nature|Proceedings|Transactions|Advances|Physics|Chemistry|Biology|Medicine|Engineering|Computing|IEEE|ACM)|\w+,\s*\d+)/i);
+    if (journalMatch) {
+      title = afterYear.substring(0, journalMatch.index).trim().replace(/^,/, '').trim();
     } else {
-      toast('No DOI found in PDF. Enter DOI manually.', 'warning');
-      setStep(4); // skip to citation extraction
-      extractCitationsFromText(fullText);
-      $('card-citations').classList.remove('hidden');
+      // Fallback: take text after author+year, first 100 chars
+      const startIdx = Math.max(firstAuthor.length, year ? text.indexOf(year) + 4 : 0);
+      title = text.substring(startIdx, startIdx + 100).replace(/^[,.\s]+/, '').replace(/[,.\s]+$/, '');
     }
-  } catch(e) {
-    toast('PDF error: ' + e.message, 'error');
   }
+
+  return { doi, firstAuthor, year, title: title.replace(/[""\u201C\u201D]/g, '') };
 }
 
-function showPaperInfo() {
-  $('paper-info').classList.remove('hidden');
-  $('paper-title').textContent = paperInfo.title || 'Unknown Title';
-  $('paper-authors').textContent = paperInfo.authors || '';
-  $('paper-meta').textContent = `${paperInfo.journal || ''} (${paperInfo.year || ''}) · DOI: ${paperInfo.doi || 'N/A'}`;
+// ============ CITATION EXTRACTION ============
+function extractCitationsFromText(text) {
+  citations = [];
+  const seen = new Set();
+
+  // Pattern 1: (Author, Year) or (Author et al., Year) — with optional multiple years
+  const p1 = /\(([A-Z][a-z'öüäéèêëàâîïôûçñ]+(?:\s+(?:et\s+al\.?|[A-Z][a-z]+))?(?:\s*,\s*\d{4}[a-z]?)?(?:\s*[;,]\s*\d{4}[a-z]?)*\s*(?:;\s*[A-Z][a-z]+(?:\s+(?:et\s+al\.?|[A-Z][a-z]+))?(?:\s*,\s*\d{4}[a-z]?)?)*)\)/g;
+  let m;
+  while ((m = p1.exec(text)) !== null) {
+    const txt = m[1].trim();
+    // Filter out common false positives
+    if (txt.length < 4 || /^(?:the|this|that|these|those|figure|table|section|chapter|page|eq|e\.g|i\.e)/i.test(txt)) continue;
+    const key = txt.toLowerCase();
+    if (!seen.has(key)) {
+      seen.add(key);
+      citations.push({ text: txt, matchedRef: null, matchType: null, position: m.index });
+    }
+  }
+
+  // Pattern 2: Author (Year) without parentheses around the whole thing
+  const p2 = /\b([A-Z][a-z'öüäéèêëàâîïôûçñ]+(?:\s+(?:et\s+al\.?))?)\s*\((\d{4}[a-z]?)\)/g;
+  while ((m = p2.exec(text)) !== null) {
+    const txt = `${m[1].trim()}, ${m[2]}`;
+    const key = txt.toLowerCase();
+    if (!seen.has(key)) {
+      seen.add(key);
+      citations.push({ text: txt, matchedRef: null, matchType: null, position: m.index });
+    }
+  }
+
+  // Pattern 3: [number] style citations like [1], [12,13], [1-5]
+  const p3 = /\[(\d+(?:\s*[,;]\s*\d+)*(?:\s*[-–]\s*\d+)?)\]/g;
+  while ((m = p3.exec(text)) !== null) {
+    const txt = m[1];
+    // Skip if it's part of a reference (check if position is after refSectionText start)
+    if (refSectionText && m.index > fullText.indexOf(refSectionText.substring(0, 20))) continue;
+    if (!seen.has(txt)) {
+      seen.add(txt);
+      citations.push({ text: txt, matchedRef: null, matchType: null, position: m.index, isNumeric: true });
+    }
+  }
+
+  $('cit-count').textContent = citations.length;
+  $('cit-status').textContent = `Extracted ${citations.length} in-text citations from body text`;
 }
 
-// ============ STEP 2: REFERENCES ============
+// ============ RENDER ============
 function renderReferences() {
-  references = paperInfo.refs || [];
+  references = references || [];
   $('ref-count').textContent = references.length;
   $('ref-list').innerHTML = references.map((r, i) => `
     <div class="ref-item" data-ref-idx="${i}">
@@ -383,25 +582,60 @@ function renderReferences() {
       <div class="ref-body">
         <div class="ref-text">${esc(r.text)}</div>
         <div class="ref-meta">
-          <span>${r.doi ? 'DOI: ' + r.doi : 'No DOI'}</span>
-          ${r.status !== 'pending' ? `<span class="badge ${statusBadge(r.status)}">${statusLabel(r.status)}</span>` : ''}
-          ${r.matchCount > 0 ? `<span>📌 Cited ${r.matchCount}×</span>` : '<span style="color:var(--muted)">Not cited</span>'}
+          <span>${r.doi ? 'DOI: ' + esc(r.doi) : 'No DOI'}</span>
+          <span>${r.year || 'No year'}</span>
+          <span>${r.firstAuthor || 'Unknown author'}</span>
+          ${r.status !== 'pending' ? `<span class="badge ${statusBadge(r.status)}">${statusLabel(r.status)}</span>` : '<span class="badge badge-muted">⏳ Pending</span>'}
+          ${r.matchCount > 0 ? `<span>📌 Cited ${r.matchCount}×</span>` : ''}
         </div>
       </div>
     </div>
   `).join('');
 }
 
-// ============ STEP 3: VERIFY REFS ============
+function renderCitations() {
+  $('cit-list').innerHTML = citations.map((c, i) => {
+    const ref = c.matchedRef !== null ? references.find(r => r.index === c.matchedRef) : null;
+    const typeClass = c.matchType === 'exact' ? 'badge-ok' : c.matchType === 'fuzzy' ? 'badge-warn' : c.matchType === 'ai' ? 'badge-info' : 'badge-err';
+    return `
+    <div class="ref-item">
+      <div class="ref-num" style="${c.matchedRef !== null ? '' : 'background:var(--danger);color:#fff'}">${i+1}</div>
+      <div class="ref-body">
+        <div class="ref-text">${c.isNumeric ? '[' + esc(c.text) + ']' : '"' + esc(c.text) + '"'}</div>
+        <div class="ref-meta">
+          ${c.matchedRef !== null ? `<span class="badge ${typeClass}">${c.matchType} → Ref #${c.matchedRef}</span>` : '<span class="badge badge-err">❌ No matching reference</span>'}
+          ${ref ? `<span>${esc(ref.firstAuthor)}, ${ref.year}</span>` : ''}
+        </div>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+function showRefSection() {
+  const el = $('ref-raw-section');
+  if (el.classList.contains('hidden')) {
+    el.textContent = refSectionText || '(No references section detected)';
+    el.classList.remove('hidden');
+  } else {
+    el.classList.add('hidden');
+  }
+}
+
+// ============ VERIFY REFERENCES ============
 let verifying = false;
-async function verifyAllRefs() {
+async function startVerifyAllRefs() {
   if (verifying) return;
+  if (!references.length) return toast('No references to verify', 'error');
+
   verifying = true;
   const pending = references.filter(r => r.status === 'pending');
   const total = pending.length;
+
+  if (!total) { verifying = false; return toast('All references already verified', 'info'); }
+
+  $('card-verify').classList.remove('hidden');
+  setStep(3);
   let done = 0;
-  $('ref-status').textContent = `Verifying 0/${total}...`;
-  $('ref-progress').style.display = 'block';
 
   for (const ref of pending) {
     const idx = references.indexOf(ref);
@@ -409,31 +643,39 @@ async function verifyAllRefs() {
     references[idx].status = result.status;
     references[idx].verifiedTitle = result.title || '';
     done++;
-    $('ref-status').textContent = `Verifying ${done}/${total}...`;
-    $('ref-progress-fill').style.width = (done/total*100) + '%';
-    // Update UI for this item
-    const el = $(`ref-list`).children[idx];
-    if (el) {
-      const meta = el.querySelector('.ref-meta');
-      if (meta) meta.innerHTML = `
-        <span>${ref.doi ? 'DOI: ' + ref.doi : 'No DOI'}</span>
-        <span class="badge ${statusBadge(result.status)}">${statusLabel(result.status)}</span>
-        ${result.title ? `<span>Found: ${esc(result.title.substring(0,60))}${result.title.length>60?'...':''}</span>` : ''}
-        <span>📌 Cited ${ref.matchCount}×</span>
-      `;
-    }
-    // Rate limit: CrossRef allows ~50/s, be polite
-    await new Promise(r => setTimeout(r, 200));
+
+    $('verify-status').textContent = `Verifying ${done}/${total}...`;
+    $('verify-fill').style.width = (done/total*100) + '%';
+
+    // Append to verify list
+    $('verify-list').innerHTML += `
+      <div class="ref-item">
+        <div class="ref-num">${ref.index}</div>
+        <div class="ref-body">
+          <div class="ref-text">${esc(ref.text.substring(0, 100))}${ref.text.length > 100 ? '...' : ''}</div>
+          <div class="ref-meta">
+            <span class="badge ${statusBadge(result.status)}">${statusLabel(result.status)}</span>
+            ${result.title ? `<span>Found: ${esc(result.title.substring(0,60))}</span>` : ''}
+          </div>
+        </div>
+      </div>`;
+    // Auto scroll
+    $('verify-list').scrollTop = $('verify-list').scrollHeight;
+
+    // Rate limit
+    await sleep(250);
   }
 
-  $('ref-status').textContent = `Done! Verified ${total} references.`;
+  $('verify-status').textContent = `Done! Verified ${total} references.`;
   verifying = false;
-  setStep(3);
-  toast(`Verification complete: ${references.filter(r=>r.status==='verified').length} OK, ${references.filter(r=>r.status==='not_found').length} not found`, 'success');
+
+  // Update refs card
+  renderReferences();
+  toast(`Verification complete: ${references.filter(r=>r.status==='verified').length} verified, ${references.filter(r=>r.status==='not_found').length} not found`, 'success');
 }
 
 async function verifyOneRef(ref) {
-  // If has DOI, verify directly
+  // If has DOI, verify directly via CrossRef
   if (ref.doi) {
     try {
       const resp = await fetch(`https://api.crossref.org/works/${encodeURIComponent(ref.doi)}?mailto=RefCheck@example.com`);
@@ -446,25 +688,33 @@ async function verifyOneRef(ref) {
       return { status: 'error', title: '' };
     }
   }
-  // No DOI: search by first author + year + title keywords
-  if (ref.firstAuthor && ref.title) {
+
+  // No DOI: search CrossRef by author + year + title keywords
+  if (ref.firstAuthor && ref.year) {
     try {
-      const query = `${ref.firstAuthor} ${ref.year} ${ref.title.substring(0, 50)}`.trim();
-      const resp = await fetch(`https://api.crossref.org/works?query=${encodeURIComponent(query)}&rows=1&mailto=RefCheck@example.com`);
+      const query = `${ref.firstAuthor} ${ref.year} ${ref.title ? ref.title.substring(0, 60) : ''}`.trim();
+      const resp = await fetch(`https://api.crossref.org/works?query=${encodeURIComponent(query)}&rows=3&mailto=RefCheck@example.com`);
       if (resp.ok) {
         const data = await resp.json();
-        const item = data.message?.items?.[0];
-        if (item) {
-          const crTitle = (item.title || [''])[0].toLowerCase().replace(/[^a-z0-9]/g, '');
-          const refTitle = ref.title.toLowerCase().replace(/[^a-z0-9]/g, '');
-          if (titleSimilarity(crTitle, refTitle) > 0.6) {
-            return { status: 'verified', title: item.title?.[0] || '' };
+        const items = data.message?.items || [];
+        for (const item of items) {
+          const crTitle = (item.title || [''])[0];
+          if (ref.title && titleSimilarity(crTitle, ref.title) > 0.5) {
+            return { status: 'verified', title: crTitle };
           }
+          // Also check DOI match if item has one
+          if (ref.doi && item.DOI === ref.doi) {
+            return { status: 'verified', title: crTitle };
+          }
+        }
+        if (items.length > 0) {
+          return { status: 'likely', title: items[0].title?.[0] || '' };
         }
       }
     } catch(e) {}
   }
-  // Fallback: search by ref text first 80 chars
+
+  // Fallback: search by first 80 chars of raw text
   try {
     const query = ref.text.substring(0, 80);
     const resp = await fetch(`https://api.crossref.org/works?query=${encodeURIComponent(query)}&rows=1&mailto=RefCheck@example.com`);
@@ -474,62 +724,48 @@ async function verifyOneRef(ref) {
       if (item) return { status: 'likely', title: item.title?.[0] || '' };
     }
   } catch(e) {}
+
   return { status: 'not_found', title: '' };
 }
 
-// ============ STEP 4: CITATIONS ============
-function extractCitationsFromText(text) {
-  citations = [];
-  // Common citation patterns: (Author, Year), Author (Year), (Author et al., Year), etc.
-  const patterns = [
-    /\(([A-Z][a-z]+(?:\s(?:et\s+al\.?|[a-z]+))?(?:\s*,\s*\d{4})?(?:\s*[,;]\s*\d{4})*)\)/g,  // (Smith, 2020)
-    /(?:^|[\s(])([A-Z][a-z]+(?:\s(?:et\s+al\.?|[a-z]+))?\s*\(\d{4}(?:\s*[a-z])?\))/g,    // Smith (2020)
-    /(\d{4}[a-z]?)\s*,?\s*(?:p{1,2}\.?\s*\d+|pp\.\s*[\d-]+)/g,  // year, p.123
-  ];
-
-  const seen = new Set();
-  // Pattern 1: (Author, Year)
-  const p1 = /\(([A-Z][a-z]+(?:\s(?:et\s+al\.?))?(?:\s*,\s*\d{4})?(?:\s*[,;]\s*\d{4})*)\)/g;
-  let m;
-  while ((m = p1.exec(text)) !== null) {
-    const txt = m[1].trim();
-    if (txt.length > 3 && !seen.has(txt.toLowerCase())) {
-      seen.add(txt.toLowerCase());
-      citations.push({ text: txt, matchedRef: null, matchType: null, position: m.index });
-    }
-  }
-  // Pattern 2: Author (Year)
-  const p2 = /([A-Z][a-z]+(?:\s(?:et\s+al\.?))?)\s*\((\d{4}[a-z]?)\)/g;
-  while ((m = p2.exec(text)) !== null) {
-    const txt = `${m[1].trim()}, ${m[2]}`;
-    if (!seen.has(txt.toLowerCase())) {
-      seen.add(txt.toLowerCase());
-      citations.push({ text: txt, matchedRef: null, matchType: null, position: m.index });
-    }
-  }
-
-  $('cit-count').textContent = citations.length;
-  $('cit-status').textContent = `Extracted ${citations.length} in-text citations from PDF`;
-  return citations;
-}
-
+// ============ MATCH CITATIONS ============
 function matchCitations() {
-  if (!references.length || !citations.length) return toast('Load references and citations first', 'error');
-  let matched = 0, unmatched = 0;
+  if (!references.length || !citations.length) return toast('No references or citations to match', 'error');
 
-  // Reset
+  let matched = 0, unmatched = 0;
   references.forEach(r => r.matchCount = 0);
   citations.forEach(c => { c.matchedRef = null; c.matchType = null; });
 
   for (const cit of citations) {
-    const best = findBestMatch(cit.text, references);
-    if (best && best.confidence > 0.4) {
-      cit.matchedRef = best.ref.index;
-      cit.matchType = best.confidence > 0.8 ? 'exact' : 'fuzzy';
-      references[best.ref.index].matchCount++;
-      matched++;
+    if (cit.isNumeric) {
+      // Numeric citation [N] → map directly to reference [N]
+      const nums = parseNumericCit(cit.text);
+      let anyMatched = false;
+      for (const n of nums) {
+        const ref = references.find(r => r.index === n);
+        if (ref) {
+          ref.matchCount++;
+          anyMatched = true;
+          matched++;
+        }
+      }
+      if (anyMatched) {
+        cit.matchedRef = nums[0];
+        cit.matchType = 'exact';
+      } else {
+        unmatched++;
+      }
     } else {
-      unmatched++;
+      // Author-year style: find best match
+      const best = findBestMatch(cit.text, references);
+      if (best && best.confidence > 0.4) {
+        cit.matchedRef = best.ref.index;
+        cit.matchType = best.confidence > 0.8 ? 'exact' : 'fuzzy';
+        references[best.ref.index].matchCount++;
+        matched++;
+      } else {
+        unmatched++;
+      }
     }
   }
 
@@ -537,51 +773,45 @@ function matchCitations() {
   renderReferences();
   setStep(5);
   generateReport();
-  toast(`Matched ${matched}, Unmatched ${unmatched}`, matched === citations.length ? 'success' : 'warning');
+  toast(`Matched ${matched}, Unmatched ${unmatched}`, unmatched === 0 ? 'success' : 'warning');
+}
+
+function parseNumericCit(text) {
+  const nums = [];
+  // Expand ranges: "1-5" → [1,2,3,4,5]
+  const parts = text.split(/[,;]/);
+  for (const part of parts) {
+    const rangeMatch = part.trim().match(/^(\d+)\s*[-–]\s*(\d+)$/);
+    if (rangeMatch) {
+      const start = parseInt(rangeMatch[1]);
+      const end = parseInt(rangeMatch[2]);
+      for (let i = start; i <= end; i++) nums.push(i);
+    } else {
+      const n = parseInt(part.trim());
+      if (n) nums.push(n);
+    }
+  }
+  return nums;
 }
 
 function findBestMatch(citText, refs) {
   // Parse citation: "Smith et al., 2020" or "Smith, 2020"
-  const citMatch = citText.match(/^([A-Z][a-z]+)(?:\s+(et\s+al\.?))?(?:,\s*|[\s(])(\d{4}[a-z]?)/);
+  const citMatch = citText.match(/^([A-Z][a-z'öüäéèêëàâîïôûçñ]+)(?:\s+(et\s+al\.?))?(?:,\s*|[\s(])(\d{4}[a-z]?)/);
   if (!citMatch) return null;
 
   const citAuthor = citMatch[1].toLowerCase();
-  const citEtal = !!citMatch[2];
   const citYear = citMatch[3];
   let bestScore = 0, bestRef = null;
 
   for (const ref of refs) {
     let score = 0;
-    // Author match
-    const refAuthor = ref.firstAuthor?.toLowerCase() || '';
+    const refAuthor = (ref.firstAuthor || '').toLowerCase();
     if (refAuthor === citAuthor) score += 0.5;
     else if (refAuthor.startsWith(citAuthor) || citAuthor.startsWith(refAuthor)) score += 0.3;
-    // Year match
     if (ref.year === citYear) score += 0.5;
-    // If et al. in citation, don't penalize missing authors
-    if (citEtal && refAuthor === citAuthor) score += 0.1;
-
     if (score > bestScore) { bestScore = score; bestRef = ref; }
   }
   return bestRef ? { ref: bestRef, confidence: bestScore } : null;
-}
-
-function renderCitations() {
-  $('cit-list').innerHTML = citations.map((c, i) => {
-    const ref = c.matchedRef ? references.find(r => r.index === c.matchedRef) : null;
-    const typeClass = c.matchType === 'exact' ? 'badge-ok' : c.matchType === 'fuzzy' ? 'badge-warn' : 'badge-err';
-    return `
-    <div class="ref-item">
-      <div class="ref-num" style="${c.matchedRef ? '' : 'background:var(--danger);color:#fff'}">${i+1}</div>
-      <div class="ref-body">
-        <div class="ref-text">"${esc(c.text)}"</div>
-        <div class="ref-meta">
-          ${c.matchedRef ? `<span class="badge ${typeClass}">${c.matchType} → Ref #${c.matchedRef}</span>` : '<span class="badge badge-err">❌ No matching reference</span>'}
-          ${ref ? `<span>${esc(ref.firstAuthor)}, ${ref.year} — ${esc((ref.verifiedTitle||ref.title||'').substring(0,50))}</span>` : ''}
-        </div>
-      </div>
-    </div>`;
-  }).join('');
 }
 
 // ============ AI FEATURES ============
@@ -637,7 +867,7 @@ async function aiVerifyUnmatched() {
   toast(`AI verifying ${unmatched.length} unmatched references...`, 'info');
 
   const refTexts = unmatched.map((r, i) => `[${i}] ${r.text}`).join('\n');
-  const prompt = `For each reference below, search the web in your knowledge to verify if it exists and find the correct title. Reply in JSON format: an array of objects with fields: "idx" (the number in brackets), "exists" (true/false), "correctTitle" (the actual paper title if found, or null).
+  const prompt = `For each reference below, use your knowledge to verify if it exists. Reply in JSON: an array of objects with "idx" (number in brackets), "exists" (true/false), "correctTitle" (actual paper title if found, or null).
 
 References:
 ${refTexts}
@@ -648,7 +878,6 @@ Reply ONLY with the JSON array, no other text.`;
   if (!result) return;
 
   try {
-    // Extract JSON from response
     const jsonMatch = result.match(/\[[\s\S]*\]/);
     if (!jsonMatch) throw new Error('No JSON found');
     const results = JSON.parse(jsonMatch[0]);
@@ -672,13 +901,13 @@ Reply ONLY with the JSON array, no other text.`;
 async function aiMatchUnmatched() {
   const unmatched = citations.filter(c => !c.matchedRef);
   if (!unmatched.length) return toast('All citations matched', 'info');
-  if (!references.length) return toast('Load references first', 'error');
+  if (!references.length) return toast('No references loaded', 'error');
   toast(`AI matching ${unmatched.length} unmatched citations...`, 'info');
 
   const citTexts = unmatched.map((c, i) => `[${i}] "${c.text}"`).join('\n');
-  const refTexts = references.map(r => `[${r.index}] ${r.firstAuthor} ${r.year} — ${r.title || r.text.substring(0,80)}`).join('\n');
+  const refTexts = references.map(r => `[${r.index}] ${r.firstAuthor || '?'} ${r.year || '?'} — ${r.title || r.text.substring(0,80)}`).join('\n');
 
-  const prompt = `Match each unmatched in-text citation to the best reference from the list below. Reply in JSON format: an array of objects with "idx" (citation number), "refIdx" (reference number), or null if no match.
+  const prompt = `Match each in-text citation to the best reference. Reply in JSON: array of objects with "idx" (citation number), "refIdx" (reference number, or null if no match).
 
 Unmatched Citations:
 ${citTexts}
@@ -722,36 +951,35 @@ function generateReport() {
   const totalRefs = references.length;
   const totalCits = citations.length;
   const verifiedRefs = references.filter(r => r.status === 'verified' || r.status === 'likely').length;
-  const matchedCits = citations.filter(c => c.matchedRef).length;
+  const matchedCits = citations.filter(c => c.matchedRef !== null).length;
   const unmatchedCits = totalCits - matchedCits;
   const unreferencedRefs = references.filter(r => r.matchCount === 0).length;
 
   $('report-stats').innerHTML = `
     <div class="stat-card"><div class="stat-val" style="color:var(--accent)">${totalRefs}</div><div class="stat-label">Total References</div></div>
-    <div class="stat-card"><div class="stat-val" style="color:var(--success)">${verifiedRefs}</div><div class="stat-label">Verified Refs</div></div>
+    <div class="stat-card"><div class="stat-val" style="color:var(--success)">${verifiedRefs}</div><div class="stat-label">Verified</div></div>
     <div class="stat-card"><div class="stat-val" style="color:var(--info)">${totalCits}</div><div class="stat-label">In-text Citations</div></div>
-    <div class="stat-card"><div class="stat-val" style="color:${unmatchedCits?'var(--danger)':'var(--success)'}">${unmatchedCits}</div><div class="stat-label">Unmatched Citations</div></div>
-    <div class="stat-card"><div class="stat-val" style="color:${unreferencedRefs?'var(--warning)':'var(--success)'}">${unreferencedRefs}</div><div class="stat-label">Unreferenced Refs</div></div>
+    <div class="stat-card"><div class="stat-val" style="color:${unmatchedCits?'var(--danger)':'var(--success)'}">${unmatchedCits}</div><div class="stat-label">Unmatched</div></div>
+    <div class="stat-card"><div class="stat-val" style="color:${unreferencedRefs?'var(--warning)':'var(--success)'}">${unreferencedRefs}</div><div class="stat-label">Unreferenced</div></div>
   `;
-  showReportTab('unmatched');
+  showReportTab(document.querySelector('#report-tabs .tab.active'), 'unmatched');
 }
 
-function showReportTab(tab) {
+function showReportTab(tabEl, tab) {
   document.querySelectorAll('#report-tabs .tab').forEach(t => t.classList.remove('active'));
-  event.target.classList.add('active');
+  if (tabEl) tabEl.classList.add('active');
 
-  let items = [];
   if (tab === 'unmatched') {
-    items = citations.filter(c => !c.matchedRef);
+    const items = citations.filter(c => c.matchedRef === null);
     $('report-content').innerHTML = items.length ? items.map((c, i) => `
       <div class="ref-item">
         <div class="ref-num" style="background:var(--danger);color:#fff">${i+1}</div>
         <div class="ref-body">
-          <div class="ref-text">"${esc(c.text)}" — <strong style="color:var(--danger)">No matching reference found</strong></div>
+          <div class="ref-text">${c.isNumeric ? '[' + esc(c.text) + ']' : '"' + esc(c.text) + '"'} — <strong style="color:var(--danger)">No matching reference</strong></div>
         </div>
       </div>`).join('') : '<div style="color:var(--success);text-align:center;padding:24px;">✅ All citations matched!</div>';
   } else if (tab === 'unreferenced') {
-    items = references.filter(r => r.matchCount === 0);
+    const items = references.filter(r => r.matchCount === 0);
     $('report-content').innerHTML = items.length ? items.map((r, i) => `
       <div class="ref-item">
         <div class="ref-num">${r.index}</div>
@@ -759,14 +987,13 @@ function showReportTab(tab) {
           <div class="ref-text">${esc(r.text)}</div>
           <div class="ref-meta">
             <span class="badge badge-warn">⚠️ Not cited in text</span>
-            ${r.doi ? `<span>DOI: ${r.doi}</span>` : ''}
+            ${r.doi ? `<span>DOI: ${esc(r.doi)}</span>` : ''}
             <span class="badge ${statusBadge(r.status)}">${statusLabel(r.status)}</span>
           </div>
         </div>
       </div>`).join('') : '<div style="color:var(--success);text-align:center;padding:24px;">✅ All references are cited!</div>';
   } else {
-    items = references;
-    $('report-content').innerHTML = items.map(r => `
+    $('report-content').innerHTML = references.map(r => `
       <div class="ref-item">
         <div class="ref-num" style="${r.matchCount?'':'background:var(--warning);color:#000'}">${r.index}</div>
         <div class="ref-body">
@@ -774,7 +1001,7 @@ function showReportTab(tab) {
           <div class="ref-meta">
             <span class="badge ${statusBadge(r.status)}">${statusLabel(r.status)}</span>
             <span>📌 Cited ${r.matchCount}×</span>
-            ${r.doi ? `<span>DOI: ${r.doi}</span>` : '<span>No DOI</span>'}
+            ${r.doi ? `<span>DOI: ${esc(r.doi)}</span>` : '<span>No DOI</span>'}
           </div>
         </div>
       </div>`).join('');
@@ -782,17 +1009,18 @@ function showReportTab(tab) {
 }
 
 function exportReport() {
-  const lines = [`RefCheck Report — ${paperInfo?.title || 'Unknown'}`, `${'='.repeat(50)}`, ''];
+  const lines = [`RefCheck Report`, `${'='.repeat(50)}`, ''];
   lines.push(`Total References: ${references.length}`);
   lines.push(`Verified: ${references.filter(r=>r.status==='verified').length}`);
+  lines.push(`Likely: ${references.filter(r=>r.status==='likely').length}`);
   lines.push(`Not Found: ${references.filter(r=>r.status==='not_found').length}`);
   lines.push(`In-text Citations: ${citations.length}`);
-  lines.push(`Matched: ${citations.filter(c=>c.matchedRef).length}`);
-  lines.push(`Unmatched: ${citations.filter(c=>!c.matchedRef).length}`);
+  lines.push(`Matched: ${citations.filter(c=>c.matchedRef!==null).length}`);
+  lines.push(`Unmatched: ${citations.filter(c=>c.matchedRef===null).length}`);
   lines.push(`Unreferenced: ${references.filter(r=>r.matchCount===0).length}`);
   lines.push('');
   lines.push('--- Unmatched Citations ---');
-  citations.filter(c => !c.matchedRef).forEach((c, i) => lines.push(`  ${i+1}. "${c.text}"`));
+  citations.filter(c => c.matchedRef === null).forEach((c, i) => lines.push(`  ${i+1}. ${c.isNumeric ? '[' + c.text + ']' : '"' + c.text + '"'}`));
   lines.push('');
   lines.push('--- Unreferenced References ---');
   references.filter(r => r.matchCount === 0).forEach(r => lines.push(`  [${r.index}] ${r.text}`));
@@ -801,20 +1029,21 @@ function exportReport() {
 }
 
 function exportMarkdown() {
-  let md = `# RefCheck Report\n\n**Paper:** ${paperInfo?.title || 'Unknown'}\n\n`;
+  let md = `# RefCheck Report\n\n`;
   md += `| Metric | Count |\n|--------|-------|\n`;
   md += `| Total References | ${references.length} |\n`;
   md += `| Verified | ${references.filter(r=>r.status==='verified').length} |\n`;
+  md += `| Likely | ${references.filter(r=>r.status==='likely').length} |\n`;
   md += `| Not Found | ${references.filter(r=>r.status==='not_found').length} |\n`;
   md += `| In-text Citations | ${citations.length} |\n`;
-  md += `| Matched | ${citations.filter(c=>c.matchedRef).length} |\n`;
-  md += `| Unmatched | ${citations.filter(c=>!c.matchedRef).length} |\n`;
+  md += `| Matched | ${citations.filter(c=>c.matchedRef!==null).length} |\n`;
+  md += `| Unmatched | ${citations.filter(c=>c.matchedRef===null).length} |\n`;
   md += `| Unreferenced | ${references.filter(r=>r.matchCount===0).length} |\n\n`;
 
-  const uncited = citations.filter(c => !c.matchedRef);
+  const uncited = citations.filter(c => c.matchedRef === null);
   if (uncited.length) {
     md += `## ❌ Unmatched Citations\n\n`;
-    uncited.forEach((c, i) => md += `${i+1}. "${c.text}"\n`);
+    uncited.forEach((c, i) => md += `${i+1}. ${c.isNumeric ? '[' + c.text + ']' : '"' + c.text + '"'}\n`);
     md += '\n';
   }
   const unref = references.filter(r => r.matchCount === 0);
@@ -828,6 +1057,7 @@ function exportMarkdown() {
 
 // ============ UTILS ============
 function esc(s) { const d = document.createElement('div'); d.textContent = s || ''; return d.innerHTML; }
+function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
 function toast(msg, type = 'info') {
   const t = document.createElement('div');
   t.className = `toast toast-${type}`;
