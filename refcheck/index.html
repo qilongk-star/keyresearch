@@ -164,6 +164,11 @@ body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-
 .cit-hl { padding: 1px 3px; border-radius: 3px; cursor: pointer; font-weight: 600; transition: all 0.15s; position: relative; }
 .cit-hl.matched { background: rgba(34,197,94,0.18); color: #86efac; }
 .cit-hl.unmatched { background: rgba(239,68,68,0.22); color: #fca5a5; text-decoration: underline wavy rgba(239,68,68,0.6); }
+.cit-hl.ai-only { background: rgba(168,85,247,0.25); color: #c4b5fd; }
+.cit-hl.regex-only { background: rgba(6,182,212,0.25); color: #67e8f9; }
+.cit-hl.both-source { background: rgba(34,197,94,0.18); color: #86efac; }
+.cit-hl.manual { background: rgba(249,115,22,0.25); color: #fdba74; border: 1px dashed rgba(249,115,22,0.5); }
+.cit-hl.duplicate { background: repeating-linear-gradient(45deg, rgba(245,158,11,0.15), rgba(245,158,11,0.15) 2px, transparent 2px, transparent 4px); color: #fcd34d; border: 1px solid rgba(245,158,11,0.4); }
 .cit-hl:hover { transform: scale(1.02); filter: brightness(1.3); }
 .cit-hl.flash { animation: citFlash 0.8s ease; }
 @keyframes citFlash { 0%,100% { box-shadow: none; } 30% { box-shadow: 0 0 0 3px var(--accent); } }
@@ -171,6 +176,58 @@ body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-
 /* Tooltip */
 .cit-tip { position: absolute; bottom: calc(100% + 6px); left: 50%; transform: translateX(-50%); background: var(--surface2); border: 1px solid var(--border); border-radius: 8px; padding: 8px 12px; font-size: 12px; color: var(--text); white-space: nowrap; pointer-events: none; opacity: 0; transition: opacity 0.15s; z-index: 10; box-shadow: 0 4px 12px rgba(0,0,0,0.3); }
 .cit-hl:hover .cit-tip { opacity: 1; }
+/* Manual citation input */
+.manual-add-section { display: flex; gap: 8px; align-items: center; margin-bottom: 12px; flex-wrap: wrap; }
+.manual-add-input { flex: 1; min-width: 200px; padding: 8px 12px; border-radius: 8px; border: 1px solid var(--border); background: var(--bg); color: var(--text); font-size: 13px; outline: none; }
+.manual-add-input:focus { border-color: var(--warning); }
+.manual-add-input::placeholder { color: var(--muted); }
+
+/* Source filter tabs for citations */
+.source-tabs { display: flex; gap: 4px; margin-bottom: 12px; flex-wrap: wrap; }
+.source-tab { padding: 5px 12px; border-radius: 6px; cursor: pointer; font-size: 11px; font-weight: 600; background: var(--bg); border: 1px solid var(--border); color: var(--muted); transition: all 0.2s; }
+.source-tab:hover { border-color: var(--accent); color: var(--text); }
+.source-tab.active { border-color: var(--accent); color: var(--accent); background: rgba(99,102,241,0.1); }
+.source-tab .count { margin-left: 4px; opacity: 0.7; }
+
+/* Report error button */
+.report-error-btn { display: inline-flex; align-items: center; gap: 6px; padding: 8px 16px; border-radius: 8px; border: 1px dashed var(--danger); background: rgba(239,68,68,0.08); color: var(--danger); font-size: 12px; font-weight: 600; cursor: pointer; transition: all 0.2s; }
+.report-error-btn:hover { background: rgba(239,68,68,0.15); border-color: var(--danger); }
+
+/* VM toolbar */
+.vm-toolbar { display: flex; gap: 8px; padding: 8px 16px; background: var(--surface2); border-bottom: 1px solid var(--border); align-items: center; flex-shrink: 0; flex-wrap: wrap; }
+.vm-toolbar label { font-size: 11px; color: var(--muted); font-weight: 600; }
+.vm-legend { display: flex; gap: 12px; align-items: center; }
+.vm-legend-item { display: flex; align-items: center; gap: 4px; font-size: 10px; color: var(--muted); }
+.vm-legend-dot { width: 10px; height: 10px; border-radius: 3px; }
+.vm-add-cit-btn { padding: 4px 12px; border-radius: 6px; border: 1px solid var(--warning); background: rgba(245,158,11,0.1); color: var(--warning); font-size: 11px; font-weight: 600; cursor: pointer; transition: all 0.2s; }
+.vm-add-cit-btn:hover { background: rgba(245,158,11,0.2); }
+
+/* VM manual add panel */
+.vm-add-panel { display: none; padding: 12px 16px; background: var(--surface2); border-bottom: 1px solid var(--border); }
+.vm-add-panel.active { display: flex; gap: 8px; align-items: center; }
+.vm-add-panel input { flex: 1; padding: 8px 12px; border-radius: 8px; border: 1px solid var(--warning); background: var(--bg); color: var(--text); font-size: 13px; outline: none; }
+
+/* Text selection floating button for VM */
+.vm-sel-btn { position: absolute; z-index: 50; padding: 6px 14px; border-radius: 8px; border: 1px solid var(--warning); background: var(--warning); color: #000; font-size: 12px; font-weight: 700; cursor: pointer; box-shadow: 0 4px 12px rgba(0,0,0,0.3); transition: all 0.15s; white-space: nowrap; display: none; }
+.vm-sel-btn:hover { background: #eab308; transform: scale(1.05); }
+.vm-sel-btn.show { display: block; }
+
+/* Citation count badge on ref-item */
+.cit-count-badge { display: inline-flex; align-items: center; gap: 3px; padding: 2px 8px; border-radius: 10px; font-size: 11px; font-weight: 700; }
+.cit-count-badge.zero { background: rgba(239,68,68,0.15); color: var(--danger); }
+.cit-count-badge.some { background: rgba(34,197,94,0.15); color: var(--success); }
+.cit-count-badge.high { background: rgba(99,102,241,0.2); color: var(--accent); }
+
+/* Feedback modal */
+.feedback-overlay { position: fixed; inset: 0; z-index: 2000; background: rgba(0,0,0,0.6); display: none; align-items: center; justify-content: center; }
+.feedback-overlay.active { display: flex; }
+.feedback-modal { background: var(--surface); border: 1px solid var(--border); border-radius: 14px; padding: 24px; width: 480px; max-width: 90vw; }
+.feedback-modal h3 { font-size: 16px; font-weight: 700; margin-bottom: 8px; }
+.feedback-modal p { font-size: 13px; color: var(--muted); margin-bottom: 16px; }
+.feedback-textarea { width: 100%; min-height: 120px; padding: 12px; border-radius: 8px; border: 1px solid var(--border); background: var(--bg); color: var(--text); font-size: 13px; font-family: inherit; resize: vertical; outline: none; }
+.feedback-textarea:focus { border-color: var(--danger); }
+.feedback-actions { display: flex; gap: 8px; justify-content: flex-end; margin-top: 12px; }
+
 /* Responsive */
 @media (max-width: 900px) {
   .vm-body { flex-direction: column; }
@@ -239,7 +296,14 @@ body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-
     </div>
     <!-- Ref section raw text (hidden by default) -->
     <div id="ref-raw-section" class="ref-section-preview hidden"></div>
-    <div class="ref-list" id="ref-list" style="margin-top:12px;"></div>
+    <!-- Sort controls for references -->
+    <div style="display:flex;gap:6px;margin-bottom:8px;flex-wrap:wrap;align-items:center;">
+      <span style="font-size:11px;color:var(--muted);font-weight:600;">Sort:</span>
+      <button class="source-tab active" id="sort-num" onclick="sortRefs('num',this)">🔢 Number</button>
+      <button class="source-tab" id="sort-cited" onclick="sortRefs('cited',this)">📌 Most Cited</button>
+      <button class="source-tab" id="sort-uncited" onclick="sortRefs('uncited',this)">🚫 Uncited First</button>
+    </div>
+    <div class="ref-list" id="ref-list" style="margin-top:0;"></div>
   </div>
 
   <!-- Step 3: Verify progress (shown during verification) -->
@@ -258,6 +322,20 @@ body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-
       <button class="btn btn-primary" onclick="matchCitations()">🔗 Re-match Citations</button>
       <button class="btn btn-secondary" onclick="aiRescanCitations()">🤖 AI Re-scan Citations</button>
     </div>
+    <!-- Manual add citation -->
+    <div class="manual-add-section">
+      <input type="text" class="manual-add-input" id="manual-cit-input" placeholder='Type citation e.g. "Smith et al., 2020" or select text in Visual Mode to add' onkeydown="if(event.key==='Enter')addManualCitation()">
+      <button class="btn btn-secondary btn-sm" onclick="addManualCitation()">➕ Add</button>
+      <button class="btn btn-secondary btn-sm" style="border-color:var(--danger);color:var(--danger)" onclick="clearManualCitations()">🗑️ Clear Manual</button>
+    </div>
+    <!-- Source filter tabs -->
+    <div class="source-tabs" id="cit-source-tabs">
+      <div class="source-tab active" onclick="filterCitationsBySource(this,'all')">All <span class="count" id="cit-count-all">0</span></div>
+      <div class="source-tab" onclick="filterCitationsBySource(this,'regex')" style="border-color:var(--info)">Regex <span class="count" id="cit-count-regex">0</span></div>
+      <div class="source-tab" onclick="filterCitationsBySource(this,'ai')" style="border-color:rgba(168,85,247,0.5)">AI <span class="count" id="cit-count-ai">0</span></div>
+      <div class="source-tab" onclick="filterCitationsBySource(this,'both')" style="border-color:var(--success)">Both ✅ <span class="count" id="cit-count-both">0</span></div>
+      <div class="source-tab" onclick="filterCitationsBySource(this,'manual')" style="border-color:var(--warning)">Manual ✋ <span class="count" id="cit-count-manual">0</span></div>
+    </div>
     <div class="ref-list" id="cit-list"></div>
   </div>
 
@@ -268,6 +346,7 @@ body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-
     <div class="tabs" id="report-tabs">
       <div class="tab active" onclick="showReportTab(this, 'unmatched')">❌ Unmatched Citations</div>
       <div class="tab" onclick="showReportTab(this, 'unreferenced')">⚠️ Unreferenced</div>
+      <div class="tab" onclick="showReportTab(this, 'manual')">✋ Manual Citations</div>
       <div class="tab" onclick="showReportTab(this, 'compare')">🔀 AI vs Regex</div>
       <div class="tab" onclick="showReportTab(this, 'all')">📋 All References</div>
     </div>
@@ -275,6 +354,7 @@ body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-
     <div class="input-row" style="margin-top:16px;display:flex;gap:10px;flex-wrap:wrap;">
       <button class="btn btn-primary" onclick="exportReport()">📋 Copy Report</button>
       <button class="btn btn-secondary" onclick="exportMarkdown()">📝 Copy Markdown</button>
+      <button class="report-error-btn" onclick="openFeedbackModal()">🐛 Report Error</button>
     </div>
   </div>
 
@@ -311,7 +391,10 @@ let fullText = '';          // full text extracted from paper
 let refSectionText = '';    // raw text of the references section
 let bodyText = '';          // text before references (for citation extraction)
 let references = [];        // [{index, text, doi, firstAuthor, allAuthors, year, title, verified, status, matchCount, verifiedTitle}]
-let citations = [];         // [{text, matchedRef, matchType, position, source:'regex'|'ai'|'both', authors:[], year}]
+let citations = [];         // [{text, matchedRef, matchType, position, source:'regex'|'ai'|'both'|'manual', authors:[], year}]
+let manualCitations = [];   // track manually added citations
+let currentCitFilter = 'all';
+let currentRefSort = 'num';  // 'num' | 'cited' | 'uncited'
 let settings = { deepseekKey: '', openaiKey: '', geminiKey: '' };
 
 // Load settings
@@ -972,7 +1055,7 @@ function extractCitationsFromText(text) {
     if (/^\d{4}$/.test(txt)) return;
     if (/^\d+[a-z]?$/.test(txt)) return;
     if (/^[A-Z]{2,5}$/.test(txt)) return;
-    citations.push({ text: txt, matchedRef: null, matchType: null, position: pos, authors: authors || [], year: year || '' });
+    citations.push({ text: txt, matchedRef: null, matchType: null, position: pos, source: 'regex', authors: authors || [], year: year || '' });
   }
 
   // ==================================================================
@@ -1074,7 +1157,7 @@ function extractCitationsFromText(text) {
   const numCit = /\[(\d+(?:\s*[,;]\s*\d+)*(?:\s*[-–]\s*\d+)?)\]/g;
   while ((m = numCit.exec(text)) !== null) {
     if (refSectionText && m.index > fullText.indexOf(refSectionText.substring(0, Math.min(50, refSectionText.length)))) continue;
-    citations.push({ text: m[1], matchedRef: null, matchType: null, position: m.index, isNumeric: true });
+    citations.push({ text: m[1], matchedRef: null, matchType: null, position: m.index, isNumeric: true, source: 'regex' });
   }
 
   // Deduplicate: same text at same position only once
@@ -1091,7 +1174,7 @@ function extractCitationsFromText(text) {
 
   $('cit-count').textContent = citations.length;
   const uniqueCits = new Set(citations.map(c => c.text.toLowerCase())).size;
-  $('cit-status').textContent = `Extracted ${citations.length} in-text citations (${uniqueCits} unique)`;
+  $('cit-status').textContent = `Regex extracted ${citations.length} in-text citations (${uniqueCits} unique). Use "AI Re-scan" to find more, or "Add Citation" to add manually.`;
 }
 
 // Helper: Extract author(s) from text before a year inside a citation segment
@@ -1155,8 +1238,21 @@ function renderReferences() {
   $('ref-count').textContent = references.length;
   const fmt = window._refFormat || '';
   $('ref-status').textContent = `Detected format: ${fmt || 'unknown'} · ${references.length} references parsed`;
-  $('ref-list').innerHTML = references.map((r, i) => `
-    <div class="ref-item" data-ref-idx="${i}">
+
+  // Sort references based on current sort mode
+  let sorted = [...references];
+  if (currentRefSort === 'cited') {
+    sorted.sort((a, b) => b.matchCount - a.matchCount);
+  } else if (currentRefSort === 'uncited') {
+    sorted.sort((a, b) => a.matchCount - b.matchCount);
+  }
+  // 'num' = original order (by index)
+
+  $('ref-list').innerHTML = sorted.map((r, i) => {
+    const countCls = r.matchCount === 0 ? 'zero' : r.matchCount >= 3 ? 'high' : 'some';
+    const countIcon = r.matchCount === 0 ? '🚫' : '📌';
+    return `
+    <div class="ref-item" data-ref-idx="${references.indexOf(r)}">
       <div class="ref-num">${r.index}</div>
       <div class="ref-body">
         <div class="ref-text">${esc(r.text)}</div>
@@ -1165,29 +1261,214 @@ function renderReferences() {
           <span>${r.year || 'No year'}</span>
           <span>${r.firstAuthor || 'Unknown author'}</span>
           ${r.status !== 'pending' ? `<span class="badge ${statusBadge(r.status)}">${statusLabel(r.status)}</span>` : '<span class="badge badge-muted">⏳ Pending</span>'}
-          ${r.matchCount > 0 ? `<span>📌 Cited ${r.matchCount}×</span>` : ''}
-        </div>
-      </div>
-    </div>
-  `).join('');
-}
-
-function renderCitations() {
-  $('cit-list').innerHTML = citations.map((c, i) => {
-    const ref = c.matchedRef !== null ? references.find(r => r.index === c.matchedRef) : null;
-    const typeClass = c.matchType === 'exact' ? 'badge-ok' : c.matchType === 'fuzzy' ? 'badge-warn' : c.matchType === 'ai' ? 'badge-info' : 'badge-err';
-    return `
-    <div class="ref-item">
-      <div class="ref-num" style="${c.matchedRef !== null ? '' : 'background:var(--danger);color:#fff'}">${i+1}</div>
-      <div class="ref-body">
-        <div class="ref-text">${c.isNumeric ? '[' + esc(c.text) + ']' : '"' + esc(c.text) + '"'}</div>
-        <div class="ref-meta">
-          ${c.matchedRef !== null ? `<span class="badge ${typeClass}">${c.matchType} → Ref #${c.matchedRef}</span>` : '<span class="badge badge-err">❌ No matching reference</span>'}
-          ${ref ? `<span>${esc(ref.firstAuthor)}, ${ref.year}</span>` : ''}
+          <span class="cit-count-badge ${countCls}">${countIcon} Cited ${r.matchCount}×</span>
         </div>
       </div>
     </div>`;
   }).join('');
+}
+
+function sortRefs(mode, btnEl) {
+  currentRefSort = mode;
+  document.querySelectorAll('#card-refs .source-tab').forEach(t => t.classList.remove('active'));
+  if (btnEl) btnEl.classList.add('active');
+  renderReferences();
+}
+
+function renderCitations() {
+  // Update source counts
+  updateCitationSourceCounts();
+
+  // Filter citations by current source tab
+  let filtered = citations;
+  if (currentCitFilter !== 'all') {
+    if (currentCitFilter === 'both') {
+      filtered = citations.filter(c => c.source === 'both');
+    } else {
+      filtered = citations.filter(c => c.source === currentCitFilter);
+    }
+  }
+
+  $('cit-list').innerHTML = filtered.map((c, i) => {
+    const citIndex = citations.indexOf(c);
+    const ref = c.matchedRef !== null ? references.find(r => r.index === c.matchedRef) : null;
+    const typeClass = c.matchType === 'exact' ? 'badge-ok' : c.matchType === 'fuzzy' ? 'badge-warn' : c.matchType === 'ai' ? 'badge-info' : 'badge-err';
+    // Source badge color
+    const srcBadge = c.source === 'ai' ? 'badge-info' : c.source === 'manual' ? 'badge-warn' : c.source === 'both' ? 'badge-ok' : 'badge-muted';
+    const srcLabel = c.source === 'ai' ? '🤖 AI' : c.source === 'manual' ? '✋ Manual' : c.source === 'both' ? '✅ Both' : '🔤 Regex';
+    const deleteBtn = c.source === 'manual' ? `<button class="btn btn-danger btn-sm" style="padding:2px 8px;font-size:10px" onclick="deleteManualCitation(${citIndex})">✕</button>` : '';
+    // Count how many times the SAME text appears across all citations (duplicate usage)
+    const sameTextCount = citations.filter(x => x.text.toLowerCase() === c.text.toLowerCase()).length;
+    const dupBadge = sameTextCount > 1 ? `<span class="cit-count-badge high">🔄 ×${sameTextCount}</span>` : '';
+    // Show ref citation count
+    const refCitBadge = ref ? `<span class="cit-count-badge ${ref.matchCount === 0 ? 'zero' : ref.matchCount >= 3 ? 'high' : 'some'}">📌 Ref cited ${ref.matchCount}×</span>` : '';
+    return `
+    <div class="ref-item">
+      <div class="ref-num" style="${c.matchedRef !== null ? '' : 'background:var(--danger);color:#fff'}">${citIndex+1}</div>
+      <div class="ref-body">
+        <div class="ref-text">${c.isNumeric ? '[' + esc(c.text) + ']' : '"' + esc(c.text) + '"'}</div>
+        <div class="ref-meta">
+          <span class="badge ${srcBadge}">${srcLabel}</span>
+          ${c.matchedRef !== null ? `<span class="badge ${typeClass}">${c.matchType} → Ref #${c.matchedRef}</span>` : '<span class="badge badge-err">❌ No matching reference</span>'}
+          ${ref ? `<span>${esc(ref.firstAuthor)}, ${ref.year}</span>` : ''}
+          ${dupBadge}${refCitBadge}
+        </div>
+      </div>
+      ${deleteBtn}
+    </div>`;
+  }).join('');
+}
+
+function updateCitationSourceCounts() {
+  const all = citations.length;
+  const regex = citations.filter(c => c.source === 'regex').length;
+  const ai = citations.filter(c => c.source === 'ai').length;
+  const both = citations.filter(c => c.source === 'both').length;
+  const manual = citations.filter(c => c.source === 'manual').length;
+  $('cit-count-all').textContent = all;
+  $('cit-count-regex').textContent = regex;
+  $('cit-count-ai').textContent = ai;
+  $('cit-count-both').textContent = both;
+  $('cit-count-manual').textContent = manual;
+  $('cit-count').textContent = all;
+}
+
+function filterCitationsBySource(tabEl, source) {
+  currentCitFilter = source;
+  document.querySelectorAll('#cit-source-tabs .source-tab').forEach(t => t.classList.remove('active'));
+  tabEl.classList.add('active');
+  renderCitations();
+}
+
+// ============ MANUAL CITATIONS ============
+function addManualCitation() {
+  const input = $('manual-cit-input');
+  const text = input.value.trim();
+  if (!text || text.length < 3) return toast('Please type a citation to add', 'error');
+
+  // Check duplicate
+  const key = text.toLowerCase();
+  if (citations.some(c => c.text.toLowerCase() === key)) {
+    return toast('This citation already exists', 'warning');
+  }
+
+  // Parse authors and year
+  let authors = [], year = '';
+  const isNumeric = /^\d/.test(text) || /^\[\d/.test(text);
+
+  if (!isNumeric) {
+    const m = text.match(new RegExp('^(' + _nameP + '(?:\\s+(?:et\\s+al\\.?))?)(?:\\s*[&,]\\s*' + _nameP + ')*(?:,\\s*|[\\s(])(\\d{4}[a-z]?)'));
+    if (m) {
+      year = m[m.length - 1];
+      const authorPart = text.substring(0, text.lastIndexOf(year)).replace(/[&,]/g, ' ');
+      const nameMatches = authorPart.match(new RegExp(_nameP, 'gi'));
+      if (nameMatches) authors = nameMatches.map(n => n).filter(n => n.length > 1);
+    }
+  }
+
+  const newCit = {
+    text: isNumeric && !text.startsWith('[') ? text : text,
+    matchedRef: null,
+    matchType: null,
+    position: -1,
+    isNumeric: isNumeric,
+    source: 'manual',
+    authors: authors,
+    year: year
+  };
+  citations.push(newCit);
+  manualCitations.push(citations.length - 1);
+
+  input.value = '';
+
+  // Auto-match the new citation
+  if (references.length > 0) {
+    if (isNumeric) {
+      const nums = parseNumericCit(newCit.text);
+      let anyMatched = false;
+      for (const n of nums) {
+        const ref = references.find(r => r.index === n);
+        if (ref) { ref.matchCount++; anyMatched = true; }
+      }
+      if (anyMatched) { newCit.matchedRef = nums[0]; newCit.matchType = 'exact'; }
+    } else {
+      const best = findBestMatch(newCit, references);
+      if (best) {
+        newCit.matchedRef = best.ref.index;
+        newCit.matchType = best.confidence > 0.8 ? 'exact' : 'fuzzy';
+        best.ref.matchCount++;
+      }
+    }
+  }
+
+  renderCitations();
+  renderReferences();
+  generateReport();
+  toast(`Manual citation added: "${text}"${newCit.matchedRef !== null ? ' → matched Ref #' + newCit.matchedRef : ' (unmatched)'}`, 'success');
+}
+
+function deleteManualCitation(idx) {
+  if (idx < 0 || idx >= citations.length) return;
+  if (citations[idx].source !== 'manual') return;
+
+  // Decrement matchCount if it was matched
+  if (citations[idx].matchedRef !== null) {
+    const ref = references.find(r => r.index === citations[idx].matchedRef);
+    if (ref) ref.matchCount = Math.max(0, ref.matchCount - 1);
+  }
+
+  citations.splice(idx, 1);
+  manualCitations = manualCitations.filter(i => i !== idx).map(i => i > idx ? i - 1 : i);
+
+  renderCitations();
+  renderReferences();
+  generateReport();
+  toast('Manual citation removed', 'info');
+}
+
+function clearManualCitations() {
+  if (manualCitations.length === 0) return toast('No manual citations to clear', 'info');
+
+  // Remove all manual citations (in reverse order to preserve indices)
+  const indices = [...manualCitations].sort((a, b) => b - a);
+  for (const idx of indices) {
+    if (citations[idx] && citations[idx].matchedRef !== null) {
+      const ref = references.find(r => r.index === citations[idx].matchedRef);
+      if (ref) ref.matchCount = Math.max(0, ref.matchCount - 1);
+    }
+    citations.splice(idx, 1);
+  }
+  manualCitations = [];
+
+  renderCitations();
+  renderReferences();
+  generateReport();
+  toast(`Cleared ${indices.length} manual citations`, 'info');
+}
+
+function toggleVMAddPanel() {
+  const panel = $('vm-add-panel');
+  panel.classList.toggle('active');
+  if (panel.classList.contains('active')) {
+    $('vm-manual-cit-input').focus();
+  }
+}
+
+function addManualCitationFromVM() {
+  const input = $('vm-manual-cit-input');
+  const text = input.value.trim();
+  if (!text || text.length < 3) return;
+
+  // Reuse addManualCitation logic but sync the input field
+  $('manual-cit-input').value = text;
+  addManualCitation();
+  input.value = '';
+  $('vm-add-panel').classList.remove('active');
+
+  // Re-render visual mode
+  if ($('vm-overlay').classList.contains('active')) {
+    renderVisualMode();
+  }
 }
 
 function showRefSection() {
@@ -1704,13 +1985,14 @@ function generateReport() {
   const matchedCits = citations.filter(c => c.matchedRef !== null).length;
   const unmatchedCits = totalCits - matchedCits;
   const unreferencedRefs = references.filter(r => r.matchCount === 0).length;
+  const manualCits = citations.filter(c => c.source === 'manual').length;
 
   const uniqueCits = new Set(citations.map(c => c.text.toLowerCase())).size;
   $('report-stats').innerHTML = `
     <div class="stat-card"><div class="stat-val" style="color:var(--accent)">${totalRefs}</div><div class="stat-label">Total References</div></div>
     <div class="stat-card"><div class="stat-val" style="color:var(--success)">${verifiedRefs}</div><div class="stat-label">Verified</div></div>
     <div class="stat-card"><div class="stat-val" style="color:var(--info)">${totalCits}</div><div class="stat-label">In-text Citations</div></div>
-    <div class="stat-card"><div class="stat-val" style="color:var(--muted)">${uniqueCits}</div><div class="stat-label">Unique Citations</div></div>
+    <div class="stat-card"><div class="stat-val" style="color:var(--warning)">${manualCits}</div><div class="stat-label">Manual Citations</div></div>
     <div class="stat-card"><div class="stat-val" style="color:${unmatchedCits?'var(--danger)':'var(--success)'}">${unmatchedCits}</div><div class="stat-label">Unmatched</div></div>
     <div class="stat-card"><div class="stat-val" style="color:${unreferencedRefs?'var(--warning)':'var(--success)'}">${unreferencedRefs}</div><div class="stat-label">Unreferenced</div></div>
   `;
@@ -1744,6 +2026,19 @@ function showReportTab(tabEl, tab) {
           </div>
         </div>
       </div>`).join('') : '<div style="color:var(--success);text-align:center;padding:24px;">✅ All references are cited!</div>';
+  } else if (tab === 'manual') {
+    const manualCits = citations.filter(c => c.source === 'manual');
+    $('report-content').innerHTML = manualCits.length ? manualCits.map((c, i) => `
+      <div class="ref-item">
+        <div class="ref-num" style="background:var(--warning);color:#000">✋${i+1}</div>
+        <div class="ref-body">
+          <div class="ref-text">${c.isNumeric ? '[' + esc(c.text) + ']' : '"' + esc(c.text) + '"'}</div>
+          <div class="ref-meta">
+            ${c.matchedRef !== null ? `<span class="badge badge-ok">✅ Matched → Ref #${c.matchedRef}</span>` : '<span class="badge badge-err">❌ No matching reference</span>'}
+            <span class="badge badge-warn">Manual</span>
+          </div>
+        </div>
+      </div>`).join('') : '<div style="color:var(--muted);text-align:center;padding:24px;">No manually added citations yet.<br><span style="font-size:12px;">Use the "Add Citation" input in Step 4 or Visual Mode to add citations manually.</span></div>';
   } else if (tab === 'compare') {
     const onlyRegex = citations.filter(c => c.source === 'regex');
     const onlyAI = citations.filter(c => c.source === 'ai');
@@ -1801,13 +2096,21 @@ function exportReport() {
   lines.push(`Matched: ${citations.filter(c=>c.matchedRef!==null).length}`);
   lines.push(`Unmatched: ${citations.filter(c=>c.matchedRef===null).length}`);
   lines.push(`Unreferenced: ${references.filter(r=>r.matchCount===0).length}`);
+  lines.push(`Manual Citations: ${citations.filter(c=>c.source==='manual').length}`);
   lines.push('');
   lines.push('--- Unmatched Citations ---');
-  citations.filter(c => c.matchedRef === null).forEach((c, i) => lines.push(`  ${i+1}. ${c.isNumeric ? '[' + c.text + ']' : '"' + c.text + '"'}`));
+  citations.filter(c => c.matchedRef === null).forEach((c, i) => lines.push(`  ${i+1}. ${c.isNumeric ? '[' + c.text + ']' : '"' + c.text + '"'} [${c.source}]`));
   lines.push('');
   lines.push('--- Unreferenced References ---');
   references.filter(r => r.matchCount === 0).forEach(r => lines.push(`  [${r.index}] ${r.text}`));
   lines.push('');
+  // Manual citations section
+  const manualCits = citations.filter(c => c.source === 'manual');
+  if (manualCits.length > 0) {
+    lines.push('--- Manually Added Citations ---');
+    manualCits.forEach((c, i) => lines.push(`  ${i+1}. "${c.text}" → ${c.matchedRef !== null ? 'Matched Ref #' + c.matchedRef : 'Unmatched'}`));
+    lines.push('');
+  }
   lines.push('--- All References (sorted by citation frequency) ---');
   [...references].sort((a, b) => b.matchCount - a.matchCount).forEach(r => lines.push(`  [${r.index}] Cited ${r.matchCount}× — ${r.text}`));
 
@@ -1825,18 +2128,27 @@ function exportMarkdown() {
   md += `| In-text Citations | ${citations.length} (${uniqueCits} unique) |\n`;
   md += `| Matched | ${citations.filter(c=>c.matchedRef!==null).length} |\n`;
   md += `| Unmatched | ${citations.filter(c=>c.matchedRef===null).length} |\n`;
-  md += `| Unreferenced | ${references.filter(r=>r.matchCount===0).length} |\n\n`;
+  md += `| Unreferenced | ${references.filter(r=>r.matchCount===0).length} |\n`;
+  md += `| Manual Citations | ${citations.filter(c=>c.source==='manual').length} |\n\n`;
 
   const uncited = citations.filter(c => c.matchedRef === null);
   if (uncited.length) {
     md += `## ❌ Unmatched Citations\n\n`;
-    uncited.forEach((c, i) => md += `${i+1}. ${c.isNumeric ? '[' + c.text + ']' : '"' + c.text + '"'}\n`);
+    uncited.forEach((c, i) => md += `${i+1}. ${c.isNumeric ? '[' + c.text + ']' : '"' + c.text + '"'} \`[${c.source}]\`\n`);
     md += '\n';
   }
   const unref = references.filter(r => r.matchCount === 0);
   if (unref.length) {
     md += `## ⚠️ Unreferenced References\n\n`;
     unref.forEach(r => md += `[${r.index}] ${r.text}\n`);
+    md += '\n';
+  }
+
+  // Manual citations section
+  const manualCits = citations.filter(c => c.source === 'manual');
+  if (manualCits.length) {
+    md += `## ✋ Manually Added Citations\n\n`;
+    manualCits.forEach((c, i) => md += `${i+1}. "${c.text}" → ${c.matchedRef !== null ? '✅ Matched Ref #' + c.matchedRef : '❌ Unmatched'}\n`);
     md += '\n';
   }
 
@@ -1861,6 +2173,60 @@ function openVisualMode() {
 function closeVisualMode() {
   $('vm-overlay').classList.remove('active');
   document.body.style.overflow = '';
+  $('vm-sel-btn').classList.remove('show');
+}
+
+// ============ TEXT SELECTION → ADD CITATION ============
+// Monitor text selection in VM text panel and show floating "Add as Citation" button
+(function() {
+  document.addEventListener('selectionchange', () => {
+    const panel = $('vm-text-panel');
+    if (!panel || !$('vm-overlay').classList.contains('active')) {
+      $('vm-sel-btn').classList.remove('show');
+      return;
+    }
+    const sel = window.getSelection();
+    const text = sel ? sel.toString().trim() : '';
+    if (!text || text.length < 5) {
+      $('vm-sel-btn').classList.remove('show');
+      return;
+    }
+    // Check if selection is inside the vm-text-panel
+    const range = sel.getRangeAt(0);
+    if (!panel.contains(range.commonAncestorContainer)) {
+      $('vm-sel-btn').classList.remove('show');
+      return;
+    }
+    // Position the button near the selection
+    const rect = range.getBoundingClientRect();
+    const btn = $('vm-sel-btn');
+    btn.style.left = (rect.left + rect.width / 2 - 60) + 'px';
+    btn.style.top = (rect.top - 40) + 'px';
+    btn.classList.add('show');
+  });
+})();
+
+function addSelectedTextAsCitation() {
+  const sel = window.getSelection();
+  if (!sel) return;
+  const text = sel.toString().trim();
+  if (!text || text.length < 5) return;
+
+  // Clean the selected text: remove parentheses if they wrap the whole thing
+  let cleaned = text;
+  if (/^\(.*\)$/.test(cleaned)) cleaned = cleaned.slice(1, -1).trim();
+  if (/^\[.*\]$/.test(cleaned)) cleaned = cleaned.slice(1, -1).trim();
+
+  // Remove trailing punctuation that's likely not part of citation
+  cleaned = cleaned.replace(/[.,;:]+$/, '').trim();
+
+  // Put into the manual citation input and trigger add
+  $('manual-cit-input').value = cleaned;
+  addManualCitation();
+
+  // Clear selection
+  sel.removeAllRanges();
+  $('vm-sel-btn').classList.remove('show');
 }
 
 // Track selected citation/reference for cross-linking
@@ -1992,11 +2358,29 @@ function renderTextPanel() {
     const cit = uniqueCits.find(c => c.citIdx === parseInt(idxStr));
     if (!cit) return match;
     const isMatched = cit.matchedRef !== null;
-    const cls = isMatched ? 'matched' : 'unmatched';
+
+    // Determine source-based class
+    let sourceCls = '';
+    if (cit.source === 'manual') {
+      sourceCls = 'manual';
+    } else if (cit.source === 'ai') {
+      sourceCls = 'ai-only';
+    } else if (cit.source === 'both') {
+      sourceCls = 'both-source';
+    } else {
+      sourceCls = 'regex-only';
+    }
+
+    // Check if this is a duplicate (same text found by both regex and ai)
+    // The 'both' source already means duplicate, but we also check manually
+    const isDuplicate = cit.source === 'both';
+    if (isDuplicate) sourceCls = 'duplicate';
+
+    const cls = isDuplicate ? 'duplicate' : (!isMatched && cit.source !== 'manual' ? 'unmatched' : sourceCls);
     const refIdx = cit.matchedRef;
     const tip = isMatched ? `→ Ref #${refIdx}` : 'No matching reference';
-    const source = cit.source === 'ai' ? ' 🤖' : cit.source === 'both' ? ' ✅' : '';
-    return `<span class="cit-hl ${cls}" data-cit-idx="${cit.citIdx}" data-ref-idx="${refIdx || ''}" onclick="vmCitClick(${cit.citIdx})">${esc(text.substring(cit._finalPos, cit._finalPos + cit._finalLen))}<span class="cit-tip">${tip}${source}</span></span>`;
+    const srcIcon = cit.source === 'ai' ? ' 🤖' : cit.source === 'both' ? ' ✅🔄' : cit.source === 'manual' ? ' ✋' : ' 🔤';
+    return `<span class="cit-hl ${cls}" data-cit-idx="${cit.citIdx}" data-ref-idx="${refIdx || ''}" onclick="vmCitClick(${cit.citIdx})">${esc(text.substring(cit._finalPos, cit._finalPos + cit._finalLen))}<span class="cit-tip">${tip}${srcIcon}</span></span>`;
   });
 
   panel.innerHTML = html;
@@ -2004,17 +2388,19 @@ function renderTextPanel() {
 
 function renderRefPanel() {
   const list = $('vm-ref-list');
-  list.innerHTML = references.map((r, i) => {
+  // Sort by matchCount ascending (unreferenced first) for VM panel
+  const sorted = [...references].sort((a, b) => a.matchCount - b.matchCount);
+  list.innerHTML = sorted.map((r, i) => {
     const hasCit = r.matchCount > 0;
     const cls = hasCit ? 'has-cit' : 'no-cit';
-    const citCount = citations.filter(c => c.matchedRef === r.index);
+    const countCls = r.matchCount === 0 ? 'zero' : r.matchCount >= 3 ? 'high' : 'some';
     return `
       <div class="vm-ref-item ${cls}" data-ref-idx="${r.index}" onclick="vmRefClick(${r.index})" id="vm-ref-${r.index}">
         <div class="vm-ref-idx">[${r.index}]</div>
         <div class="vm-ref-text">${esc(r.text.length > 150 ? r.text.substring(0, 150) + '...' : r.text)}</div>
         <div class="vm-ref-meta">
           <span class="badge ${statusBadge(r.status)}">${statusLabel(r.status)}</span>
-          <span>📌 ${r.matchCount}×</span>
+          <span class="cit-count-badge ${countCls}">📌 ${r.matchCount}×</span>
           ${r.year ? `<span>${r.year}</span>` : ''}
         </div>
       </div>`;
@@ -2099,6 +2485,61 @@ document.addEventListener('keydown', e => {
   }
 });
 
+// ============ FEEDBACK ============
+function openFeedbackModal() {
+  $('feedback-overlay').classList.add('active');
+  // Pre-fill with useful context
+  const info = `RefCheck ${references.length} refs, ${citations.length} citations, ${citations.filter(c=>c.matchedRef===null).length} unmatched\n\n`;
+  $('feedback-text').value = '';
+  $('feedback-text').placeholder = `Describe the issue...\n\nContext: ${info.trim()}`;
+  $('feedback-text').focus();
+}
+
+function closeFeedbackModal() {
+  $('feedback-overlay').classList.remove('active');
+}
+
+function submitFeedback() {
+  const text = $('feedback-text').value.trim();
+  if (!text || text.length < 10) {
+    return toast('Please describe the issue (at least 10 characters)', 'error');
+  }
+
+  // Build feedback payload
+  const feedback = {
+    type: 'refcheck_error_report',
+    timestamp: new Date().toISOString(),
+    stats: {
+      totalRefs: references.length,
+      totalCitations: citations.length,
+      unmatchedCitations: citations.filter(c => c.matchedRef === null).length,
+      unreferencedRefs: references.filter(r => r.matchCount === 0).length,
+      manualCitations: citations.filter(c => c.source === 'manual').length,
+      aiCitations: citations.filter(c => c.source === 'ai' || c.source === 'both').length,
+    },
+    message: text,
+    userAgent: navigator.userAgent
+  };
+
+  // Try to submit via a webhook or just copy to clipboard
+  // For now, copy to clipboard as a JSON and show toast
+  const feedbackStr = JSON.stringify(feedback, null, 2);
+
+  // Try sending to a Google Form webhook or just copy
+  // Fallback: copy feedback to clipboard
+  navigator.clipboard.writeText(feedbackStr).then(() => {
+    toast('Feedback copied to clipboard! Please paste it in our feedback channel.', 'success');
+    closeFeedbackModal();
+  }).catch(() => {
+    // Fallback: open mailto
+    const subject = encodeURIComponent('RefCheck Error Report');
+    const body = encodeURIComponent(feedbackStr);
+    window.open(`mailto:feedback@example.com?subject=${subject}&body=${body}`, '_blank');
+    closeFeedbackModal();
+    toast('Opening email client to send feedback...', 'info');
+  });
+}
+
 // ============ UTILS ============
 function esc(s) { const d = document.createElement('div'); d.textContent = s || ''; return d.innerHTML; }
 function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
@@ -2151,11 +2592,45 @@ function setStep(n) {
     </div>
     <button class="vm-close" onclick="closeVisualMode()">✕</button>
   </div>
+  <!-- VM Toolbar with legend and manual add -->
+  <div class="vm-toolbar">
+    <label>Legend:</label>
+    <div class="vm-legend">
+      <div class="vm-legend-item"><div class="vm-legend-dot" style="background:rgba(6,182,212,0.5)"></div>Regex</div>
+      <div class="vm-legend-item"><div class="vm-legend-dot" style="background:rgba(168,85,247,0.5)"></div>AI</div>
+      <div class="vm-legend-item"><div class="vm-legend-dot" style="background:rgba(34,197,94,0.4)"></div>Both</div>
+      <div class="vm-legend-item"><div class="vm-legend-dot" style="background:rgba(249,115,22,0.5)"></div>Manual</div>
+      <div class="vm-legend-item"><div class="vm-legend-dot" style="background:repeating-linear-gradient(45deg,rgba(245,158,11,0.4),rgba(245,158,11,0.4) 2px,transparent 2px,transparent 4px)"></div>Duplicate</div>
+    </div>
+    <div style="flex:1"></div>
+    <button class="vm-add-cit-btn" onclick="toggleVMAddPanel()">✋ Add Citation</button>
+  </div>
+  <!-- VM Manual Add Panel -->
+  <div class="vm-add-panel" id="vm-add-panel">
+    <input type="text" id="vm-manual-cit-input" placeholder='Type citation e.g. "Smith et al., 2020"' onkeydown="if(event.key==='Enter'){addManualCitationFromVM();}">
+    <button class="btn btn-primary btn-sm" onclick="addManualCitationFromVM()">Add</button>
+    <button class="btn btn-secondary btn-sm" onclick="toggleVMAddPanel()">Cancel</button>
+  </div>
   <div class="vm-body">
-    <div class="vm-text-panel" id="vm-text-panel"></div>
+    <div class="vm-text-panel" id="vm-text-panel" style="position:relative;"></div>
+    <!-- Floating button for text selection -->
+    <button class="vm-sel-btn" id="vm-sel-btn" onclick="addSelectedTextAsCitation()">✋ Add as Citation</button>
     <div class="vm-ref-panel" id="vm-ref-panel">
       <h3>References</h3>
       <div id="vm-ref-list"></div>
+    </div>
+  </div>
+</div>
+
+<!-- Feedback Modal -->
+<div class="feedback-overlay" id="feedback-overlay" onclick="if(event.target===this)closeFeedbackModal()">
+  <div class="feedback-modal">
+    <h3>🐛 Report an Error</h3>
+    <p>Found something wrong? Help us improve RefCheck by describing the issue below.</p>
+    <textarea class="feedback-textarea" id="feedback-text" placeholder="Describe what went wrong, what you expected, and any steps to reproduce the issue..."></textarea>
+    <div class="feedback-actions">
+      <button class="btn btn-secondary" onclick="closeFeedbackModal()">Cancel</button>
+      <button class="btn btn-primary" onclick="submitFeedback()">Submit Feedback</button>
     </div>
   </div>
 </div>
