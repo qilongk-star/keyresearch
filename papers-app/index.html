@@ -470,23 +470,23 @@
     }
     .page-wrapper canvas { display: block; }
 
-    /* Text layer for selection */
+    /* Text layer for selection — must work with pdfjsLib.renderTextLayer output */
     .text-layer {
       position: absolute; top: 0; left: 0; right: 0; bottom: 0;
       line-height: 1; opacity: 0.25; user-select: text;
+      overflow: hidden;
     }
     .text-layer ::selection { background: rgba(99,102,241,0.4); }
-    /* Item wrapper spans — absolutely positioned to match PDF text items */
     .text-layer > span {
-      position: absolute; white-space: pre; cursor: text;
-      transform-origin: 0% 0%; color: transparent;
+      color: transparent;
+      position: absolute;
+      white-space: pre;
+      cursor: text;
+      transform-origin: 0% 0%;
       pointer-events: none;
     }
-    /* Character spans inside the wrapper — inline-block, fixed width per char */
-    .text-layer > span > span {
-      position: static; display: inline-block; overflow: hidden;
-      color: transparent; pointer-events: inherit;
-    }
+    .text-layer br::selection { background: transparent; }
+    .text-layer .endOfContent { display: none; }
 
     /* Highlight layer */
     .highlight-layer {
@@ -2165,8 +2165,37 @@ async function renderSinglePage(pageNum) {
 
   await page.render({ canvasContext: ctx, viewport }).promise;
 
+  // Use PDF.js built-in text layer for accurate text positions
   const textContent = await page.getTextContent();
-  renderTextLayer(textContent, textLayer, viewport);
+  textLayer.innerHTML = '';
+  try {
+    pdfjsLib.renderTextLayer({
+      textContent: textContent,
+      container: textLayer,
+      viewport: viewport,
+      textDivs: []
+    });
+  } catch (e) {
+    // Fallback if built-in renderTextLayer is not available in this build
+    console.warn('pdfjsLib.renderTextLayer not available, using fallback', e);
+    textContent.items.forEach(item => {
+      if (!item.str) return;
+      const span = document.createElement('span');
+      span.textContent = item.str;
+      // Use raw transform — positions won't be pixel-perfect but selection works
+      const tx = pdfjsLib.Util.transform(viewport.transform, item.transform);
+      const fontSize = Math.max(Math.hypot(tx[0], tx[1]), 1);
+      span.style.position = 'absolute';
+      span.style.left = tx[4] + 'px';
+      span.style.top = (tx[5] - fontSize) + 'px';
+      span.style.fontSize = fontSize + 'px';
+      span.style.fontFamily = item.fontName || 'sans-serif';
+      span.style.color = 'transparent';
+      span.style.whiteSpace = 'pre';
+      span.style.transformOrigin = '0% 0%';
+      textLayer.appendChild(span);
+    });
+  }
 
   // Update or add page info
   const pageInfo = { page, canvas, viewport, wrapper, textLayer, hlLayer, noteLayer, pageNum, textContent };
@@ -2204,102 +2233,6 @@ function goToPrevPage() {
 function goToNextPage() {
   if (currentViewerPage < totalPages) {
     renderSinglePage(currentViewerPage + 1);
-  }
-}
-
-function renderTextLayer(textContent, container, viewport) {
-  const items = textContent.items;
-
-  for (let i = 0; i < items.length; i++) {
-    const item = items[i];
-    if (!item.str) continue;
-
-    // Transform the text position from PDF coords to viewport coords
-    const tx = pdfjsLib.Util.transform(viewport.transform, item.transform);
-    const fontSize = Math.hypot(tx[0], tx[1]);
-    if (fontSize < 1) continue;
-
-    const angle = Math.atan2(tx[1], tx[0]);
-    const isVertical = Math.abs(angle) > Math.PI / 4;
-
-    // item.width is in text-space units (≈ total character widths, ~fontSize scale).
-    // The viewport transform scales text-space → viewport pixels.
-    // tx[0],tx[1] = the combined scale+rotation of the first axis ≈ fontSize in px.
-    // So viewport width = item.width * fontSize is already correct in most cases,
-    // but we cap it to prevent runaway values from bad PDFs.
-    const rawWidth = (item.width || 0) * fontSize;
-    const totalWidth = Math.min(rawWidth, 2000);  // sane cap
-    const textHeight = (item.height || 1) * fontSize;
-    const scaleX = Math.hypot(tx[2], tx[3]) / fontSize;
-
-    // ── Wrap the whole item in a container span ──
-    const wrapper = document.createElement('span');
-    wrapper.dataset.itemIdx = i;
-
-    if (isVertical) {
-      const height = Math.min(item.width * fontSize || fontSize, 2000);
-      wrapper.style.cssText = `
-        position:absolute;
-        left:${tx[4] - fontSize * 0.5}px;
-        top:${tx[5] - fontSize}px;
-        width:${fontSize}px;
-        height:${height}px;
-        font-size:${fontSize}px;
-        line-height:${(height / fontSize)};
-        writing-mode:vertical-rl;
-        white-space:pre;
-        color:transparent;
-        transform-origin:0% 0%;
-      `;
-      wrapper.textContent = item.str;
-      container.appendChild(wrapper);
-      continue;
-    }
-
-    // ── Horizontal text ──
-    const str = item.str;
-    const charCount = str.length;
-
-    // Compute a reasonable charWidth: divide total item width by number of chars.
-    // Fallback: use a font-based estimate if item.width is 0 or missing.
-    let charWidth;
-    if (totalWidth > 0 && charCount > 0) {
-      charWidth = totalWidth / charCount;
-    } else {
-      // Fallback: estimate ~0.55 * fontSize per char (proportional font average)
-      charWidth = fontSize * 0.55;
-    }
-
-    // Ensure charWidth is not absurdly large (guard against bad PDF data)
-    charWidth = Math.min(charWidth, fontSize * 3);
-
-    wrapper.style.cssText = `
-      position:absolute;
-      left:${tx[4]}px;
-      top:${tx[5] - textHeight * 0.85}px;
-      height:${Math.max(textHeight * 1.1, fontSize)}px;
-      font-size:${fontSize}px;
-      font-family:${item.fontName || 'sans-serif'};
-      line-height:${Math.max(textHeight * 1.1, fontSize) / fontSize};
-      white-space:pre;
-      color:transparent;
-      transform-origin:0% 0%;
-      ${Math.abs(scaleX - 1) > 0.01 ? `transform:scaleX(${scaleX});` : ''}
-    `;
-
-    // Build character spans for precise selection
-    for (let c = 0; c < charCount; c++) {
-      const ch = document.createElement('span');
-      ch.textContent = str[c];
-      ch.style.cssText = `
-        display:inline-block;
-        width:${charWidth}px;
-        overflow:hidden;
-      `;
-      wrapper.appendChild(ch);
-    }
-
-    container.appendChild(wrapper);
   }
 }
 
