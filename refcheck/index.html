@@ -309,7 +309,7 @@ async function handleFile(file) {
 
   // Show processing
   $('processing-status').classList.remove('hidden');
-  setProcessStatus('Extracting text from document...', 10);
+    setProcessStatus('Extracting text from document...', 10);
 
   try {
     if (isPDF) {
@@ -318,30 +318,121 @@ async function handleFile(file) {
       await extractFromDocx(file);
     }
 
-    setProcessStatus('Splitting body text and references section...', 50);
+    setProcessStatus('Parsing references section...', 30);
     await sleep(200);
     splitBodyAndRefs();
 
-    setProcessStatus('Parsing references...', 70);
-    await sleep(200);
+    setProcessStatus('Splitting references...', 40);
+    await sleep(100);
     parseReferences();
 
-    setProcessStatus('Extracting in-text citations...', 90);
-    await sleep(200);
+    setProcessStatus('Extracting in-text citations...', 50);
+    await sleep(100);
     extractCitationsFromText(bodyText);
 
-    setProcessStatus('Done!', 100);
-    await sleep(300);
-    $('processing-status').classList.add('hidden');
-
-    // Show results
-    setStep(2);
+    // Show extracted refs and citations
     $('card-refs').classList.remove('hidden');
     $('card-citations').classList.remove('hidden');
     renderReferences();
     renderCitations();
 
-    toast(`Extracted ${references.length} references and ${citations.length} in-text citations`, 'success');
+    if (references.length === 0) {
+      setProcessStatus('Done! No references found.', 100);
+      await sleep(500);
+      $('processing-status').classList.add('hidden');
+      toast('No references found. Check the raw text below.', 'warning');
+      return;
+    }
+
+    // Auto-verify all references via CrossRef
+    setProcessStatus(`Verifying ${references.length} references via CrossRef...`, 55);
+    $('card-verify').classList.remove('hidden');
+    setStep(3);
+
+    const pending = references.filter(r => r.status === 'pending');
+    let done = 0;
+    const total = pending.length;
+
+    for (const ref of pending) {
+      const idx = references.indexOf(ref);
+      const result = await verifyOneRef(ref);
+      references[idx].status = result.status;
+      references[idx].verifiedTitle = result.title || '';
+      done++;
+
+      const pct = 55 + (done / total) * 25;
+      setProcessStatus(`Verifying reference ${done}/${total}...`, pct);
+      $('verify-status').textContent = `Verifying ${done}/${total}...`;
+      $('verify-fill').style.width = (done/total*100) + '%';
+
+      $('verify-list').innerHTML += `
+        <div class="ref-item">
+          <div class="ref-num">${ref.index}</div>
+          <div class="ref-body">
+            <div class="ref-text">${esc(ref.text.substring(0, 100))}${ref.text.length > 100 ? '...' : ''}</div>
+            <div class="ref-meta">
+              <span class="badge ${statusBadge(result.status)}">${statusLabel(result.status)}</span>
+              ${result.title ? '<span>Found: ' + esc(result.title.substring(0,60)) + '</span>' : ''}
+            </div>
+          </div>
+        </div>`;
+      $('verify-list').scrollTop = $('verify-list').scrollHeight;
+
+      await sleep(250);
+    }
+
+    // Auto-match citations
+    setProcessStatus('Matching in-text citations to references...', 85);
+    await sleep(200);
+    setStep(4);
+
+    let matched = 0, unmatched = 0;
+    references.forEach(r => r.matchCount = 0);
+    citations.forEach(c => { c.matchedRef = null; c.matchType = null; });
+
+    for (const cit of citations) {
+      if (cit.isNumeric) {
+        const nums = parseNumericCit(cit.text);
+        let anyMatched = false;
+        for (const n of nums) {
+          const ref = references.find(r => r.index === n);
+          if (ref) { ref.matchCount++; anyMatched = true; matched++; }
+        }
+        if (anyMatched) { cit.matchedRef = nums[0]; cit.matchType = 'exact'; }
+        else unmatched++;
+      } else {
+        const best = findBestMatch(cit.text, references);
+        if (best && best.confidence > 0.4) {
+          cit.matchedRef = best.ref.index;
+          cit.matchType = best.confidence > 0.8 ? 'exact' : 'fuzzy';
+          references[best.ref.index].matchCount++;
+          matched++;
+        } else unmatched++;
+      }
+    }
+
+    renderCitations();
+    renderReferences();
+
+    // Generate report
+    setProcessStatus('Generating report...', 95);
+    await sleep(200);
+    setStep(5);
+    generateReport();
+
+    // Show verify results
+    renderReferences();
+
+    setProcessStatus('Done!', 100);
+    await sleep(500);
+    $('processing-status').classList.add('hidden');
+
+    const verified = references.filter(r => r.status === 'verified' || r.status === 'likely').length;
+    const notFound = references.filter(r => r.status === 'not_found').length;
+    const uncited = citations.filter(c => c.matchedRef === null).length;
+    const unreferenced = references.filter(r => r.matchCount === 0).length;
+
+    toast(`Done! ${verified} refs OK, ${notFound} not found, ${matched} citations matched, ${uncited} unmatched`, notFound === 0 && uncited === 0 ? 'success' : 'warning');
 
   } catch(e) {
     toast('Error: ' + e.message, 'error');
