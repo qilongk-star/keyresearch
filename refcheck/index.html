@@ -219,6 +219,7 @@ body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-
     <div class="tabs" id="report-tabs">
       <div class="tab active" onclick="showReportTab(this, 'unmatched')">❌ Unmatched Citations</div>
       <div class="tab" onclick="showReportTab(this, 'unreferenced')">⚠️ Unreferenced</div>
+      <div class="tab" onclick="showReportTab(this, 'compare')">🔀 AI vs Regex</div>
       <div class="tab" onclick="showReportTab(this, 'all')">📋 All References</div>
     </div>
     <div id="report-content" class="ref-list"></div>
@@ -261,7 +262,7 @@ let fullText = '';          // full text extracted from paper
 let refSectionText = '';    // raw text of the references section
 let bodyText = '';          // text before references (for citation extraction)
 let references = [];        // [{index, text, doi, firstAuthor, year, title, verified, status, matchCount, verifiedTitle}]
-let citations = [];         // [{text, matchedRef, matchType, position}]
+let citations = [];         // [{text, matchedRef, matchType, position, source:'regex'|'ai'|'both'}]
 let settings = { deepseekKey: '', openaiKey: '', geminiKey: '' };
 
 // Load settings
@@ -675,13 +676,14 @@ function parseAPARefs(text) {
   // APA ref start pattern: "Lastname, " or "Lastname " at start of line/after newline
   // Supports: "Lastname, F.", "Lastname, F. M.", "Lastname F.", "Lastname and ",
   //           "Lastname & ", "Lastname, A. B., & ", multi-word last names
-  const apaStartPattern = /(?:^|\n)\s*([A-Z][a-z'öüäéèêëàâîïôûçñ-]+(?:\s+[A-Z][a-z'öüäéèêëàâîïôûçñ-]+)*),?\s+(?:[A-Z]\.|[a-z]+|and\s|&)/gm;
+  // Supports hyphenated names like "Quan-Haase", "De La Ronde", etc.
+  const apaStartPattern = /(?:^|\n)\s*([A-Z][a-z'öüäéèêëàâîïôûçñ-]+(?:[-\s][A-Z][a-z'öüäéèêëàâîïôûçñ-]+)*),?\s+(?:[A-Z]\.|[a-z]+|and\s|&)/gm;
 
   let positions = [];
   let m;
   while ((m = apaStartPattern.exec(text)) !== null) {
     const name = m[1].toLowerCase();
-    if (!commonWords.includes(name) && m.index > 0) {
+    if (!commonWords.includes(name)) {
       positions.push(m.index);
     }
   }
@@ -751,7 +753,7 @@ function parseMLARefs(text) {
   while ((m = mlaStartPattern.exec(text)) !== null) {
     const name = m[1].toLowerCase();
     const commonWords = ['the', 'this', 'that', 'retrieved', 'available', 'http'];
-    if (!commonWords.includes(name) && m.index > 0) {
+    if (!commonWords.includes(name)) {
       positions.push(m.index);
     }
   }
@@ -784,19 +786,19 @@ function parseOneRef(text) {
     if (yearBare) year = yearBare[0];
   }
 
-  // Extract first author — multiple patterns
+  // Extract first author — multiple patterns (supports hyphenated names like Quan-Haase)
   let firstAuthor = '';
   // APA: "Lastname, F. M." or "Lastname, F." or "Lastname, F. M., &"
-  const apaAuthor = text.match(/^([A-Z][a-z'öüäéèêëàâîïôûçñ-]+(?:\s+[a-z]+)*),\s+(?:[A-Z]\.|[a-z]+)/);
+  const apaAuthor = text.match(new RegExp('^(' + _nameP + '(?:\\s+[a-z]+)*),\\s+(?:[A-Z]\\.|[a-z]+)'));
   if (apaAuthor) firstAuthor = apaAuthor[1].replace(/,/g, '');
   // "Lastname FM" or "Lastname &" or "Lastname and"
   if (!firstAuthor) {
-    const simpleAuthor = text.match(/^([A-Z][a-z'öüäéèêëàâîïôûçñ-]+)\s+(?:&|and\s)/);
+    const simpleAuthor = text.match(new RegExp('^(' + _nameP + ')\\s+(?:&|and\\s)'));
     if (simpleAuthor) firstAuthor = simpleAuthor[1];
   }
   // "Lastname, " at very start
   if (!firstAuthor) {
-    const commaAuthor = text.match(/^([A-Z][a-z'öüäéèêëàâîïôûçñ-]+)/);
+    const commaAuthor = text.match(new RegExp('^(' + _nameP + ')'));
     if (commaAuthor && text.charAt(commaAuthor[0].length) === ',') {
       firstAuthor = commaAuthor[1];
     }
@@ -831,6 +833,9 @@ function parseOneRef(text) {
 }
 
 // ============ CITATION EXTRACTION ============
+// Shared author name pattern: supports "Smith", "Quan-Haase", "De La Ronde"
+const _nameP = '[A-Z][a-z\x27öüäéèêëàâîïôûçñ-]*(?:[-\\s][A-Z][a-z\x27öüäéèêëàâîïôûçñ-]*)*';
+
 function extractCitationsFromText(text) {
   citations = [];
   const seen = new Set();
@@ -839,9 +844,9 @@ function extractCitationsFromText(text) {
     txt = txt.trim();
     if (txt.length < 4) return;
     // Filter false positives
-    if (/^(?:the|this|that|these|those|figure|table|section|chapter|page|eq|e\.g|i\.e|see|also|such)/i.test(txt)) return;
-    if (/^\d{4}$/.test(txt)) return; // bare year like "(2020)"
-    if (/^\d+[a-z]?$/.test(txt)) return; // bare year like "(2020a)"
+    if (/^(?:the|this|that|these|those|figure|table|section|chapter|page|eq|e\.g|i\.e|see|also|such|model|study|h\d|promotion|prevention|mediation|moderation)/i.test(txt)) return;
+    if (/^\d{4}$/.test(txt)) return;
+    if (/^\d+[a-z]?$/.test(txt)) return;
     const key = txt.toLowerCase();
     if (!seen.has(key)) {
       seen.add(key);
@@ -850,7 +855,7 @@ function extractCitationsFromText(text) {
   }
 
   // =============================================
-  // Pattern A: (Author, Year) / (Author et al., Year)
+  // Pattern A: (Author, Year) / (Author et al., Year) / (Author & Author, Year)
   //   Includes multiple citations: (Author et al., 2020; Chen & Xia, 2024)
   // =============================================
   const parenBlock = /\(([^)]{3,200})\)/g;
@@ -859,45 +864,42 @@ function extractCitationsFromText(text) {
     const block = m[1];
     const pos = m.index;
 
-    // Check if this block looks like citations (must have author-name-like content + year)
     // Quick check: contains at least one 4-digit year and a capitalized word
     if (!/\b(19|20)\d{2}[a-z]?\b/.test(block)) continue;
     if (!/[A-Z][a-z]{2,}/.test(block)) continue;
 
-    // Now split the block by ";" to get individual citations
+    // Split by ";" to get individual citations
     const parts = block.split(/\s*;\s*/);
 
     for (const part of parts) {
       const trimmed = part.trim();
-      // Try to match individual citation patterns within this part
-      // Pattern A1: Author, Year / Author et al., Year
-      const a1 = trimmed.match(/^([A-Z][a-z'öüäéèêëàâîïôûçñ]+(?:\s+(?:et\s+al\.?))?)\s*,?\s*((?:19|20)\d{2}[a-z]?)/);
+      // Pattern A1: Author, Year / Author et al., Year  (supports hyphenated names)
+      const a1 = trimmed.match(new RegExp('^(' + _nameP + '(?:\\s+(?:et\\s+al\\.?))?)\\s*,?\\s*((?:19|20)\\d{2}[a-z]?)'));
       if (a1) {
         addCit(`${a1[1].trim()}, ${a1[2]}`, pos);
         continue;
       }
       // Pattern A2: Author & Author, Year
-      const a2 = trimmed.match(/^([A-Z][a-z'öüäéèêëàâîïôûçñ]+)\s*&\s*[A-Z][a-z'öüäéèêëàâîïôûçñ]+\s*,?\s*((?:19|20)\d{2}[a-z]?)/);
+      const a2 = trimmed.match(new RegExp('^(' + _nameP + ')\\s*&\\s*' + _nameP + '\\s*,?\\s*((?:19|20)\\d{2}[a-z]?)'));
       if (a2) {
         addCit(`${a2[1].trim()}, ${a2[2]}`, pos);
         continue;
       }
       // Pattern A3: Author and Author, Year
-      const a3 = trimmed.match(/^([A-Z][a-z'öüäéèêëàâîïôûçñ]+)\s+and\s+[A-Z][a-z'öüäéèêëàâîïôûçñ]+\s*,?\s*((?:19|20)\d{2}[a-z]?)/);
+      const a3 = trimmed.match(new RegExp('^(' + _nameP + ')\\s+and\\s+' + _nameP + '\\s*,?\\s*((?:19|20)\\d{2}[a-z]?)'));
       if (a3) {
         addCit(`${a3[1].trim()}, ${a3[2]}`, pos);
         continue;
       }
-      // Pattern A4: Multiple years for same author: Author (2020, 2021)
-      const a4 = trimmed.match(/^([A-Z][a-z'öüäéèêëàâîïôûçñ]+(?:\s+et\s+al\.?)?)\s*\((\d{4}[a-z]?(?:\s*,\s*\d{4}[a-z]?)*)\)/);
+      // Pattern A4: Multiple years: Author (2020, 2021)
+      const a4 = trimmed.match(new RegExp('^(' + _nameP + '(?:\\s+et\\s+al\\.?)?)\\s*\\((\\d{4}[a-z]?(?:\\s*,\\s*\\d{4}[a-z]?)*)\\)'));
       if (a4) {
-        // Split multiple years into separate citations
         const years = a4[2].split(/\s*,\s*/);
         for (const y of years) addCit(`${a4[1].trim()}, ${y.trim()}`, pos);
         continue;
       }
       // Pattern A5: Author (Year) inside a larger parenthetical
-      const a5 = trimmed.match(/([A-Z][a-z'öüäéèêëàâîïôûçñ]+(?:\s+et\s+al\.?)?)\s*\((\d{4}[a-z]?)\)/);
+      const a5 = trimmed.match(new RegExp('(' + _nameP + '(?:\\s+et\\s+al\\.?)?)\\s*\\((\\d{4}[a-z]?)\\)'));
       if (a5) {
         addCit(`${a5[1].trim()}, ${a5[2]}`, pos);
         continue;
@@ -908,12 +910,20 @@ function extractCitationsFromText(text) {
   // =============================================
   // Pattern B: Author (Year) — not wrapped in outer parentheses
   //   e.g., "Barhorst et al. (2020) found that..."
+  //   e.g., "Yanovski and Yanovski (2002) argued..."
   // =============================================
-  const authorYear = /\b([A-Z][a-z'öüäéèêëàâîïôûçñ]+(?:\s+(?:et\s+al\.?|[A-Z][a-z]+))?)\s*\((\d{4}[a-z]?)\)/g;
-  while ((m = authorYear.exec(text)) !== null) {
+  // B1: Single author or et al.
+  const b1 = new RegExp('\\b(' + _nameP + '(?:\\s+(?:et\\s+al\\.?))?)\\s*\\((\\d{4}[a-z]?)\\)', 'g');
+  while ((m = b1.exec(text)) !== null) {
     const author = m[1].trim();
-    // Skip common false-positive words
-    if (/^(?:the|this|that|these|those|figure|table|section|chapter|page|eq|vol|no|issue|available|retrieved|see|also)/i.test(author)) continue;
+    if (/^(?:the|this|that|these|those|figure|table|section|chapter|page|eq|vol|no|issue|available|retrieved|see|also|model|study|h\d)/i.test(author)) continue;
+    addCit(`${author}, ${m[2]}`, m.index);
+  }
+  // B2: Author and Author (Year) — two authors without outer parens
+  const b2 = new RegExp('\\b(' + _nameP + ')\\s+and\\s+' + _nameP + '\\s*\\((\\d{4}[a-z]?)\\)', 'g');
+  while ((m = b2.exec(text)) !== null) {
+    const author = m[1].trim();
+    if (/^(?:the|this|that|these|those|figure|table|section|chapter|page|eq|vol|no|issue)/i.test(author)) continue;
     addCit(`${author}, ${m[2]}`, m.index);
   }
 
@@ -1161,9 +1171,9 @@ function parseNumericCit(text) {
 }
 
 function findBestMatch(citText, refs) {
-  // Parse citation: "Smith et al., 2020" or "Smith, 2020" or "Smith et al. (2020)"
+  // Parse citation: "Smith et al., 2020" or "Smith, 2020" or "Quan-Haase & Young, 2010"
   // Supports hyphenated names, accented chars, and multi-word last names
-  const citMatch = citText.match(/^([A-Z][\w'öüäéèêëàâîïôûçñ-]+(?:\s+[\w'öüäéèêëàâîïôûçñ-]+)?)(?:\s+(et\s+al\.?))?(?:,\s*|[\s(])(\d{4}[a-z]?)/);
+  const citMatch = citText.match(new RegExp('^(' + _nameP + ')(?:\\s+(et\\s+al\\.?))?(?:,\\s*|[\\s(])(\\d{4}[a-z]?)'));
   if (!citMatch) return null;
 
   const citAuthor = citMatch[1].trim().toLowerCase();
@@ -1356,10 +1366,14 @@ Reply ONLY with a JSON array of strings. Each string is one citation, e.g. ["Smi
   const deduped = uniqueCits.map(c => allAICitations.find(orig => orig.toLowerCase() === c)).filter(Boolean);
 
   // Merge with existing citations: add AI-found ones that regex missed
+  // Mark regex citations with source='regex' if not already tagged
+  citations.forEach(c => { if (!c.source) c.source = 'regex'; });
+
   const existingKeys = new Set(citations.map(c => c.text.toLowerCase()));
   let newCount = 0;
   for (const citText of deduped) {
-    if (!existingKeys.has(citText.toLowerCase())) {
+    const key = citText.toLowerCase();
+    if (!existingKeys.has(key)) {
       citations.push({
         text: citText,
         matchedRef: null,
@@ -1368,8 +1382,12 @@ Reply ONLY with a JSON array of strings. Each string is one citation, e.g. ["Smi
         isNumeric: /^\d/.test(citText),
         source: 'ai'
       });
-      existingKeys.add(citText.toLowerCase());
+      existingKeys.add(key);
       newCount++;
+    } else {
+      // AI and regex both found it — mark as 'both'
+      const existing = citations.find(c => c.text.toLowerCase() === key);
+      if (existing && existing.source === 'regex') existing.source = 'both';
     }
   }
 
@@ -1453,6 +1471,34 @@ function showReportTab(tabEl, tab) {
           </div>
         </div>
       </div>`).join('') : '<div style="color:var(--success);text-align:center;padding:24px;">✅ All references are cited!</div>';
+  } else if (tab === 'compare') {
+    const onlyRegex = citations.filter(c => c.source === 'regex');
+    const onlyAI = citations.filter(c => c.source === 'ai');
+    const bothCits = citations.filter(c => c.source === 'both');
+
+    let html = `<div style="padding:16px;">
+      <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-bottom:16px;">
+        <div class="stat-card"><div class="stat-val" style="color:var(--info)">${onlyRegex.length + bothCits.length}</div><div class="stat-label">Regex Found</div></div>
+        <div class="stat-card"><div class="stat-val" style="color:var(--accent)">${onlyAI.length + bothCits.length}</div><div class="stat-label">AI Found</div></div>
+        <div class="stat-card"><div class="stat-val" style="color:var(--success)">${bothCits.length}</div><div class="stat-label">Both Agree</div></div>
+      </div>`;
+
+    if (onlyRegex.length > 0) {
+      html += `<div style="margin-bottom:16px;"><strong style="color:var(--info)">🔑 Only Regex (${onlyRegex.length})</strong> — found by regex but not by AI:</div>`;
+      html += onlyRegex.map(c => `<div class="ref-item"><div class="ref-num" style="background:var(--info);color:#fff">R</div><div class="ref-body"><div class="ref-text">${esc(c.text)}</div><div class="ref-meta"><span class="badge badge-ok">${c.matchedRef !== null ? '✅ Matched' : '❌ Unmatched'}</span></div></div></div>`).join('');
+    }
+
+    if (onlyAI.length > 0) {
+      html += `<div style="margin-bottom:16px;"><strong style="color:var(--accent)">🤖 Only AI (${onlyAI.length})</strong> — found by AI but missed by regex:</div>`;
+      html += onlyAI.map(c => `<div class="ref-item"><div class="ref-num" style="background:var(--accent);color:#fff">A</div><div class="ref-body"><div class="ref-text">${esc(c.text)}</div><div class="ref-meta"><span class="badge badge-ok">${c.matchedRef !== null ? '✅ Matched' : '❌ Unmatched'}</span></div></div></div>`).join('');
+    }
+
+    if (onlyRegex.length === 0 && onlyAI.length === 0) {
+      html += `<div style="color:var(--success);text-align:center;padding:24px;">✅ Regex and AI found exactly the same citations!</div>`;
+    }
+
+    html += '</div>';
+    $('report-content').innerHTML = html;
   } else {
     $('report-content').innerHTML = references.map(r => `
       <div class="ref-item">
