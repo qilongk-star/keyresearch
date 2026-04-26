@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>PapersHub - Research Team</title>
-  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="https://unpkg.com/@supabase/supabase-js@2.49.1/dist/umd/supabase.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
   <style>
     * { box-sizing: border-box; margin: 0; padding: 0; }
@@ -520,18 +520,39 @@
 
     /* Highlight resize handles */
     .highlight-box .resize-handle {
-      position: absolute; top: 0; width: 6px; height: 100%;
-      cursor: ew-resize; z-index: 5; opacity: 0; transition: opacity 0.2s;
+      position: absolute; z-index: 5; opacity: 0; transition: opacity 0.2s;
+    }
+    .highlight-box:hover .resize-handle { opacity: 1; }
+
+    /* Left / Right handles (width adjustment) */
+    .highlight-box .resize-handle.left,
+    .highlight-box .resize-handle.right {
+      top: 0; width: 6px; height: 100%; cursor: ew-resize;
     }
     .highlight-box .resize-handle.left { left: -3px; }
     .highlight-box .resize-handle.right { right: -3px; }
-    .highlight-box:hover .resize-handle { opacity: 1; }
-    .highlight-box .resize-handle::after {
+    .highlight-box .resize-handle.left::after,
+    .highlight-box .resize-handle.right::after {
       content: ''; position: absolute; top: 50%; transform: translateY(-50%);
       width: 2px; height: 60%; background: var(--accent); border-radius: 1px;
     }
     .highlight-box .resize-handle.left::after { left: 2px; }
     .highlight-box .resize-handle.right::after { right: 2px; }
+
+    /* Top / Bottom handles (height adjustment) */
+    .highlight-box .resize-handle.top,
+    .highlight-box .resize-handle.bottom {
+      left: 0; width: 100%; height: 6px; cursor: ns-resize;
+    }
+    .highlight-box .resize-handle.top { top: -3px; }
+    .highlight-box .resize-handle.bottom { bottom: -3px; }
+    .highlight-box .resize-handle.top::after,
+    .highlight-box .resize-handle.bottom::after {
+      content: ''; position: absolute; left: 50%; transform: translateX(-50%);
+      height: 2px; width: 60%; background: #f59e0b; border-radius: 1px;
+    }
+    .highlight-box .resize-handle.top::after { top: 2px; }
+    .highlight-box .resize-handle.bottom::after { bottom: 2px; }
 
     /* Highlight thickness controls */
     .hl-thickness-group {
@@ -2530,9 +2551,9 @@ function renderHighlight(a) {
     box.dataset.rectIdx = idx;
     box.style.cssText = `left:${r.x}px;top:${r.y}px;width:${r.width}px;height:${r.height}px;background:${hexToRgba(color, 0.35)};border-bottom:${bb}px solid ${hexToRgba(color, 0.8)};`;
 
-    // Resize handles (left and right edges)
+    // Resize handles (all 4 edges)
     if (isOwn) {
-      ['left', 'right'].forEach(side => {
+      ['left', 'right', 'top', 'bottom'].forEach(side => {
         const handle = document.createElement('div');
         handle.className = `resize-handle ${side}`;
         handle.addEventListener('mousedown', e => {
@@ -2555,7 +2576,7 @@ function renderHighlight(a) {
       box.querySelector('.author-tip').appendChild(delSpan);
       // Re-add resize handles after innerHTML wiped them
       if (isOwn) {
-        ['left', 'right'].forEach(side => {
+        ['left', 'right', 'top', 'bottom'].forEach(side => {
           const handle = document.createElement('div');
           handle.className = `resize-handle ${side}`;
           handle.addEventListener('mousedown', e => {
@@ -2576,49 +2597,69 @@ function renderHighlight(a) {
   });
 }
 
-// ─── Highlight resize logic ───
+// ─── Highlight resize logic (all 4 edges) ───
 let resizeState = null;
 
 function startResize(e, anno, rectIdx, side, boxEl) {
   const rects = typeof anno.rects === 'string' ? JSON.parse(anno.rects) : [...(anno.rects || [])];
+  const isVertical = (side === 'top' || side === 'bottom');
   resizeState = {
     anno, rectIdx, side, boxEl, rects,
-    startX: e.clientX,
+    startX: e.clientX, startY: e.clientY,
     origRect: { ...rects[rectIdx] }
   };
   document.addEventListener('mousemove', onResize);
   document.addEventListener('mouseup', endResize);
-  document.body.style.cursor = 'ew-resize';
+  document.body.style.cursor = isVertical ? 'ns-resize' : 'ew-resize';
   document.body.style.userSelect = 'none';
 }
 
 function onResize(e) {
   if (!resizeState) return;
-  const { boxEl, side, startX, origRect, anno, rectIdx } = resizeState;
+  const { boxEl, side, startX, startY, origRect, anno, rectIdx } = resizeState;
   const dx = e.clientX - startX;
+  const dy = e.clientY - startY;
 
-  let newX = origRect.x;
-  let newW = origRect.width;
+  let newX = origRect.x, newW = origRect.width;
+  let newY = origRect.y, newH = origRect.height;
 
+  // Width adjustment (left / right)
   if (side === 'right') {
     newW = Math.max(10, origRect.width + dx);
-  } else {
-    // Left side: move x and adjust width inversely
+  } else if (side === 'left') {
     const maxShift = origRect.width - 10;
     const shift = Math.min(dx, maxShift);
     newX = origRect.x + shift;
     newW = origRect.width - shift;
   }
 
+  // Height adjustment (top / bottom)
+  if (side === 'bottom') {
+    newH = Math.max(4, origRect.height + dy);
+  } else if (side === 'top') {
+    const maxShift = origRect.height - 4;
+    const shift = Math.min(dy, maxShift);
+    newY = origRect.y + shift;
+    newH = origRect.height - shift;
+  }
+
   // Update box visually
-  boxEl.style.left = newX + 'px';
-  boxEl.style.width = newW + 'px';
+  if (side === 'left' || side === 'right') {
+    boxEl.style.left = newX + 'px';
+    boxEl.style.width = newW + 'px';
+  }
+  if (side === 'top' || side === 'bottom') {
+    boxEl.style.top = newY + 'px';
+    boxEl.style.height = newH + 'px';
+  }
 
   // Update rects in state
   resizeState.rects[rectIdx] = {
     ...resizeState.rects[rectIdx],
     x: Math.round(newX * 10) / 10,
-    width: Math.round(newW * 10) / 10
+    width: Math.round(newW * 10) / 10,
+    y: Math.round(newY * 10) / 10,
+    height: Math.round(newH * 10) / 10
   };
 }
 
@@ -2640,12 +2681,17 @@ function endResize() {
 }
 
 async function updateAnnoRects(id, rects) {
-  const { error } = await sb.from('annotations')
-    .update({ rects: JSON.stringify(rects) })
-    .eq('id', id);
-  if (error) {
-    console.error('updateAnnoRects error:', error);
-    toast('Failed to save resize', 'error');
+  try {
+    const { error } = await sb.from('annotations')
+      .update({ rects: JSON.stringify(rects) })
+      .eq('id', id);
+    if (error) {
+      console.error('updateAnnoRects error:', error);
+      toast('Failed to save resize', 'error');
+    }
+  } catch (e) {
+    console.error('updateAnnoRects exception:', e);
+    toast('Network error — failed to save resize', 'error');
   }
 }
 
