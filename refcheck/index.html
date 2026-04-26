@@ -2270,7 +2270,8 @@ function renderTextPanel() {
 
   // --- Pattern 1: Parenthetical citations ---
   // Match (Author, Year), (Author & Author, Year), (Author; Author, Year), etc.
-  // Also match (Author Year) without comma
+  // KEY: Split multi-citation parentheticals by ";" into individual sub-citations,
+  // each getting its own highlight and color.
   const parentheticalRe = /\(([^)]*(?:19|20)\d{2}[a-z]?[^)]*)\)/g;
   let pm;
   while ((pm = parentheticalRe.exec(text)) !== null) {
@@ -2279,38 +2280,115 @@ function renderTextPanel() {
     if (/^\d+[a-z]?$/.test(inner)) continue;
     if (/^[A-Z]{2,5}$/.test(inner)) continue;
 
-    // Extract year from inner
-    const yearM = inner.match(/\b((?:19|20)\d{2}[a-z]?)\b/);
-    if (!yearM) continue;
-    const year = yearM[1];
+    // Check if there's a valid year inside
+    const hasYear = /\b((?:19|20)\d{2}[a-z]?)\b/.test(inner);
+    if (!hasYear) continue;
 
-    // Extract author part (everything before the year, roughly)
-    const yearIdx = inner.lastIndexOf(year);
-    let authorPart = inner.substring(0, yearIdx).replace(/[;,]\s*$/, '').trim();
-    if (!authorPart || authorPart.length < 1) continue;
+    // Skip stop-word-only content
+    const firstWord = inner.split(/[;,;\s]+/)[0];
+    if (/^(?:the|this|that|these|those|figure|table|section|chapter|page|eq|e\.g|i\.e|see|also|such)$/i.test(firstWord)) continue;
 
-    // Skip stop words
-    if (/^(?:the|this|that|these|those|figure|table|section|chapter|page|eq|e\.g|i\.e|see|also|such)$/i.test(authorPart)) continue;
-
-    // Try to match against references
-    const citObj = { text: authorPart + ', ' + year, authors: [], year: year };
-    // Parse authors from the inner text
-    const namesFound = authorPart.match(new RegExp(_nameP, 'gi'));
-    if (namesFound) {
-      citObj.authors = namesFound.map(n => n.trim()).filter(n => n.length > 1);
+    // --- Split by ";" to find sub-citations ---
+    // Each segment should contain an author part and a year.
+    // Track positions relative to the start of inner text within the original text.
+    const innerStartInText = pm.index + 1; // position right after "(" in original text
+    const semicolonSplits = [];
+    let searchFrom = 0;
+    while (true) {
+      const scIdx = inner.indexOf(';', searchFrom);
+      if (scIdx < 0) break;
+      semicolonSplits.push(scIdx);
+      searchFrom = scIdx + 1;
     }
-    citObj._rawText = pm[0]; // The full (text) including parentheses
 
-    const best = findBestMatch(citObj, references);
-    highlights.push({
-      pos: pm.index,
-      len: pm[0].length,
-      text: pm[0],
-      matchedRef: best ? best.ref.index : null,
-      confidence: best ? best.confidence : 0,
-      source: 'scan',
-      hlId: hlId++
-    });
+    // Build segment boundaries as [start, end) offsets within inner
+    const segBounds = [];
+    let prevEnd = 0;
+    for (const sc of semicolonSplits) {
+      segBounds.push([prevEnd, sc]);
+      prevEnd = sc + 1;
+    }
+    segBounds.push([prevEnd, inner.length]); // last segment
+
+    let hasValidSub = false;
+
+    for (const [segStart, segEnd] of segBounds) {
+      const segText = inner.substring(segStart, segEnd).trim();
+      if (!segText) continue;
+
+      // Find year in this segment
+      const segYearM = segText.match(/\b((?:19|20)\d{2}[a-z]?)\b/);
+      if (!segYearM) continue;
+      const segYear = segYearM[1];
+      const segYearIdx = segText.lastIndexOf(segYear);
+      let segAuthor = segText.substring(0, segYearIdx).replace(/[,&]\s*$/, '').trim();
+      if (!segAuthor || segAuthor.length < 1) continue;
+
+      // Skip stop words
+      if (/^(?:the|this|that|these|those|figure|table|section|chapter|page|eq|e\.g|i\.e|see|also|such)$/i.test(segAuthor)) continue;
+
+      // Calculate the actual position in original text
+      // Find the trimmed segment's start: locate the first non-whitespace char
+      const rawSeg = inner.substring(segStart, segEnd);
+      const leadingWs = rawSeg.match(/^(\s*)/)[1].length;
+      const actualSegStart = segStart + leadingWs;
+
+      // The segment ends after the year in the original text
+      // Find the year position within the raw segment
+      const yearInRawSeg = rawSeg.indexOf(segYear, rawSeg.length - segText.length + segYearIdx);
+      const yearEndInInner = segStart + yearInRawSeg + segYear.length;
+
+      const hlStart = innerStartInText + actualSegStart;
+      const hlEnd = innerStartInText + yearEndInInner;
+
+      const segFullText = text.substring(hlStart, hlEnd);
+
+      // Match against references
+      const citObj = { text: segAuthor + ', ' + segYear, authors: [], year: segYear };
+      const namesFound = segAuthor.match(new RegExp(_nameP, 'gi'));
+      if (namesFound) {
+        citObj.authors = namesFound.map(n => n.trim()).filter(n => n.length > 1);
+      }
+
+      const best = findBestMatch(citObj, references);
+      highlights.push({
+        pos: hlStart,
+        len: hlEnd - hlStart,
+        text: segFullText,
+        matchedRef: best ? best.ref.index : null,
+        confidence: best ? best.confidence : 0,
+        source: 'scan',
+        hlId: hlId++
+      });
+      hasValidSub = true;
+    }
+
+    // If no valid sub-citations were found, treat the whole parenthetical as one
+    if (!hasValidSub) {
+      const yearM = inner.match(/\b((?:19|20)\d{2}[a-z]?)\b/);
+      if (yearM) {
+        const year = yearM[1];
+        const yearIdx = inner.lastIndexOf(year);
+        let authorPart = inner.substring(0, yearIdx).replace(/[;,]\s*$/, '').trim();
+        if (authorPart && authorPart.length >= 1) {
+          const citObj = { text: authorPart + ', ' + year, authors: [], year: year };
+          const namesFound = authorPart.match(new RegExp(_nameP, 'gi'));
+          if (namesFound) {
+            citObj.authors = namesFound.map(n => n.trim()).filter(n => n.length > 1);
+          }
+          const best = findBestMatch(citObj, references);
+          highlights.push({
+            pos: pm.index,
+            len: pm[0].length,
+            text: pm[0],
+            matchedRef: best ? best.ref.index : null,
+            confidence: best ? best.confidence : 0,
+            source: 'scan',
+            hlId: hlId++
+          });
+        }
+      }
+    }
   }
 
   // --- Pattern 2: Narrative citations ---
