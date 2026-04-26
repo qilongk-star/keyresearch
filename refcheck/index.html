@@ -2258,184 +2258,170 @@ function renderTextPanel() {
   }
 
   const text = bodyText || fullText;
-  // Sort citations by position (ascending), put position=-1 (AI, no position) at end
-  const sortedCits = citations
-    .map((c, i) => ({ ...c, citIdx: i }))
-    .filter(c => !c.isNumeric) // Skip numeric [N] citations for text highlighting
-    .sort((a, b) => {
-      if (a.position === -1 && b.position === -1) return 0;
-      if (a.position === -1) return 1;
-      if (b.position === -1) return -1;
-      return a.position - b.position;
+
+  // ================================================================
+  // APPROACH: Scan the FULL TEXT for all citation-like patterns.
+  // This finds EVERY occurrence (including duplicates) regardless of
+  // whether the extraction regex caught them.
+  // ================================================================
+
+  const highlights = []; // { pos, len, matchedRef, text, source }
+  let hlId = 0;
+
+  // --- Pattern 1: Parenthetical citations ---
+  // Match (Author, Year), (Author & Author, Year), (Author; Author, Year), etc.
+  // Also match (Author Year) without comma
+  const parentheticalRe = /\(([^)]*(?:19|20)\d{2}[a-z]?[^)]*)\)/g;
+  let pm;
+  while ((pm = parentheticalRe.exec(text)) !== null) {
+    const inner = pm[1].trim();
+    if (inner.length < 4 || inner.length > 300) continue;
+    if (/^\d+[a-z]?$/.test(inner)) continue;
+    if (/^[A-Z]{2,5}$/.test(inner)) continue;
+
+    // Extract year from inner
+    const yearM = inner.match(/\b((?:19|20)\d{2}[a-z]?)\b/);
+    if (!yearM) continue;
+    const year = yearM[1];
+
+    // Extract author part (everything before the year, roughly)
+    const yearIdx = inner.lastIndexOf(year);
+    let authorPart = inner.substring(0, yearIdx).replace(/[;,]\s*$/, '').trim();
+    if (!authorPart || authorPart.length < 1) continue;
+
+    // Skip stop words
+    if (/^(?:the|this|that|these|those|figure|table|section|chapter|page|eq|e\.g|i\.e|see|also|such)$/i.test(authorPart)) continue;
+
+    // Try to match against references
+    const citObj = { text: authorPart + ', ' + year, authors: [], year: year };
+    // Parse authors from the inner text
+    const namesFound = authorPart.match(new RegExp(_nameP, 'gi'));
+    if (namesFound) {
+      citObj.authors = namesFound.map(n => n.trim()).filter(n => n.length > 1);
+    }
+    citObj._rawText = pm[0]; // The full (text) including parentheses
+
+    const best = findBestMatch(citObj, references);
+    highlights.push({
+      pos: pm.index,
+      len: pm[0].length,
+      text: pm[0],
+      matchedRef: best ? best.ref.index : null,
+      confidence: best ? best.confidence : 0,
+      source: 'scan',
+      hlId: hlId++
     });
-
-  // For AI citations with position=-1, try to find them in text
-  const aiCitsNoPos = sortedCits.filter(c => c.position === -1);
-  for (const cit of aiCitsNoPos) {
-    // Try searching for the citation text in bodyText
-    const searchStr = cit.text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-    // Try to find a reasonable match — look for the author part + year
-    const authorPart = cit.authors.length > 0 ? cit.authors[0] : cit.text.split(',')[0];
-    const yearPart = cit.year || '';
-    if (authorPart && yearPart) {
-      const escapedAuthor = authorPart.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-      const escapedYear = yearPart.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-      // Search for "Author...Year" patterns in various formats
-      const patterns = [
-        new RegExp(`\\(\\s*${escapedAuthor}[^)]*${escapedYear}\\s*\\)`, 'i'),
-        new RegExp(`\\b${escapedAuthor}[^)]*\\(\\s*${escapedYear}\\s*\\)`, 'i'),
-        new RegExp(`\\(\\s*${escapedAuthor}[^)]*${escapedYear}[^)]*\\)`, 'i'),
-      ];
-      for (const pat of patterns) {
-        const m = text.match(pat);
-        if (m && m.index >= 0) {
-          cit._vmPos = m.index;
-          cit._vmLen = m[0].length;
-          break;
-        }
-      }
-    }
-    if (cit._vmPos === undefined) {
-      cit._vmPos = -1; // Still not found
-    }
   }
 
-  // Build the highlighted HTML
-  // We need to insert <span> tags at citation positions, working from end to start to preserve offsets
-  const citsWithPos = sortedCits.filter(c => c.position >= 0 || (c._vmPos !== undefined && c._vmPos >= 0));
+  // --- Pattern 2: Narrative citations ---
+  // Match "Author (Year)" or "Author & Author (Year)" or "Author et al. (Year)"
+  const narrativeRe = new RegExp(
+    '(' + _nameP + '(?:\\s*(?:&|and)\\s+' + _nameP + ')*(?:\\s+et\\s+al\\.?)?)\\s*\\(\\s*((?:19|20)\\d{2}[a-z]?)\\s*\\)',
+    'gi'
+  );
+  let nm;
+  while ((nm = narrativeRe.exec(text)) !== null) {
+    const authorText = nm[1].trim();
+    const year = nm[nm.length - 1];
 
-  // Also find uncited references in text (ghost highlights for refs with matchCount=0)
-  const ghostRanges = [];
-  const uncitedRefs = references.filter(r => r.matchCount === 0 && r.firstAuthor && r.year);
-  for (const ref of uncitedRefs) {
-    const escapedAuthor = ref.firstAuthor.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-    const escapedYear = (ref.year || '').replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-    if (!escapedYear) continue;
-    // Search for common patterns: (Author, Year), Author (Year), Author, Year
-    const patterns = [
-      new RegExp(`\\(\\s*${escapedAuthor}\\s*,\\s*${escapedYear}\\s*\\)`, 'i'),
-      new RegExp(`\\(\\s*${escapedAuthor}\\s+${escapedYear}\\s*\\)`, 'i'),
-      new RegExp(`\\b${escapedAuthor}\\s*\\(\\s*${escapedYear}\\s*\\)`, 'i'),
-      new RegExp(`\\b${escapedAuthor}\\s*,\\s*${escapedYear}\\b`, 'i'),
-    ];
-    for (const pat of patterns) {
-      const m = pat.exec(text);
-      if (m && m.index >= 0) {
-        ghostRanges.push({ ref: ref, pos: m.index, len: m[0].length });
-        break; // Only first occurrence per reference
+    // Skip if already covered by a parenthetical match (narrative inside parens)
+    let insideParen = false;
+    for (const h of highlights) {
+      if (nm.index >= h.pos && nm.index + nm[0].length <= h.pos + h.len) {
+        insideParen = true;
+        break;
       }
     }
-  }
+    if (insideParen) continue;
 
-  // Deduplicate overlapping positions (citations at same or nearby positions)
-  const usedRanges2 = [];
-  const uniqueCits = [];
-  for (const cit of citsWithPos) {
-    const pos = cit._vmPos !== undefined ? cit._vmPos : cit.position;
-    const len = cit._vmLen || cit.text.length + 2; // +2 for possible parentheses
-    // Check overlap with existing ranges
+    // Also skip if overlapping with an existing highlight
     let overlaps = false;
-    for (const range of usedRanges2) {
-      if (pos >= range.start && pos <= range.end) {
+    for (const h of highlights) {
+      if (nm.index >= h.pos - 1 && nm.index <= h.pos + h.len + 1) {
         overlaps = true;
         break;
       }
     }
-    if (!overlaps) {
-      usedRanges2.push({ start: pos, end: pos + len });
-      uniqueCits.push({ ...cit, _finalPos: pos, _finalLen: len });
+    if (overlaps) continue;
+
+    const citObj = { text: authorText + ' (' + year + ')', authors: [], year: year };
+    const namesFound = authorText.match(new RegExp(_nameP, 'gi'));
+    if (namesFound) {
+      citObj.authors = namesFound.map(n => n.trim()).filter(n => n.length > 1);
     }
+
+    const best = findBestMatch(citObj, references);
+    highlights.push({
+      pos: nm.index,
+      len: nm[0].length,
+      text: nm[0],
+      matchedRef: best ? best.ref.index : null,
+      confidence: best ? best.confidence : 0,
+      source: 'scan',
+      hlId: hlId++
+    });
   }
 
-  // Also add ghost ranges to the overlay
-  for (const ghost of ghostRanges) {
-    let overlaps = false;
-    for (const range of usedRanges2) {
-      if (ghost.pos >= range.start && ghost.pos <= range.end) { overlaps = true; break; }
+  // --- Pattern 3: Also add manual citations from the citations array ---
+  for (let i = 0; i < citations.length; i++) {
+    const cit = citations[i];
+    if (cit.source !== 'manual') continue;
+    if (cit.position < 0) continue;
+    // Check not already covered
+    let covered = false;
+    for (const h of highlights) {
+      if (cit.position >= h.pos - 2 && cit.position <= h.pos + h.len + 2) {
+        covered = true;
+        break;
+      }
     }
-    for (const uc of uniqueCits) {
-      if (ghost.pos >= uc._finalPos - 5 && ghost.pos <= uc._finalPos + uc._finalLen + 5) { overlaps = true; break; }
-    }
-    if (!overlaps) {
-      usedRanges2.push({ start: ghost.pos, end: ghost.pos + ghost.len });
-      uniqueCits.push({
-        _finalPos: ghost.pos, _finalLen: ghost.len,
-        matchedRef: ghost.ref.index, source: 'ghost', citIdx: -1,
-        text: ghost.ref.firstAuthor + ', ' + ghost.ref.year,
-        _ghostRef: ghost.ref,
-        _markerId: -(ghost.ref.index + 1) // Use negative ref index as unique ghost marker ID
+    if (!covered) {
+      highlights.push({
+        pos: cit.position,
+        len: cit.text.length + 4, // +4 for possible parens
+        text: cit.text,
+        matchedRef: cit.matchedRef,
+        confidence: 1,
+        source: 'manual',
+        citIdx: i,
+        hlId: hlId++
       });
     }
   }
 
-  // Sort by position descending so we can insert from end without messing up offsets
-  uniqueCits.sort((a, b) => b._finalPos - a._finalPos);
+  // Sort by position descending (insert from end to preserve offsets)
+  highlights.sort((a, b) => b.pos - a.pos);
 
-  // Build HTML: start with escaped text, then insert highlights
-  let html = esc(text);
-
-  for (const cit of uniqueCits) {
-    const pos = cit._finalPos;
-    const len = cit._finalLen;
-    const markerId = cit._markerId !== undefined ? cit._markerId : cit.citIdx;
-    // In the escaped text, positions might shift due to HTML entities
-    // We need to map positions from original text to escaped text
-    // Approximate: count how many &...; entities appear before pos in original text
-    // This is tricky. Instead, let's use a different approach: rebuild from original text
-
-    // Actually, let me use a simpler approach: work on the raw text and escape manually
-    // For now, use a rough approach - this works for most cases
-    const isMatched = cit.matchedRef !== null;
-    const isGhost = cit.source === 'ghost';
-    const cls = isGhost ? 'ghost' : (isMatched ? 'matched' : 'unmatched');
-    const refIdx = cit.matchedRef;
-    const tip = isGhost
-      ? `👻 Ref #${refIdx} (unmatched in citations)`
-      : (isMatched ? `→ Ref #${refIdx}` : 'No matching reference');
-    const source = cit.source === 'ai' ? ' 🤖' : cit.source === 'both' ? ' ✅' : cit.source === 'manual' ? ' ✋' : '';
-    const highlightSpan = `<span class="cit-hl ${cls}" data-cit-idx="${markerId}" data-ref-idx="${refIdx || ''}" onclick="vmCitClick(${markerId})">${esc(text.substring(pos, pos + len))}<span class="cit-tip">${tip}${source}</span></span>`;
-
-    // Replace the text at this position
-    // We need to be careful with the escaped text — let's just mark positions and rebuild
-    html = html.substring(0, pos) + '◆VM_HL_' + markerId + '◆' + html.substring(pos + len);
+  // Build highlighted HTML using markers (works correctly with HTML escaping)
+  // Step 1: Build raw text with markers at highlight positions
+  let raw = text;
+  for (const h of highlights) {
+    const marker = `\x00HL_${h.hlId}\x00`;
+    raw = raw.substring(0, h.pos) + marker + raw.substring(h.pos + h.len);
   }
 
-  // Now replace markers with actual spans
-  html = html.replace(/◆VM_HL_(-?\d+)◆/g, (match, idxStr) => {
-    const markerId = parseInt(idxStr);
-    const cit = uniqueCits.find(c => (c._markerId !== undefined ? c._markerId : c.citIdx) === markerId);
-    if (!cit) return match;
-    const isMatched = cit.matchedRef !== null;
-    const isGhost = cit.source === 'ghost';
+  // Step 2: Escape the whole thing (markers survive because \x00 is harmless in HTML)
+  let html = esc(raw);
 
-    // Determine source-based class
-    let sourceCls = '';
-    if (isGhost) {
-      sourceCls = 'ghost';
-    } else if (cit.source === 'manual') {
-      sourceCls = 'manual';
-    } else if (cit.source === 'ai') {
-      sourceCls = 'ai-only';
-    } else if (cit.source === 'both') {
-      sourceCls = 'both-source';
-    } else {
-      sourceCls = 'regex-only';
-    }
-
-    // Check if this is a duplicate (same text found by both regex and ai)
-    // The 'both' source already means duplicate, but we also check manually
-    const isDuplicate = cit.source === 'both';
-    if (isDuplicate) sourceCls = 'duplicate';
-
-    const cls = isGhost ? 'ghost' : (isDuplicate ? 'duplicate' : (!isMatched && cit.source !== 'manual' ? 'unmatched' : sourceCls));
-    const refIdx = cit.matchedRef;
-    const tip = isGhost
-      ? `👻 Ref #${refIdx} (not matched by any citation)`
-      : (isMatched ? `→ Ref #${refIdx}` : 'No matching reference');
-    const srcIcon = isGhost ? ' 👻' : (cit.source === 'ai' ? ' 🤖' : cit.source === 'both' ? ' ✅🔄' : cit.source === 'manual' ? ' ✋' : ' 🔤');
-    return `<span class="cit-hl ${cls}" data-cit-idx="${markerId}" data-ref-idx="${refIdx || ''}" onclick="vmCitClick(${markerId})">${esc(text.substring(cit._finalPos, cit._finalPos + cit._finalLen))}<span class="cit-tip">${tip}${srcIcon}</span></span>`;
+  // Step 3: Replace markers with actual spans
+  html = html.replace(/\x00HL_(\d+)\x00/g, (match, idStr) => {
+    const h = highlights.find(x => x.hlId === parseInt(idStr));
+    if (!h) return '';
+    const rawText = text.substring(h.pos, h.pos + h.len);
+    const isMatched = h.matchedRef !== null;
+    const cls = isMatched ? 'matched' : 'unmatched';
+    const refIdx = h.matchedRef;
+    const tip = isMatched
+      ? `→ Ref #${refIdx}`
+      : 'No matching reference';
+    const srcIcon = h.source === 'manual' ? ' ✋' : ' 🔤';
+    return `<span class="cit-hl ${cls}" data-ref-idx="${refIdx !== null ? refIdx : ''}" data-hl-id="${h.hlId}" onclick="vmHlClick(${h.hlId})">${esc(rawText)}<span class="cit-tip">${tip}${srcIcon}</span></span>`;
   });
 
+  // Store highlights globally for click handling
+  window._vmHighlights = highlights;
+
+  // Line-wrap the text with line numbers
   panel.innerHTML = html;
 }
 
@@ -2460,43 +2446,38 @@ function renderRefPanel() {
   }).join('');
 }
 
-function vmCitClick(citIdx) {
-  const cit = citations[citIdx];
-  if (!cit) return;
+function vmHlClick(hlId) {
+  const hl = (window._vmHighlights || []).find(h => h.hlId === hlId);
+  if (!hl) return;
 
   // Highlight the clicked citation
   document.querySelectorAll('.cit-hl').forEach(el => el.classList.remove('flash'));
-  const el = document.querySelector(`.cit-hl[data-cit-idx="${citIdx}"]`);
+  const el = document.querySelector(`.cit-hl[data-hl-id="${hlId}"]`);
   if (el) {
     el.classList.add('flash');
     setTimeout(() => el.classList.remove('flash'), 800);
   }
 
   // Scroll to and highlight the matching reference
-  if (cit.matchedRef !== null) {
-    // Dim all refs, highlight the matched one
+  if (hl.matchedRef !== null) {
     document.querySelectorAll('.vm-ref-item').forEach(el => el.classList.remove('selected'));
-    const refEl = document.getElementById(`vm-ref-${cit.matchedRef}`);
+    const refEl = document.getElementById(`vm-ref-${hl.matchedRef}`);
     if (refEl) {
       refEl.classList.add('selected');
       refEl.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
     }
 
-    // Dim all other citations
-    document.querySelectorAll('.cit-hl').forEach(hl => {
-      if (parseInt(hl.dataset.citIdx) !== citIdx) hl.classList.add('dimmed');
+    // Dim all other citations, highlight same-ref ones
+    document.querySelectorAll('.cit-hl').forEach(el => {
+      el.classList.add('dimmed');
     });
-    // Also highlight other citations pointing to the same ref
-    document.querySelectorAll(`.cit-hl[data-ref-idx="${cit.matchedRef}"]`).forEach(hl => {
-      hl.classList.remove('dimmed');
+    document.querySelectorAll(`.cit-hl[data-ref-idx="${hl.matchedRef}"]`).forEach(el => {
+      el.classList.remove('dimmed');
     });
-
-    vmSelectedCitIdx = citIdx;
   } else {
     // Unmatched — just flash, undim all
-    document.querySelectorAll('.cit-hl').forEach(hl => hl.classList.remove('dimmed'));
+    document.querySelectorAll('.cit-hl').forEach(el => el.classList.remove('dimmed'));
     document.querySelectorAll('.vm-ref-item').forEach(el => el.classList.remove('selected'));
-    vmSelectedCitIdx = null;
   }
 }
 
@@ -2506,28 +2487,22 @@ function vmRefClick(refIdx) {
   const refEl = document.getElementById(`vm-ref-${refIdx}`);
   if (refEl) refEl.classList.add('selected');
 
-  // Find and highlight all citations matching this reference
-  document.querySelectorAll('.cit-hl').forEach(hl => hl.classList.remove('flash', 'dimmed'));
+  // Find and highlight all scan-highlights matching this reference
+  document.querySelectorAll('.cit-hl').forEach(el => el.classList.remove('flash', 'dimmed'));
 
-  const matchingCits = citations.filter(c => c.matchedRef === refIdx);
-  if (matchingCits.length > 0) {
+  const matchingHls = document.querySelectorAll(`.cit-hl[data-ref-idx="${refIdx}"]`);
+  if (matchingHls.length > 0) {
     // Dim non-matching, flash matching
-    document.querySelectorAll('.cit-hl').forEach(hl => {
-      const citIdx = parseInt(hl.dataset.citIdx);
-      const isMatching = matchingCits.some(c => citations.indexOf(c) === citIdx);
-      if (!isMatching) hl.classList.add('dimmed');
+    document.querySelectorAll('.cit-hl').forEach(el => el.classList.add('dimmed'));
+    matchingHls.forEach(el => {
+      el.classList.remove('dimmed');
+      el.classList.add('flash');
     });
-    matchingCits.forEach(c => {
-      const citIdx = citations.indexOf(c);
-      const el = document.querySelector(`.cit-hl[data-cit-idx="${citIdx}"]`);
-      if (el) {
-        el.classList.add('flash');
-        el.scrollIntoView({ behavior: 'smooth', block: 'center' });
-      }
-    });
+    // Scroll to first match
+    matchingHls[0].scrollIntoView({ behavior: 'smooth', block: 'center' });
   } else {
     // No citations match this ref — it's unreferenced
-    document.querySelectorAll('.cit-hl').forEach(hl => hl.classList.remove('dimmed'));
+    document.querySelectorAll('.cit-hl').forEach(el => el.classList.remove('dimmed'));
   }
 }
 
