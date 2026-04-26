@@ -768,7 +768,7 @@ function parseAPARefs(text) {
   // Each ref starts with a last name (capitalized word, possibly with hyphen)
   // followed by initials or first name
 
-  const refs = [];
+  let refs = [];
   const commonWords = ['the', 'this', 'that', 'these', 'those', 'available', 'retrieved', 'from', 'http', 'doi', 'vol', 'pp', 'in', 'for', 'with', 'note', 'see', 'also'];
 
   // APA ref start pattern: "Lastname, " or "Lastname " at start of line/after newline
