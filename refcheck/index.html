@@ -169,6 +169,7 @@ body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-
 .cit-hl.both-source { background: rgba(34,197,94,0.18); color: #86efac; }
 .cit-hl.manual { background: rgba(249,115,22,0.25); color: #fdba74; border: 1px dashed rgba(249,115,22,0.5); }
 .cit-hl.duplicate { background: repeating-linear-gradient(45deg, rgba(245,158,11,0.15), rgba(245,158,11,0.15) 2px, transparent 2px, transparent 4px); color: #fcd34d; border: 1px solid rgba(245,158,11,0.4); }
+.cit-hl.ghost { background: rgba(100,116,139,0.2); color: #94a3b8; border: 1px dashed rgba(100,116,139,0.5); font-style: italic; }
 .cit-hl:hover { transform: scale(1.02); filter: brightness(1.3); }
 .cit-hl.flash { animation: citFlash 0.8s ease; }
 @keyframes citFlash { 0%,100% { box-shadow: none; } 30% { box-shadow: 0 0 0 3px var(--accent); } }
@@ -1041,7 +1042,7 @@ function parseOneRef(text) {
 // ============ CITATION EXTRACTION ============
 // Shared author name pattern: "Smith", "Quan-Haase", "De La Ronde"
 // CRITICAL: does NOT match past "&" or " and " — those are author separators
-const _nameP = '[A-Z][a-z\x27öüäéèêëàâîïôûçñ-]*(?:[-\\s][A-Z][a-z\x27öüäéèêëàâîïôûçñ-]*)*';
+const _nameP = '[A-Z][a-zöüäéèêëàâîïôûçñ]*(?:[-\\s\x27][A-Z][a-zöüäéèêëàâîïôûçñ]*)*';
 // Stop words that are NOT author names
 const _citStopWords = /^(?:the|this|that|these|those|figure|table|section|chapter|page|eq|e\.g|i\.e|see|also|such|model|study|h\d|promotion|prevention|mediation|moderation|spt|apt|rct|apa|mla)$/i;
 
@@ -2303,23 +2304,68 @@ function renderTextPanel() {
   // We need to insert <span> tags at citation positions, working from end to start to preserve offsets
   const citsWithPos = sortedCits.filter(c => c.position >= 0 || (c._vmPos !== undefined && c._vmPos >= 0));
 
+  // Also find uncited references in text (ghost highlights for refs with matchCount=0)
+  const ghostRanges = [];
+  const uncitedRefs = references.filter(r => r.matchCount === 0 && r.firstAuthor && r.year);
+  for (const ref of uncitedRefs) {
+    const escapedAuthor = ref.firstAuthor.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    const escapedYear = (ref.year || '').replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    if (!escapedYear) continue;
+    // Search for common patterns: (Author, Year), Author (Year), Author, Year
+    const patterns = [
+      new RegExp(`\\(\\s*${escapedAuthor}\\s*,\\s*${escapedYear}\\s*\\)`, 'i'),
+      new RegExp(`\\(\\s*${escapedAuthor}\\s+${escapedYear}\\s*\\)`, 'i'),
+      new RegExp(`\\b${escapedAuthor}\\s*\\(\\s*${escapedYear}\\s*\\)`, 'i'),
+      new RegExp(`\\b${escapedAuthor}\\s*,\\s*${escapedYear}\\b`, 'i'),
+    ];
+    for (const pat of patterns) {
+      const m = pat.exec(text);
+      if (m && m.index >= 0) {
+        ghostRanges.push({ ref: ref, pos: m.index, len: m[0].length });
+        break; // Only first occurrence per reference
+        }
+      }
+    }
+  }
+
   // Deduplicate overlapping positions (citations at same or nearby positions)
-  const usedRanges = [];
+  const usedRanges2 = [];
   const uniqueCits = [];
   for (const cit of citsWithPos) {
     const pos = cit._vmPos !== undefined ? cit._vmPos : cit.position;
     const len = cit._vmLen || cit.text.length + 2; // +2 for possible parentheses
     // Check overlap with existing ranges
     let overlaps = false;
-    for (const range of usedRanges) {
+    for (const range of usedRanges2) {
       if (pos >= range.start && pos <= range.end) {
         overlaps = true;
         break;
       }
     }
     if (!overlaps) {
-      usedRanges.push({ start: pos, end: pos + len });
+      usedRanges2.push({ start: pos, end: pos + len });
       uniqueCits.push({ ...cit, _finalPos: pos, _finalLen: len });
+    }
+  }
+
+  // Also add ghost ranges to the overlay
+  for (const ghost of ghostRanges) {
+    let overlaps = false;
+    for (const range of usedRanges2) {
+      if (ghost.pos >= range.start && ghost.pos <= range.end) { overlaps = true; break; }
+    }
+    for (const uc of uniqueCits) {
+      if (ghost.pos >= uc._finalPos - 5 && ghost.pos <= uc._finalPos + uc._finalLen + 5) { overlaps = true; break; }
+    }
+    if (!overlaps) {
+      usedRanges2.push({ start: ghost.pos, end: ghost.pos + ghost.len });
+      uniqueCits.push({
+        _finalPos: ghost.pos, _finalLen: ghost.len,
+        matchedRef: ghost.ref.index, source: 'ghost', citIdx: -1,
+        text: ghost.ref.firstAuthor + ', ' + ghost.ref.year,
+        _ghostRef: ghost.ref,
+        _markerId: -(ghost.ref.index + 1) // Use negative ref index as unique ghost marker ID
+      });
     }
   }
 
@@ -2332,6 +2378,7 @@ function renderTextPanel() {
   for (const cit of uniqueCits) {
     const pos = cit._finalPos;
     const len = cit._finalLen;
+    const markerId = cit._markerId !== undefined ? cit._markerId : cit.citIdx;
     // In the escaped text, positions might shift due to HTML entities
     // We need to map positions from original text to escaped text
     // Approximate: count how many &...; entities appear before pos in original text
@@ -2340,28 +2387,33 @@ function renderTextPanel() {
     // Actually, let me use a simpler approach: work on the raw text and escape manually
     // For now, use a rough approach - this works for most cases
     const isMatched = cit.matchedRef !== null;
-    const cls = isMatched ? 'matched' : 'unmatched';
+    const isGhost = cit.source === 'ghost';
+    const cls = isGhost ? 'ghost' : (isMatched ? 'matched' : 'unmatched');
     const refIdx = cit.matchedRef;
-    const tip = isMatched
-      ? `→ Ref #${refIdx}`
-      : 'No matching reference';
-    const source = cit.source === 'ai' ? ' 🤖' : cit.source === 'both' ? ' ✅' : '';
-    const highlightSpan = `<span class="cit-hl ${cls}" data-cit-idx="${cit.citIdx}" data-ref-idx="${refIdx || ''}" onclick="vmCitClick(${cit.citIdx})">${esc(text.substring(pos, pos + len))}<span class="cit-tip">${tip}${source}</span></span>`;
+    const tip = isGhost
+      ? `👻 Ref #${refIdx} (unmatched in citations)`
+      : (isMatched ? `→ Ref #${refIdx}` : 'No matching reference');
+    const source = cit.source === 'ai' ? ' 🤖' : cit.source === 'both' ? ' ✅' : cit.source === 'manual' ? ' ✋' : '';
+    const highlightSpan = `<span class="cit-hl ${cls}" data-cit-idx="${markerId}" data-ref-idx="${refIdx || ''}" onclick="vmCitClick(${markerId})">${esc(text.substring(pos, pos + len))}<span class="cit-tip">${tip}${source}</span></span>`;
 
     // Replace the text at this position
     // We need to be careful with the escaped text — let's just mark positions and rebuild
-    html = html.substring(0, pos) + '◆VM_HL_' + cit.citIdx + '◆' + html.substring(pos + len);
+    html = html.substring(0, pos) + '◆VM_HL_' + markerId + '◆' + html.substring(pos + len);
   }
 
   // Now replace markers with actual spans
-  html = html.replace(/◆VM_HL_(\d+)◆/g, (match, idxStr) => {
-    const cit = uniqueCits.find(c => c.citIdx === parseInt(idxStr));
+  html = html.replace(/◆VM_HL_(-?\d+)◆/g, (match, idxStr) => {
+    const markerId = parseInt(idxStr);
+    const cit = uniqueCits.find(c => (c._markerId !== undefined ? c._markerId : c.citIdx) === markerId);
     if (!cit) return match;
     const isMatched = cit.matchedRef !== null;
+    const isGhost = cit.source === 'ghost';
 
     // Determine source-based class
     let sourceCls = '';
-    if (cit.source === 'manual') {
+    if (isGhost) {
+      sourceCls = 'ghost';
+    } else if (cit.source === 'manual') {
       sourceCls = 'manual';
     } else if (cit.source === 'ai') {
       sourceCls = 'ai-only';
@@ -2376,11 +2428,13 @@ function renderTextPanel() {
     const isDuplicate = cit.source === 'both';
     if (isDuplicate) sourceCls = 'duplicate';
 
-    const cls = isDuplicate ? 'duplicate' : (!isMatched && cit.source !== 'manual' ? 'unmatched' : sourceCls);
+    const cls = isGhost ? 'ghost' : (isDuplicate ? 'duplicate' : (!isMatched && cit.source !== 'manual' ? 'unmatched' : sourceCls));
     const refIdx = cit.matchedRef;
-    const tip = isMatched ? `→ Ref #${refIdx}` : 'No matching reference';
-    const srcIcon = cit.source === 'ai' ? ' 🤖' : cit.source === 'both' ? ' ✅🔄' : cit.source === 'manual' ? ' ✋' : ' 🔤';
-    return `<span class="cit-hl ${cls}" data-cit-idx="${cit.citIdx}" data-ref-idx="${refIdx || ''}" onclick="vmCitClick(${cit.citIdx})">${esc(text.substring(cit._finalPos, cit._finalPos + cit._finalLen))}<span class="cit-tip">${tip}${srcIcon}</span></span>`;
+    const tip = isGhost
+      ? `👻 Ref #${refIdx} (not matched by any citation)`
+      : (isMatched ? `→ Ref #${refIdx}` : 'No matching reference');
+    const srcIcon = isGhost ? ' 👻' : (cit.source === 'ai' ? ' 🤖' : cit.source === 'both' ? ' ✅🔄' : cit.source === 'manual' ? ' ✋' : ' 🔤');
+    return `<span class="cit-hl ${cls}" data-cit-idx="${markerId}" data-ref-idx="${refIdx || ''}" onclick="vmCitClick(${markerId})">${esc(text.substring(cit._finalPos, cit._finalPos + cit._finalLen))}<span class="cit-tip">${tip}${srcIcon}</span></span>`;
   });
 
   panel.innerHTML = html;
