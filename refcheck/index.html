@@ -1,0 +1,864 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>RefCheck - Citation Verification</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+<script src="https://unpkg.com/@supabase/supabase-js@2.49.1/dist/umd/supabase.js"></script>
+<style>
+:root {
+  --bg: #0f172a; --surface: #1e293b; --surface2: #252f3f; --border: #334155;
+  --text: #e2e8f0; --muted: #94a3b8; --accent: #6366f1; --accent-hover: #818cf8;
+  --success: #22c55e; --warning: #f59e0b; --danger: #ef4444; --info: #06b6d4;
+}
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: var(--bg); color: var(--text); min-height: 100vh; }
+.container { max-width: 1200px; margin: 0 auto; padding: 20px; }
+
+/* Header */
+.header { text-align: center; margin-bottom: 24px; padding: 20px 0; }
+.header h1 { font-size: 28px; font-weight: 700; margin-bottom: 6px; }
+.header h1 span { color: var(--accent); }
+.header p { color: var(--muted); font-size: 14px; }
+.back-link { position: absolute; top: 20px; left: 20px; color: var(--muted); text-decoration: none; font-size: 13px; }
+.back-link:hover { color: var(--accent); }
+
+/* Steps */
+.steps { display: flex; gap: 8px; margin-bottom: 24px; justify-content: center; flex-wrap: wrap; }
+.step { display: flex; align-items: center; gap: 6px; padding: 6px 14px; border-radius: 20px; font-size: 12px; font-weight: 500; background: var(--surface); border: 1px solid var(--border); color: var(--muted); transition: all 0.3s; }
+.step.active { border-color: var(--accent); color: var(--accent); background: rgba(99,102,241,0.1); }
+.step.done { border-color: var(--success); color: var(--success); background: rgba(34,197,94,0.1); }
+.step-num { width: 20px; height: 20px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 11px; font-weight: 700; background: var(--border); color: var(--muted); }
+.step.active .step-num { background: var(--accent); color: #fff; }
+.step.done .step-num { background: var(--success); color: #fff; }
+
+/* Cards */
+.card { background: var(--surface); border: 1px solid var(--border); border-radius: 14px; padding: 24px; margin-bottom: 20px; }
+.card-title { font-size: 16px; font-weight: 600; margin-bottom: 16px; display: flex; align-items: center; gap: 8px; }
+
+/* Input */
+.input-row { display: flex; gap: 10px; margin-bottom: 16px; flex-wrap: wrap; }
+.input-row input { flex: 1; min-width: 250px; padding: 12px 16px; border-radius: 10px; border: 1px solid var(--border); background: var(--bg); color: var(--text); font-size: 14px; outline: none; }
+.input-row input:focus { border-color: var(--accent); }
+.btn { padding: 10px 20px; border-radius: 10px; border: none; font-size: 13px; font-weight: 600; cursor: pointer; transition: all 0.2s; white-space: nowrap; }
+.btn-primary { background: var(--accent); color: #fff; }
+.btn-primary:hover { background: var(--accent-hover); }
+.btn-primary:disabled { opacity: 0.5; cursor: not-allowed; }
+.btn-secondary { background: var(--surface2); color: var(--text); border: 1px solid var(--border); }
+.btn-secondary:hover { border-color: var(--accent); }
+.btn-danger { background: var(--danger); color: #fff; }
+.btn-sm { padding: 6px 12px; font-size: 12px; border-radius: 8px; }
+
+/* File upload zone */
+.upload-zone { border: 2px dashed var(--border); border-radius: 12px; padding: 32px; text-align: center; cursor: pointer; transition: all 0.2s; margin-bottom: 16px; }
+.upload-zone:hover, .upload-zone.drag-over { border-color: var(--accent); background: rgba(99,102,241,0.05); }
+.upload-zone p { color: var(--muted); font-size: 14px; }
+.upload-zone .icon { font-size: 36px; margin-bottom: 8px; }
+
+/* Progress */
+.progress-bar { width: 100%; height: 6px; background: var(--border); border-radius: 3px; overflow: hidden; margin: 12px 0; }
+.progress-fill { height: 100%; background: var(--accent); border-radius: 3px; transition: width 0.3s; width: 0; }
+.status-text { color: var(--muted); font-size: 12px; margin-bottom: 8px; }
+
+/* Tabs */
+.tabs { display: flex; gap: 4px; margin-bottom: 16px; border-bottom: 1px solid var(--border); padding-bottom: 8px; }
+.tab { padding: 8px 16px; border-radius: 8px 8px 0 0; cursor: pointer; font-size: 13px; font-weight: 500; color: var(--muted); transition: all 0.2s; }
+.tab:hover { color: var(--text); }
+.tab.active { color: var(--accent); background: rgba(99,102,241,0.1); }
+.tab-badge { font-size: 11px; padding: 1px 6px; border-radius: 10px; margin-left: 4px; }
+
+/* Table-like lists */
+.ref-list { display: flex; flex-direction: column; gap: 6px; max-height: 500px; overflow-y: auto; }
+.ref-item { display: flex; align-items: flex-start; gap: 10px; padding: 12px; border-radius: 10px; background: var(--bg); border: 1px solid transparent; transition: all 0.2s; }
+.ref-item:hover { border-color: var(--border); }
+.ref-num { min-width: 28px; height: 28px; border-radius: 8px; display: flex; align-items: center; justify-content: center; font-size: 12px; font-weight: 700; background: var(--surface2); color: var(--muted); flex-shrink: 0; }
+.ref-body { flex: 1; min-width: 0; }
+.ref-text { font-size: 13px; line-height: 1.5; color: var(--text); }
+.ref-meta { font-size: 11px; color: var(--muted); margin-top: 4px; display: flex; gap: 8px; flex-wrap: wrap; }
+.ref-actions { display: flex; gap: 4px; flex-shrink: 0; }
+
+/* Status badges */
+.badge { font-size: 11px; padding: 2px 8px; border-radius: 10px; font-weight: 600; }
+.badge-ok { background: rgba(34,197,94,0.15); color: var(--success); }
+.badge-warn { background: rgba(245,158,11,0.15); color: var(--warning); }
+.badge-err { background: rgba(239,68,68,0.15); color: var(--danger); }
+.badge-info { background: rgba(6,182,212,0.15); color: var(--info); }
+.badge-muted { background: rgba(148,163,184,0.15); color: var(--muted); }
+
+/* Stats summary */
+.stats-row { display: flex; gap: 12px; margin-bottom: 16px; flex-wrap: wrap; }
+.stat-card { flex: 1; min-width: 120px; padding: 14px; border-radius: 10px; background: var(--bg); text-align: center; }
+.stat-val { font-size: 28px; font-weight: 700; line-height: 1.2; }
+.stat-label { font-size: 11px; color: var(--muted); margin-top: 4px; }
+
+/* Citation bubbles */
+.citation-tags { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 6px; }
+.citation-tag { font-size: 11px; padding: 2px 8px; border-radius: 6px; background: var(--surface2); color: var(--text); cursor: default; }
+.citation-tag.unmatched { background: rgba(239,68,68,0.15); color: var(--danger); }
+.citation-tag:hover { opacity: 0.8; }
+
+/* Settings */
+.settings-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+.settings-group { display: flex; flex-direction: column; gap: 4px; }
+.settings-group label { font-size: 12px; color: var(--muted); }
+.settings-group input, .settings-group select { padding: 8px 12px; border-radius: 8px; border: 1px solid var(--border); background: var(--bg); color: var(--text); font-size: 13px; outline: none; }
+.settings-group input:focus { border-color: var(--accent); }
+
+/* Toast */
+.toast-container { position: fixed; top: 20px; right: 20px; z-index: 9999; display: flex; flex-direction: column; gap: 8px; }
+.toast { padding: 12px 20px; border-radius: 10px; font-size: 13px; font-weight: 500; color: #fff; animation: slideIn 0.3s; max-width: 360px; }
+.toast-success { background: var(--success); }
+.toast-error { background: var(--danger); }
+.toast-info { background: var(--info); }
+@keyframes slideIn { from { transform: translateX(100%); opacity: 0; } to { transform: translateX(0); opacity: 1; } }
+
+/* Responsive */
+@media (max-width: 768px) {
+  .container { padding: 12px; }
+  .stats-row { flex-direction: column; }
+  .settings-grid { grid-template-columns: 1fr; }
+}
+
+/* Spinner */
+.spinner { display: inline-block; width: 16px; height: 16px; border: 2px solid var(--border); border-top-color: var(--accent); border-radius: 50%; animation: spin 0.6s linear infinite; }
+@keyframes spin { to { transform: rotate(360deg); } }
+
+/* Hidden */
+.hidden { display: none !important; }
+</style>
+</head>
+<body>
+
+<div class="toast-container" id="toasts"></div>
+
+<div class="container">
+  <!-- Header -->
+  <div class="header" style="position:relative;">
+    <a class="back-link" href="../">← Portal</a>
+    <h1>Ref<span>Check</span></h1>
+    <p>Upload a paper → Verify references → Match intext citations → AI-enhanced accuracy</p>
+  </div>
+
+  <!-- Steps -->
+  <div class="steps">
+    <div class="step active" id="step1"><div class="step-num">1</div>Input Paper</div>
+    <div class="step" id="step2"><div class="step-num">2</div>Load References</div>
+    <div class="step" id="step3"><div class="step-num">3</div>Verify Refs</div>
+    <div class="step" id="step4"><div class="step-num">4</div>Match Citations</div>
+    <div class="step" id="step5"><div class="step-num">5</div>Report</div>
+  </div>
+
+  <!-- Step 1: Input -->
+  <div class="card" id="card-input">
+    <div class="card-title">📄 Input Paper</div>
+    <div class="input-row">
+      <input type="text" id="doi-input" placeholder="Enter DOI (e.g., 10.1038/s41586-020-2649-2)">
+      <button class="btn btn-primary" onclick="loadByDoi()">Load by DOI</button>
+    </div>
+    <div style="text-align:center;color:var(--muted);font-size:13px;margin:8px 0;">— or —</div>
+    <div class="upload-zone" id="upload-zone" onclick="$('pdf-file').click()">
+      <div class="icon">📥</div>
+      <p>Drop PDF here or click to upload</p>
+      <p style="font-size:12px;margin-top:4px;">Will auto-extract DOI from first page</p>
+    </div>
+    <input type="file" id="pdf-file" accept=".pdf" style="display:none" onchange="handlePdfUpload(this.files[0])">
+
+    <!-- Paper info preview -->
+    <div id="paper-info" class="hidden" style="margin-top:16px;padding:16px;border-radius:10px;background:var(--bg);">
+      <div style="font-weight:600;margin-bottom:6px;" id="paper-title"></div>
+      <div style="color:var(--muted);font-size:13px;" id="paper-authors"></div>
+      <div style="color:var(--muted);font-size:12px;margin-top:4px;" id="paper-meta"></div>
+    </div>
+  </div>
+
+  <!-- Step 2-3: References -->
+  <div class="card hidden" id="card-refs">
+    <div class="card-title">📚 References <span class="badge badge-info" id="ref-count">0</span></div>
+    <div class="status-text" id="ref-status"></div>
+    <div class="progress-bar" id="ref-progress"><div class="progress-fill" id="ref-progress-fill"></div></div>
+    <div class="input-row" style="margin-bottom:12px;">
+      <button class="btn btn-primary" onclick="verifyAllRefs()">🔍 Verify All References</button>
+      <button class="btn btn-secondary" onclick="aiVerifyUnmatched()">🤖 AI Verify Unmatched</button>
+      <select id="ai-provider" style="padding:8px 12px;border-radius:8px;border:1px solid var(--border);background:var(--bg);color:var(--text);font-size:13px;">
+        <option value="deepseek">DeepSeek</option>
+        <option value="openai">OpenAI GPT</option>
+        <option value="gemini">Google Gemini</option>
+      </select>
+    </div>
+    <div class="ref-list" id="ref-list"></div>
+  </div>
+
+  <!-- Step 4: Citations -->
+  <div class="card hidden" id="card-citations">
+    <div class="card-title">📝 In-text Citations <span class="badge badge-info" id="cit-count">0</span></div>
+    <div class="status-text" id="cit-status"></div>
+    <div class="input-row">
+      <button class="btn btn-primary" onclick="matchCitations()">🔗 Match Citations → References</button>
+      <button class="btn btn-secondary" onclick="aiMatchUnmatched()">🤖 AI Match Unmatched</button>
+    </div>
+    <div class="ref-list" id="cit-list"></div>
+  </div>
+
+  <!-- Step 5: Report -->
+  <div class="card hidden" id="card-report">
+    <div class="card-title">📊 Verification Report</div>
+    <div class="stats-row" id="report-stats"></div>
+    <div class="tabs" id="report-tabs">
+      <div class="tab active" onclick="showReportTab('unmatched')">❌ Unmatched Citations</div>
+      <div class="tab" onclick="showReportTab('unreferenced')">⚠️ Unreferenced</div>
+      <div class="tab" onclick="showReportTab('all')">📋 All References</div>
+    </div>
+    <div id="report-content" class="ref-list"></div>
+    <div class="input-row" style="margin-top:16px;">
+      <button class="btn btn-primary" onclick="exportReport()">📋 Export Report</button>
+      <button class="btn btn-secondary" onclick="exportMarkdown()">📝 Export Markdown</button>
+    </div>
+  </div>
+
+  <!-- Settings -->
+  <div class="card" style="margin-top:20px;">
+    <div class="card-title">⚙️ Settings</div>
+    <div class="settings-grid">
+      <div class="settings-group">
+        <label>DeepSeek API Key</label>
+        <input type="password" id="deepseek-key" placeholder="sk-...">
+      </div>
+      <div class="settings-group">
+        <label>OpenAI API Key</label>
+        <input type="password" id="openai-key" placeholder="sk-...">
+      </div>
+      <div class="settings-group">
+        <label>Google Gemini API Key</label>
+        <input type="password" id="gemini-key" placeholder="AI...">
+      </div>
+      <div class="settings-group">
+        <label>&nbsp;</label>
+        <button class="btn btn-secondary" onclick="saveSettings()" style="width:100%;">Save Keys (localStorage)</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+const $ = id => document.getElementById(id);
+
+// ============ STATE ============
+let paperInfo = null;
+let references = [];     // [{index, text, doi, verified, status, matchCount, verifiedTitle}]
+let citations = [];      // [{text, matchedRef, matchType, position}]
+let pdfFullText = '';
+let settings = { deepseekKey: '', openaiKey: '', geminiKey: '' };
+
+// Load settings
+try { const s = localStorage.getItem('refcheck_settings'); if (s) settings = JSON.parse(s); } catch(e) {}
+function loadSettingsUI() {
+  $('deepseek-key').value = settings.deepseekKey || '';
+  $('openai-key').value = settings.openaiKey || '';
+  $('gemini-key').value = settings.geminiKey || '';
+}
+function saveSettings() {
+  settings.deepseekKey = $('deepseek-key').value.trim();
+  settings.openaiKey = $('openai-key').value.trim();
+  settings.geminiKey = $('gemini-key').value.trim();
+  localStorage.setItem('refcheck_settings', JSON.stringify(settings));
+  toast('Settings saved', 'success');
+}
+loadSettingsUI();
+
+// Drag & Drop
+const zone = $('upload-zone');
+zone.addEventListener('dragover', e => { e.preventDefault(); zone.classList.add('drag-over'); });
+zone.addEventListener('dragleave', () => zone.classList.remove('drag-over'));
+zone.addEventListener('drop', e => { e.preventDefault(); zone.classList.remove('drag-over'); if (e.dataTransfer.files[0]) handlePdfUpload(e.dataTransfer.files[0]); });
+
+// ============ STEP 1: INPUT ============
+async function loadByDoi() {
+  const doi = $('doi-input').value.trim();
+  if (!doi) return toast('Please enter a DOI', 'error');
+  toast('Fetching from CrossRef...', 'info');
+  try {
+    const resp = await fetch(`https://api.crossref.org/works/${encodeURIComponent(doi)}?mailto=RefCheck@example.com`);
+    if (!resp.ok) throw new Error(`DOI not found (${resp.status})`);
+    const data = await resp.json();
+    const msg = data.message;
+    paperInfo = {
+      doi: msg.DOI || doi,
+      title: (msg.title || [''])[0],
+      authors: (msg.author || []).map(a => `${a.given||''} ${a.family||''}`.trim()).join(', '),
+      journal: (msg['container-title'] || [''])[0],
+      year: (msg.published?.['date-parts']?.[0]?.[0] || msg.created?.['date-parts']?.[0]?.[0] || ''),
+      refs: (msg.reference || []).map((r, i) => ({
+        index: i + 1,
+        text: buildRefText(r),
+        doi: r.DOI || '',
+        firstAuthor: r.author?.[0]?.family || '',
+        year: extractRefYear(r) || '',
+        title: r.article_title || r.book_title || '',
+        verified: false,
+        status: 'pending',
+        matchCount: 0,
+        verifiedTitle: '',
+        crossrefData: null
+      }))
+    };
+    showPaperInfo();
+    setStep(2);
+    renderReferences();
+    toast(`Loaded: ${paperInfo.refs.length} references`, 'success');
+  } catch(e) {
+    toast('Error: ' + e.message, 'error');
+  }
+}
+
+function buildRefText(r) {
+  const parts = [];
+  if (r.author) parts.push(r.author.map(a => `${a.given||''} ${a.family||''}`.trim()).join(', '));
+  if (r.year) parts.push(`(${r.year})`);
+  if (r.article_title) parts.push(r.article_title);
+  else if (r.book_title) parts.push(`*${r.book_title}*`);
+  if (r.journal) parts.push(r.journal);
+  if (r.volume) parts.push(`Vol. ${r.volume}`);
+  if (r.issue) parts.push(`No. ${r.issue}`);
+  if (r.page) parts.push(`pp. ${r.page}`);
+  if (r.DOI) parts.push(`DOI: ${r.DOI}`);
+  return parts.join('. ');
+}
+
+function extractRefYear(r) {
+  if (r.year) return r.year;
+  if (r.published?.['date-parts']?.[0]?.[0]) return String(r.published['date-parts'][0][0]);
+  if (r['published-print']?.['date-parts']?.[0]?.[0]) return String(r['published-print']['date-parts'][0][0]);
+  return '';
+}
+
+async function handlePdfUpload(file) {
+  if (!file || !file.name.endsWith('.pdf')) return toast('Please upload a PDF', 'error');
+  toast('Processing PDF...', 'info');
+  try {
+    const arrayBuf = await file.arrayBuffer();
+    const pdf = await pdfjsLib.getDocument({ data: arrayBuf }).promise;
+    let fullText = '';
+    // Extract text from all pages
+    for (let i = 1; i <= pdf.numPages; i++) {
+      const page = await pdf.getPage(i);
+      const tc = await page.getTextContent();
+      const strings = tc.items.map(item => item.str);
+      fullText += strings.join(' ') + '\n';
+    }
+    pdfFullText = fullText;
+
+    // Try to extract DOI from first page
+    const doiMatch = fullText.match(/10\.\d{4,}\/[^\s]+/);
+    if (doiMatch) {
+      $('doi-input').value = doiMatch[0].replace(/[.,;:]+$/, '');
+      toast(`DOI found: ${doiMatch[0]}`, 'success');
+      await loadByDoi();
+    } else {
+      toast('No DOI found in PDF. Enter DOI manually.', 'warning');
+      setStep(4); // skip to citation extraction
+      extractCitationsFromText(fullText);
+      $('card-citations').classList.remove('hidden');
+    }
+  } catch(e) {
+    toast('PDF error: ' + e.message, 'error');
+  }
+}
+
+function showPaperInfo() {
+  $('paper-info').classList.remove('hidden');
+  $('paper-title').textContent = paperInfo.title || 'Unknown Title';
+  $('paper-authors').textContent = paperInfo.authors || '';
+  $('paper-meta').textContent = `${paperInfo.journal || ''} (${paperInfo.year || ''}) · DOI: ${paperInfo.doi || 'N/A'}`;
+}
+
+// ============ STEP 2: REFERENCES ============
+function renderReferences() {
+  references = paperInfo.refs || [];
+  $('ref-count').textContent = references.length;
+  $('ref-list').innerHTML = references.map((r, i) => `
+    <div class="ref-item" data-ref-idx="${i}">
+      <div class="ref-num">${r.index}</div>
+      <div class="ref-body">
+        <div class="ref-text">${esc(r.text)}</div>
+        <div class="ref-meta">
+          <span>${r.doi ? 'DOI: ' + r.doi : 'No DOI'}</span>
+          ${r.status !== 'pending' ? `<span class="badge ${statusBadge(r.status)}">${statusLabel(r.status)}</span>` : ''}
+          ${r.matchCount > 0 ? `<span>📌 Cited ${r.matchCount}×</span>` : '<span style="color:var(--muted)">Not cited</span>'}
+        </div>
+      </div>
+    </div>
+  `).join('');
+}
+
+// ============ STEP 3: VERIFY REFS ============
+let verifying = false;
+async function verifyAllRefs() {
+  if (verifying) return;
+  verifying = true;
+  const pending = references.filter(r => r.status === 'pending');
+  const total = pending.length;
+  let done = 0;
+  $('ref-status').textContent = `Verifying 0/${total}...`;
+  $('ref-progress').style.display = 'block';
+
+  for (const ref of pending) {
+    const idx = references.indexOf(ref);
+    const result = await verifyOneRef(ref);
+    references[idx].status = result.status;
+    references[idx].verifiedTitle = result.title || '';
+    done++;
+    $('ref-status').textContent = `Verifying ${done}/${total}...`;
+    $('ref-progress-fill').style.width = (done/total*100) + '%';
+    // Update UI for this item
+    const el = $(`ref-list`).children[idx];
+    if (el) {
+      const meta = el.querySelector('.ref-meta');
+      if (meta) meta.innerHTML = `
+        <span>${ref.doi ? 'DOI: ' + ref.doi : 'No DOI'}</span>
+        <span class="badge ${statusBadge(result.status)}">${statusLabel(result.status)}</span>
+        ${result.title ? `<span>Found: ${esc(result.title.substring(0,60))}${result.title.length>60?'...':''}</span>` : ''}
+        <span>📌 Cited ${ref.matchCount}×</span>
+      `;
+    }
+    // Rate limit: CrossRef allows ~50/s, be polite
+    await new Promise(r => setTimeout(r, 200));
+  }
+
+  $('ref-status').textContent = `Done! Verified ${total} references.`;
+  verifying = false;
+  setStep(3);
+  toast(`Verification complete: ${references.filter(r=>r.status==='verified').length} OK, ${references.filter(r=>r.status==='not_found').length} not found`, 'success');
+}
+
+async function verifyOneRef(ref) {
+  // If has DOI, verify directly
+  if (ref.doi) {
+    try {
+      const resp = await fetch(`https://api.crossref.org/works/${encodeURIComponent(ref.doi)}?mailto=RefCheck@example.com`);
+      if (resp.ok) {
+        const data = await resp.json();
+        return { status: 'verified', title: (data.message.title || [''])[0] };
+      }
+      return { status: 'not_found', title: '' };
+    } catch(e) {
+      return { status: 'error', title: '' };
+    }
+  }
+  // No DOI: search by first author + year + title keywords
+  if (ref.firstAuthor && ref.title) {
+    try {
+      const query = `${ref.firstAuthor} ${ref.year} ${ref.title.substring(0, 50)}`.trim();
+      const resp = await fetch(`https://api.crossref.org/works?query=${encodeURIComponent(query)}&rows=1&mailto=RefCheck@example.com`);
+      if (resp.ok) {
+        const data = await resp.json();
+        const item = data.message?.items?.[0];
+        if (item) {
+          const crTitle = (item.title || [''])[0].toLowerCase().replace(/[^a-z0-9]/g, '');
+          const refTitle = ref.title.toLowerCase().replace(/[^a-z0-9]/g, '');
+          if (titleSimilarity(crTitle, refTitle) > 0.6) {
+            return { status: 'verified', title: item.title?.[0] || '' };
+          }
+        }
+      }
+    } catch(e) {}
+  }
+  // Fallback: search by ref text first 80 chars
+  try {
+    const query = ref.text.substring(0, 80);
+    const resp = await fetch(`https://api.crossref.org/works?query=${encodeURIComponent(query)}&rows=1&mailto=RefCheck@example.com`);
+    if (resp.ok) {
+      const data = await resp.json();
+      const item = data.message?.items?.[0];
+      if (item) return { status: 'likely', title: item.title?.[0] || '' };
+    }
+  } catch(e) {}
+  return { status: 'not_found', title: '' };
+}
+
+// ============ STEP 4: CITATIONS ============
+function extractCitationsFromText(text) {
+  citations = [];
+  // Common citation patterns: (Author, Year), Author (Year), (Author et al., Year), etc.
+  const patterns = [
+    /\(([A-Z][a-z]+(?:\s(?:et\s+al\.?|[a-z]+))?(?:\s*,\s*\d{4})?(?:\s*[,;]\s*\d{4})*)\)/g,  // (Smith, 2020)
+    /(?:^|[\s(])([A-Z][a-z]+(?:\s(?:et\s+al\.?|[a-z]+))?\s*\(\d{4}(?:\s*[a-z])?\))/g,    // Smith (2020)
+    /(\d{4}[a-z]?)\s*,?\s*(?:p{1,2}\.?\s*\d+|pp\.\s*[\d-]+)/g,  // year, p.123
+  ];
+
+  const seen = new Set();
+  // Pattern 1: (Author, Year)
+  const p1 = /\(([A-Z][a-z]+(?:\s(?:et\s+al\.?))?(?:\s*,\s*\d{4})?(?:\s*[,;]\s*\d{4})*)\)/g;
+  let m;
+  while ((m = p1.exec(text)) !== null) {
+    const txt = m[1].trim();
+    if (txt.length > 3 && !seen.has(txt.toLowerCase())) {
+      seen.add(txt.toLowerCase());
+      citations.push({ text: txt, matchedRef: null, matchType: null, position: m.index });
+    }
+  }
+  // Pattern 2: Author (Year)
+  const p2 = /([A-Z][a-z]+(?:\s(?:et\s+al\.?))?)\s*\((\d{4}[a-z]?)\)/g;
+  while ((m = p2.exec(text)) !== null) {
+    const txt = `${m[1].trim()}, ${m[2]}`;
+    if (!seen.has(txt.toLowerCase())) {
+      seen.add(txt.toLowerCase());
+      citations.push({ text: txt, matchedRef: null, matchType: null, position: m.index });
+    }
+  }
+
+  $('cit-count').textContent = citations.length;
+  $('cit-status').textContent = `Extracted ${citations.length} in-text citations from PDF`;
+  return citations;
+}
+
+function matchCitations() {
+  if (!references.length || !citations.length) return toast('Load references and citations first', 'error');
+  let matched = 0, unmatched = 0;
+
+  // Reset
+  references.forEach(r => r.matchCount = 0);
+  citations.forEach(c => { c.matchedRef = null; c.matchType = null; });
+
+  for (const cit of citations) {
+    const best = findBestMatch(cit.text, references);
+    if (best && best.confidence > 0.4) {
+      cit.matchedRef = best.ref.index;
+      cit.matchType = best.confidence > 0.8 ? 'exact' : 'fuzzy';
+      references[best.ref.index].matchCount++;
+      matched++;
+    } else {
+      unmatched++;
+    }
+  }
+
+  renderCitations();
+  renderReferences();
+  setStep(5);
+  generateReport();
+  toast(`Matched ${matched}, Unmatched ${unmatched}`, matched === citations.length ? 'success' : 'warning');
+}
+
+function findBestMatch(citText, refs) {
+  // Parse citation: "Smith et al., 2020" or "Smith, 2020"
+  const citMatch = citText.match(/^([A-Z][a-z]+)(?:\s+(et\s+al\.?))?(?:,\s*|[\s(])(\d{4}[a-z]?)/);
+  if (!citMatch) return null;
+
+  const citAuthor = citMatch[1].toLowerCase();
+  const citEtal = !!citMatch[2];
+  const citYear = citMatch[3];
+  let bestScore = 0, bestRef = null;
+
+  for (const ref of refs) {
+    let score = 0;
+    // Author match
+    const refAuthor = ref.firstAuthor?.toLowerCase() || '';
+    if (refAuthor === citAuthor) score += 0.5;
+    else if (refAuthor.startsWith(citAuthor) || citAuthor.startsWith(refAuthor)) score += 0.3;
+    // Year match
+    if (ref.year === citYear) score += 0.5;
+    // If et al. in citation, don't penalize missing authors
+    if (citEtal && refAuthor === citAuthor) score += 0.1;
+
+    if (score > bestScore) { bestScore = score; bestRef = ref; }
+  }
+  return bestRef ? { ref: bestRef, confidence: bestScore } : null;
+}
+
+function renderCitations() {
+  $('cit-list').innerHTML = citations.map((c, i) => {
+    const ref = c.matchedRef ? references.find(r => r.index === c.matchedRef) : null;
+    const typeClass = c.matchType === 'exact' ? 'badge-ok' : c.matchType === 'fuzzy' ? 'badge-warn' : 'badge-err';
+    return `
+    <div class="ref-item">
+      <div class="ref-num" style="${c.matchedRef ? '' : 'background:var(--danger);color:#fff'}">${i+1}</div>
+      <div class="ref-body">
+        <div class="ref-text">"${esc(c.text)}"</div>
+        <div class="ref-meta">
+          ${c.matchedRef ? `<span class="badge ${typeClass}">${c.matchType} → Ref #${c.matchedRef}</span>` : '<span class="badge badge-err">❌ No matching reference</span>'}
+          ${ref ? `<span>${esc(ref.firstAuthor)}, ${ref.year} — ${esc((ref.verifiedTitle||ref.title||'').substring(0,50))}</span>` : ''}
+        </div>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+// ============ AI FEATURES ============
+async function callAI(prompt, maxTokens = 2000) {
+  const provider = $('ai-provider').value;
+  let apiKey, url, model;
+
+  if (provider === 'deepseek') {
+    apiKey = settings.deepseekKey;
+    if (!apiKey) { toast('Set DeepSeek API key in Settings', 'error'); return null; }
+    url = 'https://api.deepseek.com/v1/chat/completions';
+    model = 'deepseek-chat';
+  } else if (provider === 'openai') {
+    apiKey = settings.openaiKey;
+    if (!apiKey) { toast('Set OpenAI API key in Settings', 'error'); return null; }
+    url = 'https://api.openai.com/v1/chat/completions';
+    model = 'gpt-4o-mini';
+  } else {
+    apiKey = settings.geminiKey;
+    if (!apiKey) { toast('Set Gemini API key in Settings', 'error'); return null; }
+    url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`;
+    model = 'gemini';
+  }
+
+  try {
+    let response;
+    if (provider === 'gemini') {
+      response = await fetch(url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }] })
+      });
+      const data = await response.json();
+      return data.candidates?.[0]?.content?.parts?.[0]?.text || null;
+    } else {
+      response = await fetch(url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${apiKey}` },
+        body: JSON.stringify({ model, messages: [{ role: 'user', content: prompt }], max_tokens: maxTokens, temperature: 0.1 })
+      });
+      const data = await response.json();
+      return data.choices?.[0]?.message?.content || null;
+    }
+  } catch(e) {
+    toast('AI API error: ' + e.message, 'error');
+    return null;
+  }
+}
+
+async function aiVerifyUnmatched() {
+  const unmatched = references.filter(r => r.status === 'not_found' || r.status === 'error');
+  if (!unmatched.length) return toast('All references verified', 'info');
+  toast(`AI verifying ${unmatched.length} unmatched references...`, 'info');
+
+  const refTexts = unmatched.map((r, i) => `[${i}] ${r.text}`).join('\n');
+  const prompt = `For each reference below, search the web in your knowledge to verify if it exists and find the correct title. Reply in JSON format: an array of objects with fields: "idx" (the number in brackets), "exists" (true/false), "correctTitle" (the actual paper title if found, or null).
+
+References:
+${refTexts}
+
+Reply ONLY with the JSON array, no other text.`;
+
+  const result = await callAI(prompt, 4000);
+  if (!result) return;
+
+  try {
+    // Extract JSON from response
+    const jsonMatch = result.match(/\[[\s\S]*\]/);
+    if (!jsonMatch) throw new Error('No JSON found');
+    const results = JSON.parse(jsonMatch[0]);
+
+    for (const r of results) {
+      const ref = unmatched[parseInt(r.idx)];
+      if (!ref) continue;
+      const idx = references.indexOf(ref);
+      if (r.exists) {
+        references[idx].status = 'verified';
+        references[idx].verifiedTitle = r.correctTitle || '';
+      }
+    }
+    renderReferences();
+    toast('AI verification complete', 'success');
+  } catch(e) {
+    toast('Failed to parse AI response: ' + e.message, 'error');
+  }
+}
+
+async function aiMatchUnmatched() {
+  const unmatched = citations.filter(c => !c.matchedRef);
+  if (!unmatched.length) return toast('All citations matched', 'info');
+  if (!references.length) return toast('Load references first', 'error');
+  toast(`AI matching ${unmatched.length} unmatched citations...`, 'info');
+
+  const citTexts = unmatched.map((c, i) => `[${i}] "${c.text}"`).join('\n');
+  const refTexts = references.map(r => `[${r.index}] ${r.firstAuthor} ${r.year} — ${r.title || r.text.substring(0,80)}`).join('\n');
+
+  const prompt = `Match each unmatched in-text citation to the best reference from the list below. Reply in JSON format: an array of objects with "idx" (citation number), "refIdx" (reference number), or null if no match.
+
+Unmatched Citations:
+${citTexts}
+
+Available References:
+${refTexts}
+
+Reply ONLY with the JSON array.`;
+
+  const result = await callAI(prompt, 4000);
+  if (!result) return;
+
+  try {
+    const jsonMatch = result.match(/\[[\s\S]*\]/);
+    if (!jsonMatch) throw new Error('No JSON found');
+    const results = JSON.parse(jsonMatch[0]);
+
+    let matched = 0;
+    for (const r of results) {
+      if (!r.refIdx) continue;
+      const cit = unmatched[parseInt(r.idx)];
+      const ref = references.find(rr => rr.index === parseInt(r.refIdx));
+      if (!cit || !ref) continue;
+      cit.matchedRef = ref.index;
+      cit.matchType = 'ai';
+      ref.matchCount++;
+      matched++;
+    }
+    renderCitations();
+    renderReferences();
+    generateReport();
+    toast(`AI matched ${matched} citations`, 'success');
+  } catch(e) {
+    toast('Failed to parse AI response: ' + e.message, 'error');
+  }
+}
+
+// ============ REPORT ============
+function generateReport() {
+  $('card-report').classList.remove('hidden');
+  const totalRefs = references.length;
+  const totalCits = citations.length;
+  const verifiedRefs = references.filter(r => r.status === 'verified' || r.status === 'likely').length;
+  const matchedCits = citations.filter(c => c.matchedRef).length;
+  const unmatchedCits = totalCits - matchedCits;
+  const unreferencedRefs = references.filter(r => r.matchCount === 0).length;
+
+  $('report-stats').innerHTML = `
+    <div class="stat-card"><div class="stat-val" style="color:var(--accent)">${totalRefs}</div><div class="stat-label">Total References</div></div>
+    <div class="stat-card"><div class="stat-val" style="color:var(--success)">${verifiedRefs}</div><div class="stat-label">Verified Refs</div></div>
+    <div class="stat-card"><div class="stat-val" style="color:var(--info)">${totalCits}</div><div class="stat-label">In-text Citations</div></div>
+    <div class="stat-card"><div class="stat-val" style="color:${unmatchedCits?'var(--danger)':'var(--success)'}">${unmatchedCits}</div><div class="stat-label">Unmatched Citations</div></div>
+    <div class="stat-card"><div class="stat-val" style="color:${unreferencedRefs?'var(--warning)':'var(--success)'}">${unreferencedRefs}</div><div class="stat-label">Unreferenced Refs</div></div>
+  `;
+  showReportTab('unmatched');
+}
+
+function showReportTab(tab) {
+  document.querySelectorAll('#report-tabs .tab').forEach(t => t.classList.remove('active'));
+  event.target.classList.add('active');
+
+  let items = [];
+  if (tab === 'unmatched') {
+    items = citations.filter(c => !c.matchedRef);
+    $('report-content').innerHTML = items.length ? items.map((c, i) => `
+      <div class="ref-item">
+        <div class="ref-num" style="background:var(--danger);color:#fff">${i+1}</div>
+        <div class="ref-body">
+          <div class="ref-text">"${esc(c.text)}" — <strong style="color:var(--danger)">No matching reference found</strong></div>
+        </div>
+      </div>`).join('') : '<div style="color:var(--success);text-align:center;padding:24px;">✅ All citations matched!</div>';
+  } else if (tab === 'unreferenced') {
+    items = references.filter(r => r.matchCount === 0);
+    $('report-content').innerHTML = items.length ? items.map((r, i) => `
+      <div class="ref-item">
+        <div class="ref-num">${r.index}</div>
+        <div class="ref-body">
+          <div class="ref-text">${esc(r.text)}</div>
+          <div class="ref-meta">
+            <span class="badge badge-warn">⚠️ Not cited in text</span>
+            ${r.doi ? `<span>DOI: ${r.doi}</span>` : ''}
+            <span class="badge ${statusBadge(r.status)}">${statusLabel(r.status)}</span>
+          </div>
+        </div>
+      </div>`).join('') : '<div style="color:var(--success);text-align:center;padding:24px;">✅ All references are cited!</div>';
+  } else {
+    items = references;
+    $('report-content').innerHTML = items.map(r => `
+      <div class="ref-item">
+        <div class="ref-num" style="${r.matchCount?'':'background:var(--warning);color:#000'}">${r.index}</div>
+        <div class="ref-body">
+          <div class="ref-text">${esc(r.text)}</div>
+          <div class="ref-meta">
+            <span class="badge ${statusBadge(r.status)}">${statusLabel(r.status)}</span>
+            <span>📌 Cited ${r.matchCount}×</span>
+            ${r.doi ? `<span>DOI: ${r.doi}</span>` : '<span>No DOI</span>'}
+          </div>
+        </div>
+      </div>`).join('');
+  }
+}
+
+function exportReport() {
+  const lines = [`RefCheck Report — ${paperInfo?.title || 'Unknown'}`, `${'='.repeat(50)}`, ''];
+  lines.push(`Total References: ${references.length}`);
+  lines.push(`Verified: ${references.filter(r=>r.status==='verified').length}`);
+  lines.push(`Not Found: ${references.filter(r=>r.status==='not_found').length}`);
+  lines.push(`In-text Citations: ${citations.length}`);
+  lines.push(`Matched: ${citations.filter(c=>c.matchedRef).length}`);
+  lines.push(`Unmatched: ${citations.filter(c=>!c.matchedRef).length}`);
+  lines.push(`Unreferenced: ${references.filter(r=>r.matchCount===0).length}`);
+  lines.push('');
+  lines.push('--- Unmatched Citations ---');
+  citations.filter(c => !c.matchedRef).forEach((c, i) => lines.push(`  ${i+1}. "${c.text}"`));
+  lines.push('');
+  lines.push('--- Unreferenced References ---');
+  references.filter(r => r.matchCount === 0).forEach(r => lines.push(`  [${r.index}] ${r.text}`));
+
+  navigator.clipboard.writeText(lines.join('\n')).then(() => toast('Report copied to clipboard', 'success'));
+}
+
+function exportMarkdown() {
+  let md = `# RefCheck Report\n\n**Paper:** ${paperInfo?.title || 'Unknown'}\n\n`;
+  md += `| Metric | Count |\n|--------|-------|\n`;
+  md += `| Total References | ${references.length} |\n`;
+  md += `| Verified | ${references.filter(r=>r.status==='verified').length} |\n`;
+  md += `| Not Found | ${references.filter(r=>r.status==='not_found').length} |\n`;
+  md += `| In-text Citations | ${citations.length} |\n`;
+  md += `| Matched | ${citations.filter(c=>c.matchedRef).length} |\n`;
+  md += `| Unmatched | ${citations.filter(c=>!c.matchedRef).length} |\n`;
+  md += `| Unreferenced | ${references.filter(r=>r.matchCount===0).length} |\n\n`;
+
+  const uncited = citations.filter(c => !c.matchedRef);
+  if (uncited.length) {
+    md += `## ❌ Unmatched Citations\n\n`;
+    uncited.forEach((c, i) => md += `${i+1}. "${c.text}"\n`);
+    md += '\n';
+  }
+  const unref = references.filter(r => r.matchCount === 0);
+  if (unref.length) {
+    md += `## ⚠️ Unreferenced References\n\n`;
+    unref.forEach(r => md += `[${r.index}] ${r.text}\n`);
+  }
+
+  navigator.clipboard.writeText(md).then(() => toast('Markdown copied to clipboard', 'success'));
+}
+
+// ============ UTILS ============
+function esc(s) { const d = document.createElement('div'); d.textContent = s || ''; return d.innerHTML; }
+function toast(msg, type = 'info') {
+  const t = document.createElement('div');
+  t.className = `toast toast-${type}`;
+  t.textContent = msg;
+  $('toasts').appendChild(t);
+  setTimeout(() => t.remove(), 4000);
+}
+function titleSimilarity(a, b) {
+  if (!a || !b) return 0;
+  a = a.toLowerCase(); b = b.toLowerCase();
+  if (a === b) return 1;
+  const len = Math.max(a.length, b.length);
+  let common = 0;
+  const shorter = a.length < b.length ? a : b;
+  for (const ch of shorter) { if (b.includes(ch)) common++; }
+  return common / len;
+}
+function statusBadge(s) {
+  return { verified: 'badge-ok', likely: 'badge-warn', not_found: 'badge-err', pending: 'badge-muted', error: 'badge-err' }[s] || 'badge-muted';
+}
+function statusLabel(s) {
+  return { verified: '✅ Verified', likely: '⚠️ Likely', not_found: '❌ Not Found', pending: '⏳ Pending', error: '❌ Error' }[s] || s;
+}
+function setStep(n) {
+  for (let i = 1; i <= 5; i++) {
+    const el = $(`step${i}`);
+    el.classList.remove('active', 'done');
+    if (i < n) el.classList.add('done');
+    else if (i === n) el.classList.add('active');
+  }
+}
+</script>
+</body>
+</html>
