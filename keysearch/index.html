@@ -177,6 +177,8 @@
         .source-checkbox .check-icon { display: none; }
         .source-checkbox.active .check-icon { display: inline; }
         .source-checkbox.active .uncheck-icon { display: none; }
+        .source-disabled { background: #f5f5f5; color: #999; border-color: #ddd; }
+        .source-disabled:hover { border-color: #ddd; cursor: default; }
         
         .source-badge {
             padding: 2px 6px;
@@ -682,20 +684,14 @@
                             <span>PubMed</span>
                             <span class="source-badge badge-med">MED</span>
                         </div>
-                        <div class="source-checkbox active" onclick="toggleSource(this, 'arxiv')">
-                            <input type="checkbox" id="sourceArxiv" checked>
+                        <div class="source-checkbox" onclick="toggleSource(this, 'arxiv')">
+                            <input type="checkbox" id="sourceArxiv">
                             <span class="uncheck-icon">⭕</span>
                             <span class="check-icon">✅</span>
                             <span>arXiv</span>
                             <span class="source-badge badge-pre">PRE</span>
                         </div>
-                        <div class="source-checkbox" onclick="toggleSource(this, 'ieee')">
-                            <input type="checkbox" id="sourceIEEE">
-                            <span class="uncheck-icon">⭕</span>
-                            <span class="check-icon">✅</span>
-                            <span>IEEE Xplore</span>
-                            <span class="source-badge badge-free">API</span>
-                        </div>
+
                         <div class="source-checkbox" onclick="toggleSource(this, 'acm')">
                             <input type="checkbox" id="sourceACM">
                             <span class="uncheck-icon">⭕</span>
@@ -730,6 +726,13 @@
                             <span class="check-icon">✅</span>
                             <span>CrossRef</span>
                             <span class="source-badge badge-free">FREE</span>
+                        </div>
+                        <div class="source-checkbox source-disabled" onclick="toggleSource(this, 'ieee')">
+                            <input type="checkbox" id="sourceIEEE">
+                            <span class="uncheck-icon">⭕</span>
+                            <span class="check-icon">✅</span>
+                            <span>IEEE Xplore</span>
+                            <span class="source-badge badge-free">API</span>
                         </div>
                     </div>
                 </div>
@@ -1160,7 +1163,7 @@
         const storage = {
             library: JSON.parse(localStorage.getItem('scholarLibrary') || '[]'),
             localPapers: JSON.parse(localStorage.getItem('localPapers') || '[]'),
-            settings: JSON.parse(localStorage.getItem('scholarSettings') || '{"ieeeKey":"4cuxkcpzvs4fa8azdrkyqtnp","ssKey":"s2k-xo3FkoWiBk6P6fDYGvo1r0tJAasLybYf00Czor8X","scopusKey":"b5e5a90e7accba4071b260adf63cc69d"}'),
+            settings: JSON.parse(localStorage.getItem('scholarSettings') || '{"ieeeKey":"b5e5a90e7accba4071b260adf63cc69d","ssKey":"s2k-xo3FkoWiBk6P6fDYGvo1r0tJAasLybYf00Czor8X","scopusKey":"b5e5a90e7accba4071b260adf63cc69d"}'),
             
             saveLibrary() { localStorage.setItem('scholarLibrary', JSON.stringify(this.library)); },
             saveLocalPapers() { localStorage.setItem('localPapers', JSON.stringify(this.localPapers)); },
@@ -1629,7 +1632,7 @@
 
         // IEEE Xplore 搜索（需要 API Key）
         async function searchIEEE(keyword, filters) {
-            const apiKey = storage.settings.ieeeKey || '4cuxkcpzvs4fa8azdrkyqtnp';
+            const apiKey = storage.settings.ieeeKey || 'b5e5a90e7accba4071b260adf63cc69d';
             if (!apiKey) {
                 console.log('IEEE API Key not configured');
                 return { papers: [], source: 'ieee' };
@@ -3269,7 +3272,7 @@
             document.getElementById('ssKey').value = ssKey;
             storage.settings.ssKey = ssKey;
             // IEEE Key：优先用户保存的，其次用内置 Key
-            const ieeeKey = storage.settings.ieeeKey || '4cuxkcpzvs4fa8azdrkyqtnp';
+            const ieeeKey = storage.settings.ieeeKey || 'b5e5a90e7accba4071b260adf63cc69d';
             document.getElementById('ieeeKey').value = ieeeKey;
             storage.settings.ieeeKey = ieeeKey; // 写回 settings 保证 searchIEEE 能读到
             // Scopus Key：优先用户保存的，其次用内置 Key
