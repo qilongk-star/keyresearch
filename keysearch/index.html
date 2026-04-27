@@ -2237,15 +2237,22 @@
         }
 
         // ═══════════ Cited-By (引用该论文的论文) ═══════════
-        async function loadCitedBy(paperId) {
+        async function loadCitedBy(queryId) {
             // 通过 Semantic Scholar API 获取引用该论文的论文
-            // 优先用 paperId (S2)，其次用 DOI
+            // queryId 可以是 S2 paperId (如 649def34f8be52c8b66281af98ae884c09aef38b)
+            //          或 DOI 前缀 (如 DOI:10.1234/xxx)
+            //          或 PMID (如 PMID:12345678)
+            const fields = 'paperId,title,abstract,year,authors,citationCount,externalIds,url,journal,publicationVenue';
             let apiUrl;
-            if (paperId && !paperId.startsWith('pubmed_') && !paperId.startsWith('local_') && !paperId.startsWith('ieee_')) {
-                apiUrl = `https://api.semanticscholar.org/graph/v1/paper/${encodeURIComponent(paperId)}/citations?fields=paperId,title,abstract,year,authors,citationCount,externalIds,url,journal,publicationVenue&limit=20`;
+            if (queryId.startsWith('DOI:')) {
+                // DOI 查询: 不对整个字符串 encode，只 encode 冒号后面的部分
+                const doiPart = queryId.slice(4);
+                apiUrl = `https://api.semanticscholar.org/graph/v1/paper/DOI:${encodeURIComponent(doiPart)}/citations?fields=${fields}&limit=20`;
+            } else if (queryId.startsWith('PMID:')) {
+                const pmidPart = queryId.slice(5);
+                apiUrl = `https://api.semanticscholar.org/graph/v1/paper/PMID:${encodeURIComponent(pmidPart)}/citations?fields=${fields}&limit=20`;
             } else {
-                // 无法通过 S2 ID 查询，提示用户
-                return [];
+                apiUrl = `https://api.semanticscholar.org/graph/v1/paper/${encodeURIComponent(queryId)}/citations?fields=${fields}&limit=20`;
             }
 
             try {
@@ -2329,12 +2336,17 @@
 
             const s2Id = paper.paperId || paper.s2PaperId || '';
             const doi = paper.doi || paper.externalIds?.DOI || '';
+            const pubmedId = paper.pubmedId || paper.externalIds?.PubMed || '';
 
             let queryId = null;
-            if (s2Id && !s2Id.startsWith('pubmed_') && !s2Id.startsWith('local_') && !s2Id.startsWith('ieee_')) {
-                queryId = s2Id;
-            } else if (doi) {
+            // 优先用 DOI 查询（最可靠，所有来源都有）
+            if (doi) {
                 queryId = 'DOI:' + doi;
+            } else if (s2Id && !s2Id.startsWith('pubmed_') && !s2Id.startsWith('local_') && !s2Id.startsWith('ieee_') && !s2Id.startsWith('http')) {
+                // S2 原生 ID（hex 格式）
+                queryId = s2Id;
+            } else if (pubmedId) {
+                queryId = 'PMID:' + pubmedId;
             }
 
             if (!queryId) {
