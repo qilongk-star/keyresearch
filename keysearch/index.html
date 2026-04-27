@@ -2277,6 +2277,8 @@
             const citeCount = cp.citationCount || 0;
             const url = cp.url || (doi ? `https://doi.org/${doi}` : '');
             const abstract = cp.abstract || '';
+            const rating = venue ? getJournalRating(venue) : null;
+            const badges = renderBadges(rating);
 
             const titleHtml = url
                 ? `<a href="${url}" target="_blank" rel="noopener">${escapeHtml(cp.title)}</a>`
@@ -2292,6 +2294,7 @@
             return `
                 <div class="cited-paper-item">
                     <div class="cited-paper-title">${titleHtml}</div>
+                    ${badges ? `<div class="paper-badges" style="margin-bottom:4px;">${badges}</div>` : ''}
                     <div class="cited-paper-meta">
                         <span>👤 ${authors}${authorsSuffix}</span>
                         <span>📅 ${year}</span>
