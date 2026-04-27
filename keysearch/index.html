@@ -2450,6 +2450,26 @@
                    </div>`
                 : '<div class="cited-paper-abstract" style="color:#bbb;">No abstract available</div>';
 
+            // 构造 paper 对象用于 addToLibrary
+            const paperObj = {
+                paperId: cp.paperId || '',
+                title: cp.title || '',
+                authors: (cp.authors || []).map(a => typeof a === 'string' ? a : (a.name || '')).filter(Boolean),
+                year: cp.year || 0,
+                venue: venue,
+                abstract: abstract,
+                citationCount: citeCount,
+                doi: doi,
+                source: 'semantic_scholar',
+                sourceName: 'Semantic Scholar',
+                originalUrl: url,
+                journalRating: rating ? { ...rating } : null
+            };
+            const encodedPaper = encodeURIComponent(JSON.stringify(paperObj));
+
+            // DOI 显示（截断过长 DOI）
+            const doiDisplay = doi ? (doi.length > 40 ? doi.substring(0, 40) + '...' : doi) : '';
+
             return `
                 <div class="cited-paper-item">
                     <div class="cited-paper-title">${titleHtml}</div>
@@ -2460,7 +2480,15 @@
                         ${venue ? `<span>📖 ${escapeHtml(venue)}</span>` : ''}
                         <span>📊 ${citeCount.toLocaleString()} cited</span>
                     </div>
+                    ${doi ? `<div style="font-size:11px;color:#888;margin-bottom:4px;word-break:break-all;">DOI: <a href="https://doi.org/${escapeAttr(doi)}" target="_blank" rel="noopener" style="color:var(--primary);">${escapeHtml(doiDisplay)}</a></div>` : ''}
                     ${abstractHtml}
+                    <div style="display:flex;gap:8px;margin-top:8px;flex-wrap:wrap;">
+                        <button class="btn btn-primary btn-small" style="padding:4px 10px;font-size:11px;" data-paper="${encodedPaper}" onclick='addToLibraryFromButton(this)'>
+                            ➕ ${i18n.currentLang === 'zh' ? '加入文献库' : 'Add to Library'}
+                        </button>
+                        ${url ? `<a href="${escapeAttr(url)}" target="_blank" class="btn btn-secondary btn-small" style="padding:4px 10px;font-size:11px;">🌐 ${i18n.currentLang === 'zh' ? '查看论文' : 'View Paper'}</a>` : ''}
+                        ${doi ? `<a href="https://doi.org/${escapeAttr(doi)}" target="_blank" class="btn btn-secondary btn-small" style="padding:4px 10px;font-size:11px;" title="DOI: ${escapeAttr(doi)}">🔗 DOI</a>` : ''}
+                    </div>
                 </div>
             `;
         }
