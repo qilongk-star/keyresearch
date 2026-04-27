@@ -35,6 +35,20 @@
         
         .header h1 { font-size: 2.5em; margin-bottom: 10px; }
         .header .subtitle { opacity: 0.9; font-size: 1.1em; margin-bottom: 8px; }
+        .header .back-to-portal {
+            position: absolute;
+            top: 0;
+            left: 0;
+            background: rgba(255,255,255,0.2);
+            padding: 8px 16px;
+            border-radius: 20px;
+            cursor: pointer;
+            font-size: 14px;
+            transition: all 0.3s;
+            text-decoration: none;
+            color: white;
+        }
+        .header .back-to-portal:hover { background: rgba(255,255,255,0.3); }
         .header .lang-switch {
             position: absolute;
             top: 0;
@@ -618,6 +632,7 @@
 <body>
     <div class="container">
         <div class="header">
+            <a href="../" class="back-to-portal">← <span data-zh="回到门户" data-en="Back to Portal"></span></a>
             <div class="lang-switch" onclick="toggleLanguage()">
                 <span id="langBtn">English</span>
             </div>
