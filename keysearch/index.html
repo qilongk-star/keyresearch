@@ -690,7 +690,7 @@
                             <span class="uncheck-icon">⭕</span>
                             <span class="check-icon">✅</span>
                             <span>Semantic Scholar</span>
-                            <span class="source-badge badge-free">FREE</span>
+                            <span class="source-badge badge-free">LINK</span>
                         </div>
                         <div class="source-checkbox" onclick="toggleSource(this, 'pubmed')">
                             <input type="checkbox" id="sourcePubMed">
@@ -1412,8 +1412,16 @@
                 // 并行搜索多个数据库
                 const searchPromises = [];
                 
+                // Google Scholar 和 Semantic Scholar 改为直接打开网页搜索
+                if (sources.includes('google_scholar')) {
+                    const gsUrl = `https://scholar.google.com/scholar?q=${encodeURIComponent(keyword)}`;
+                    window.open(gsUrl, '_blank');
+                    sourceStats['google_scholar'] = 'link';
+                }
                 if (sources.includes('semantic_scholar')) {
-                    searchPromises.push(searchSemanticScholar(keyword, filters));
+                    const ssUrl = `https://www.semanticscholar.org/search?q=${encodeURIComponent(keyword)}&sort=relevance`;
+                    window.open(ssUrl, '_blank');
+                    sourceStats['semantic_scholar'] = 'link';
                 }
                 if (sources.includes('pubmed')) {
                     searchPromises.push(searchPubMed(keyword, filters));
@@ -1438,11 +1446,6 @@
                 }
                 
                 const results = await Promise.allSettled(searchPromises);
-                
-                // 处理 Google Scholar（链接模式）
-                if (sources.includes('google_scholar')) {
-                    sourceStats['google_scholar'] = 'link';
-                }
                 
                 results.forEach((result, index) => {
                     if (result.status === 'fulfilled' && result.value.papers) {
@@ -2160,10 +2163,14 @@
             
             for (const [source, count] of Object.entries(sourceStats)) {
                 if (count === 'link') {
-                    // Google Scholar 链接模式
                     const keyword = document.getElementById('searchInput').value.trim();
-                    const gsUrl = `https://scholar.google.com/scholar?q=${encodeURIComponent(keyword)}`;
-                    html += `<div class="stat-item"><a href="${gsUrl}" target="_blank" style="color: #3f51b5; text-decoration: none;">🔍 Google Scholar →</a></div>`;
+                    const urls = {
+                        google_scholar: `https://scholar.google.com/scholar?q=${encodeURIComponent(keyword)}`,
+                        semantic_scholar: `https://www.semanticscholar.org/search?q=${encodeURIComponent(keyword)}&sort=relevance`
+                    };
+                    const url = urls[source] || '#';
+                    const label = sourceLabels[source] || source;
+                    html += `<div class="stat-item" style="color: #388e3c;">✅ ${label} <a href="${url}" target="_blank" style="color: #388e3c; text-decoration: underline; font-size: 12px;">↗ ${i18n.currentLang === 'zh' ? '已打开' : 'opened'}</a></div>`;
                 } else if (count > 0) {
                     html += `<div class="stat-item">${sourceLabels[source]}: <span class="stat-value">${count}</span></div>`;
                 }
