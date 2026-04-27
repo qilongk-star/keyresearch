@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+﻿<!DOCTYPE html>
 <html lang="zh-CN">
 <head>
     <meta charset="UTF-8">
@@ -1730,7 +1730,7 @@
                 const fields = 'dc:title,dc:description,dc:creator,prism:coverDate,prism:publicationName,citedby-count,prism:doi,prism:issn,prism:volume,prism:issue,eid';
                 
                 const response = await fetch(
-                    `https://api.elsevier.com/content/search/scopus?query=${query}&field=${fields}&count=100&sort=citedby-count`,
+                    `https://api.elsevier.com/content/search/scopus?query=${query}&field=${fields}&count=25&sort=citedby-count`,
                     {
                         headers: {
                             'X-ELS-APIKey': apiKey,
