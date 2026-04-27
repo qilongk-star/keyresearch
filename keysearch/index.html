@@ -1,4 +1,4 @@
-﻿<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="zh-CN">
 <head>
     <meta charset="UTF-8">
@@ -389,8 +389,31 @@
             display: flex; align-items: center; justify-content: space-between;
             padding: 10px 16px; background: #f0f2ff; border-bottom: 1px solid #e0e0ff;
             font-size: 13px; font-weight: 600; color: var(--primary);
+            flex-wrap: wrap; gap: 8px;
         }
+        .cited-by-sort { display: flex; gap: 4px; flex-wrap: wrap; }
+        .cited-by-sort-btn {
+            font-size: 11px; padding: 3px 8px; border-radius: 12px;
+            border: 1px solid #d0d5ff; background: white; cursor: pointer;
+            color: #555; transition: all 0.2s; font-weight: 400;
+        }
+        .cited-by-sort-btn:hover { background: #e8ebff; }
+        .cited-by-sort-btn.active { background: var(--primary); color: white; border-color: var(--primary); }
         .cited-by-list { max-height: 500px; overflow-y: auto; padding: 8px; }
+        .cited-by-pagination {
+            display: flex; justify-content: center; align-items: center;
+            gap: 8px; padding: 8px 16px; border-top: 1px solid #e0e0ff;
+            background: #f8f9ff;
+        }
+        .cited-by-page-btn {
+            font-size: 12px; padding: 4px 12px; border-radius: 6px;
+            border: 1px solid #d0d5ff; background: white; cursor: pointer;
+            color: #555; transition: all 0.2s;
+        }
+        .cited-by-page-btn:hover:not(:disabled) { background: #e8ebff; }
+        .cited-by-page-btn.active { background: var(--primary); color: white; border-color: var(--primary); }
+        .cited-by-page-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+        .cited-by-page-info { font-size: 12px; color: #888; }
         .cited-paper-item {
             padding: 12px; border-radius: 8px; margin-bottom: 6px;
             border: 1px solid #eee; background: white; transition: all 0.2s;
@@ -2183,7 +2206,7 @@
                             ➕ ${i18n.currentLang === 'zh' ? '加入文献库' : 'Add to Library'}
                         </button>
                         ${(p.citationCount > 0 || p.doi || (p.paperId && !p.paperId.startsWith('pubmed_') && !p.paperId.startsWith('local_') && !p.paperId.startsWith('ieee_'))) ? `
-                            <button class="cited-by-toggle" onclick="toggleCitedBy(this, ${idx})">
+                            <button class="cited-by-toggle" data-paper-index="${idx}" onclick="toggleCitedBy(this, ${idx})">
                                 📚 ${i18n.currentLang === 'zh' ? '查看引用' : 'Cited By'}${p.citationCount !== undefined && p.citationCount !== null ? ' (' + p.citationCount.toLocaleString() + ')' : ''}
                             </button>
                         ` : ''}
@@ -2237,35 +2260,171 @@
         }
 
         // ═══════════ Cited-By (引用该论文的论文) ═══════════
+        const CITEDBY_PAGE_SIZE = 20;
+        const CITEDBY_MAX = 60;
+
         async function loadCitedBy(queryId) {
-            // 通过 Semantic Scholar API 获取引用该论文的论文
-            // queryId 可以是 S2 paperId (如 649def34f8be52c8b66281af98ae884c09aef38b)
-            //          或 DOI 前缀 (如 DOI:10.1234/xxx)
-            //          或 PMID (如 PMID:12345678)
+            // 通过 Semantic Scholar API 获取引用该论文的论文（最多60篇）
             const fields = 'paperId,title,abstract,year,authors,citationCount,externalIds,url,journal,publicationVenue';
-            let apiUrl;
-            if (queryId.startsWith('DOI:')) {
-                // DOI 查询: 不对整个字符串 encode，只 encode 冒号后面的部分
-                const doiPart = queryId.slice(4);
-                apiUrl = `https://api.semanticscholar.org/graph/v1/paper/DOI:${encodeURIComponent(doiPart)}/citations?fields=${fields}&limit=20`;
-            } else if (queryId.startsWith('PMID:')) {
-                const pmidPart = queryId.slice(5);
-                apiUrl = `https://api.semanticscholar.org/graph/v1/paper/PMID:${encodeURIComponent(pmidPart)}/citations?fields=${fields}&limit=20`;
-            } else {
-                apiUrl = `https://api.semanticscholar.org/graph/v1/paper/${encodeURIComponent(queryId)}/citations?fields=${fields}&limit=20`;
+            const limit = Math.min(CITEDBY_PAGE_SIZE, 100); // S2 API max per page is 100
+
+            function buildUrl(offset) {
+                if (queryId.startsWith('DOI:')) {
+                    const doiPart = queryId.slice(4);
+                    return `https://api.semanticscholar.org/graph/v1/paper/DOI:${encodeURIComponent(doiPart)}/citations?fields=${fields}&limit=${limit}&offset=${offset}`;
+                } else if (queryId.startsWith('PMID:')) {
+                    const pmidPart = queryId.slice(5);
+                    return `https://api.semanticscholar.org/graph/v1/paper/PMID:${encodeURIComponent(pmidPart)}/citations?fields=${fields}&limit=${limit}&offset=${offset}`;
+                } else {
+                    return `https://api.semanticscholar.org/graph/v1/paper/${encodeURIComponent(queryId)}/citations?fields=${fields}&limit=${limit}&offset=${offset}`;
+                }
             }
 
             try {
-                const resp = await fetch(apiUrl, {
+                // 先请求第一页，看看总数
+                const firstResp = await fetch(buildUrl(0), {
                     headers: { 'User-Agent': 'KeyResearch/1.0' }
                 });
-                if (!resp.ok) throw new Error('API error: ' + resp.status);
-                const data = await resp.json();
-                return (data.data || []).map(item => item.citingPaper || item).filter(p => p && p.title);
+                if (!firstResp.ok) throw new Error('API error: ' + firstResp.status);
+                const firstData = await firstResp.json();
+
+                let allPapers = (firstData.data || []).map(item => item.citingPaper || item).filter(p => p && p.title);
+                const next = firstData.next; // S2 returns "next" cursor if more pages
+
+                // 如果有更多数据且需要，并发请求后续页
+                if (next && allPapers.length < CITEDBY_MAX) {
+                    const pages = [];
+                    for (let i = 1; i * limit < CITEDBY_MAX && (pages.length === 0 || i < 3); i++) {
+                        pages.push(buildUrl(i * limit));
+                    }
+                    const results = await Promise.allSettled(
+                        pages.map(url => fetch(url, { headers: { 'User-Agent': 'KeyResearch/1.0' }})
+                            .then(r => { if (!r.ok) throw new Error('API error: ' + r.status); return r.json(); }))
+                    );
+                    for (const result of results) {
+                        if (result.status === 'fulfilled') {
+                            const papers = (result.value.data || []).map(item => item.citingPaper || item).filter(p => p && p.title);
+                            allPapers = allPapers.concat(papers);
+                        }
+                    }
+                }
+
+                return allPapers.slice(0, CITEDBY_MAX);
             } catch (e) {
                 console.error('CitedBy fetch error:', e);
                 throw e;
             }
+        }
+
+        // CitedBy 排序函数
+        function sortCitedPapers(papers, sortType) {
+            const sorted = [...papers];
+            switch (sortType) {
+                case 'citations_desc':
+                    sorted.sort((a, b) => (b.citationCount || 0) - (a.citationCount || 0));
+                    break;
+                case 'citations_asc':
+                    sorted.sort((a, b) => (a.citationCount || 0) - (b.citationCount || 0));
+                    break;
+                case 'year_desc':
+                    sorted.sort((a, b) => (b.year || 0) - (a.year || 0));
+                    break;
+                case 'year_asc':
+                    sorted.sort((a, b) => (a.year || 0) - (b.year || 0));
+                    break;
+                case 'journal':
+                    sorted.sort((a, b) => {
+                        const va = a.publicationVenue?.name || a.journal?.name || '';
+                        const vb = b.publicationVenue?.name || b.journal?.name || '';
+                        const ra = getJournalRating(va);
+                        const rb = getJournalRating(vb);
+                        const scoreA = (ra?.absRank || 0) * 100 + (ra?.abdc || 0) * 10 + (ra?.if || 0);
+                        const scoreB = (rb?.absRank || 0) * 100 + (rb?.abdc || 0) * 10 + (rb?.if || 0);
+                        return scoreB - scoreA;
+                    });
+                    break;
+                default:
+                    break;
+            }
+            return sorted;
+        }
+
+        // 渲染 CitedBy 面板（含分页+排序）
+        function renderCitedByPanel(panel, citedPapers, paper) {
+            const lang = i18n.currentLang === 'zh';
+            const totalPages = Math.ceil(citedPapers.length / CITEDBY_PAGE_SIZE);
+
+            // 存储到 paper 对象上以便排序/翻页
+            if (!paper._citedBy) paper._citedBy = { papers: citedPapers, page: 1, sort: '' };
+
+            function render() {
+                const { papers: allPapers, page, sort: currentSort } = paper._citedBy;
+                const sorted = currentSort ? sortCitedPapers(allPapers, currentSort) : allPapers;
+                const start = (page - 1) * CITEDBY_PAGE_SIZE;
+                const pagePapers = sorted.slice(start, start + CITEDBY_PAGE_SIZE);
+
+                const sortOptions = [
+                    { key: '', zh: '默认', en: 'Default' },
+                    { key: 'citations_desc', zh: '引用↓', en: 'Citations↓' },
+                    { key: 'year_desc', zh: '年份↓', en: 'Year↓' },
+                    { key: 'year_asc', zh: '年份↑', en: 'Year↑' },
+                    { key: 'journal', zh: '期刊等级', en: 'Journal Rank' },
+                ];
+
+                const headerText = lang
+                    ? `📚 被引用 (${allPapers.length} 篇)`
+                    : `📚 Cited by (${allPapers.length} papers)`;
+
+                panel.innerHTML = `
+                    <div class="cited-by-header">
+                        <span>${headerText}</span>
+                        <div class="cited-by-sort">
+                            ${sortOptions.map(o => `
+                                <button class="cited-by-sort-btn ${currentSort === o.key ? 'active' : ''}"
+                                    onclick="sortCitedBy(this, '${o.key}')">${lang ? o.zh : o.en}</button>
+                            `).join('')}
+                        </div>
+                        <span style="font-size:11px;color:#888;">via Semantic Scholar</span>
+                    </div>
+                    <div class="cited-by-list">
+                        ${pagePapers.map(cp => renderCitedPaperItem(cp)).join('')}
+                    </div>
+                    ${totalPages > 1 ? `
+                        <div class="cited-by-pagination">
+                            <button class="cited-by-page-btn" onclick="citedByPage(this, -1)" ${page <= 1 ? 'disabled' : ''}>‹ 上一页</button>
+                            <span class="cited-by-page-info">${lang ? '第' : 'Page'} ${page} / ${totalPages}</span>
+                            <button class="cited-by-page-btn" onclick="citedByPage(this, 1)" ${page >= totalPages ? 'disabled' : ''}>下一页 ›</button>
+                        </div>
+                    ` : ''}
+                `;
+            }
+
+            render();
+            panel._renderCitedBy = render;
+        }
+
+        function sortCitedBy(btn, sortType) {
+            const panel = btn.closest('.cited-by-panel');
+            const card = panel.closest('.paper-card');
+            const toggleBtn = card.querySelector('.cited-by-toggle');
+            const paper = _currentResultPapers[parseInt(toggleBtn.getAttribute('data-paper-index'))];
+            if (!paper || !paper._citedBy) return;
+            paper._citedBy.sort = sortType;
+            paper._citedBy.page = 1; // 排序后回到第一页
+            panel._renderCitedBy();
+        }
+
+        function citedByPage(btn, delta) {
+            const panel = btn.closest('.cited-by-panel');
+            const card = panel.closest('.paper-card');
+            const toggleBtn = card.querySelector('.cited-by-toggle');
+            const paper = _currentResultPapers[parseInt(toggleBtn.getAttribute('data-paper-index'))];
+            if (!paper || !paper._citedBy) return;
+            const totalPages = Math.ceil(paper._citedBy.papers.length / CITEDBY_PAGE_SIZE);
+            const newPage = paper._citedBy.page + delta;
+            if (newPage < 1 || newPage > totalPages) return;
+            paper._citedBy.page = newPage;
+            panel._renderCitedBy();
         }
 
         function renderCitedPaperItem(cp) {
@@ -2322,10 +2481,10 @@
         function toggleCitedBy(btn, paperIndex) {
             const paper = _currentResultPapers[paperIndex];
             if (!paper) return;
-            _toggleCitedByImpl(btn, paper);
+            _toggleCitedByImpl(btn, paperIndex, paper);
         }
 
-        async function _toggleCitedByImpl(btn, paper) {
+        async function _toggleCitedByImpl(btn, paperIndex, paper) {
             const card = btn.closest('.paper-card');
             let panel = card.querySelector('.cited-by-panel');
 
@@ -2380,18 +2539,9 @@
                         (i18n.currentLang === 'zh' ? '📭 暂无引用数据' : '📭 No citations found') +
                         '</div>';
                 } else {
-                    const headerText = i18n.currentLang === 'zh'
-                        ? `📚 被引用 (${citedPapers.length} 篇)`
-                        : `📚 Cited by (${citedPapers.length} papers)`;
-                    panel.innerHTML = `
-                        <div class="cited-by-header">
-                            <span>${headerText}</span>
-                            <span style="font-size:11px;color:#888;">via Semantic Scholar</span>
-                        </div>
-                        <div class="cited-by-list">
-                            ${citedPapers.map(cp => renderCitedPaperItem(cp)).join('')}
-                        </div>
-                    `;
+                    // 清除旧的分页状态
+                    delete paper._citedBy;
+                    renderCitedByPanel(panel, citedPapers, paper);
                 }
             } catch (e) {
                 panel.innerHTML = '<div class="cited-by-error">❌ ' +
