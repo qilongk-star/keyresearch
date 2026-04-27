@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+﻿<!DOCTYPE html>
 <html lang="zh-CN">
 <head>
   <meta charset="UTF-8">
@@ -311,8 +311,8 @@
       <div class="user-avatar" id="user-avatar" style="background:#0078d4">?</div>
       <span id="user-name-display">Set name</span>
     </div>
-    <button class="btn-primary" onclick="saveToNotion()">💾 Save</button>
-    <button class="btn-secondary" onclick="loadFromNotion()">📂 Load</button>
+    <button class="btn-primary" onclick="saveToLocal()">💾 Save</button>
+    <button class="btn-secondary" onclick="loadFromLocal()">📂 Load</button>
   </div>
 
   <div class="main">
@@ -320,17 +320,12 @@
       <div class="upload-box">
         <input type="file" id="file-input-main" accept=".pdf">
         <label for="file-input-main">📁 Select Local PDF</label>
-        <p>Or paste a Notion PDF link below to load directly</p>
+        <p>Upload a PDF to start annotating</p>
       </div>
 
-      <div class="url-input-box">
-        <h4>🔗 Load from Notion PDF Link</h4>
-        <input type="text" id="notion-url-input" placeholder="Paste Notion PDF link (https://file.notion.so/...)">
-        <button class="btn-primary" onclick="loadFromNotionUrl()">Load PDF</button>
-        <div class="hint">Supports file.notion.so links with valid download token</div>
         <div class="cors-notice" id="cors-notice" style="display:none">
-          ⚠️ Direct loading of Notion links may fail due to browser security (CORS).<br>
-          If it fails, download the PDF from Notion and open it with "Local PDF".
+          ⚠️ Direct loading of remote links may fail due to browser security (CORS).<br>
+          If it fails, download the file and use "Local PDF".
         </div>
       </div>
     </div>
@@ -377,21 +372,6 @@
       <button onclick="closeModal('settings-panel')" style="margin-top:12px;width:100%;">Done</button>
     </div>
   </div>
-
-
-    <div class="modal-content">
-      <h3>⚙️ System Info</h3>
-      <p style="margin-bottom:12px;color:#aaa;font-size:14px">Notion Token is configured server-side. No input needed.</p>
-      <div style="background:#1a1a1a;border-radius:8px;padding:12px;margin-bottom:16px">
-        <div style="font-size:12px;color:#888">Connection</div>
-        <div style="font-size:14px;color:#4caf50">✅ Connected</div>
-        <div style="font-size:12px;color:#888;margin-top:8px">Database ID</div>
-        <div style="font-size:13px;color:#ddd;font-family:monospace;word-break:break-all" id="db-display"></div>
-      </div>
-      <button onclick="closeModal('notion-modal')">Close</button>
-    </div>
-  </div>
-
   <div class="modal" id="note-modal">
     <div class="modal-content">
       <h3>📝 Add Note</h3>
@@ -405,7 +385,7 @@
 
   <div class="modal" id="save-modal">
     <div class="modal-content">
-      <h3>💾 Save to Notion</h3>
+      <h3>💾 Save Annotations</h3>
       <select id="save-project">
         <option value="">Select project...</option>
       </select>
@@ -427,8 +407,6 @@
 <script>
 pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
 
-const DEFAULT_DB_ID = '34b3730d-690c-814a-b412-d8ea7186b88d';
-const NOTION_TOKEN = new URLSearchParams(location.hash.slice(1)).get('token');
 
 // Annotation colors palette (for different users)
 const PALETTE = [
@@ -446,7 +424,6 @@ let pdfDoc = null, totalPages = 0, mode = 'select', scale = 1.5;
 let annotations = [], pages = [], pendingNotePosition = null;
 let currentPdfSource = { type: 'local', name: '', url: '' };
 let selectedHighlight = null;
-let notionReady = false;
 
 // Current user
 let currentUser = {
@@ -454,9 +431,6 @@ let currentUser = {
   color: localStorage.getItem('annotator_color') || PALETTE[0]
 };
 
-let notionConfig = {
-  dbId: new URLSearchParams(location.hash.slice(1)).get('db') || DEFAULT_DB_ID
-};
 
 const PROJECTS = [
   'SURF02170-Time Pressure',
@@ -612,7 +586,7 @@ function updateStatus(text, connected = false) {
   s.className = 'status' + (connected ? ' connected' : '');
 }
 
-checkNotion();
+updateStatus('Ready', true);
 
 // ─── Mode ─────────────────────────────────────────────────────────────────────
 
@@ -640,42 +614,6 @@ function setMode(m) {
 }
 
 // ─── Load PDF ─────────────────────────────────────────────────────────────────
-
-async function loadFromNotionUrl() {
-  const url = $('notion-url-input').value.trim();
-  if (!url) { alert('Please enter a Notion PDF link'); return; }
-  if (!url.includes('file.notion.so')) { alert('Please enter a valid file.notion.so link'); return; }
-
-  updateStatus('Loading PDF...', false);
-
-  try {
-    // Try direct loading first (Notion file URLs should work directly)
-    const resp = await fetch(url, { mode: 'cors' });
-    if (!resp.ok) throw new Error('Direct fetch failed: ' + resp.status);
-    const blob = await resp.blob();
-    const arrayBuffer = await blob.arrayBuffer();
-
-    const loadingTask = pdfjsLib.getDocument({
-      data: arrayBuffer,
-      cMapUrl: 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/cmaps/',
-      cMapPacked: true
-    });
-    loadingTask.onProgress = ({ loaded, total }) => {
-      const pct = total ? Math.round(loaded / total * 100) : 0;
-      updateStatus(`Rendering ${pct}%...`, false);
-    };
-    pdfDoc = await loadingTask.promise;
-    totalPages = pdfDoc.numPages;
-    const urlObj = new URL(url);
-    const nameMatch = urlObj.searchParams.get('downloadName') || url.split('/').pop().split('?')[0];
-    currentPdfSource = { type: 'notion', name: decodeURIComponent(nameMatch || 'Notion-PDF'), url };
-    renderPdfPages();
-    updateStatus(`${totalPages} pages loaded`, true);
-  } catch (err) {
-    updateStatus('Load failed', false);
-    alert('Load failed: ' + err.message + '\n\nPossible reasons:\n1. Link expired or invalid\n2. Network issue\n\nTip: Download the PDF from Notion and open with "Local PDF"');
-  }
-}
 
 async function loadPDF(file) {
   if (!file) return;
@@ -1017,172 +955,86 @@ function deleteAnnotation(id) {
   else deleteNote(id);
 }
 
-// ─── Notion API (Direct) ───────────────────────────────────────────────────────
 
-async function checkNotion() {
-  if (!NOTION_TOKEN) {
-    updateStatus('Add #token=... to URL', false);
-    return;
-  }
-  updateStatus('Connecting...', false);
-  $('db-display').textContent = notionConfig.dbId;
-  try {
-    // Test connection by fetching database info
-    const resp = await fetch(`https://api.notion.com/v1/databases/${notionConfig.dbId}`, {
-      method: 'GET',
-      headers: {
-        'Authorization': `Bearer ${NOTION_TOKEN}`,
-        'Notion-Version': '2022-06-28'
-      }
-    });
-    if (resp.ok) { notionReady = true; updateStatus('Connected', true); }
-    else { updateStatus('Auth failed', false); }
-  } catch (e) {
-    updateStatus('Offline', false);
-  }
+// ─── Local Storage (replaces Notion API) ───────────────────────────────
+
+function getStorageKey() {
+  return 'pdf_anno_' + (currentPdfSource.name || 'unnamed');
 }
 
-function openNotionSetup() {
-  $('notion-modal').classList.add('active');
-}
-
-function closeModal(id) {
-  $(id).classList.remove('active');
-}
-
-function saveToNotion() {
-  if (!notionReady) { alert('Service not connected. Please try again later.'); return; }
-  if (!notionConfig.dbId) { alert('Database not configured.'); return; }
+function saveToLocal() {
   if (annotations.length === 0) { alert('No annotations to save.'); return; }
   if (!currentUser.name) { openNicknameModal(false); return; }
 
-  $('save-project').value = $('project-select').value;
-  $('pdf-name-input').value = currentPdfSource.name || '';
-  $('pdf-source-url').value = currentPdfSource.url || '';
-  $('save-modal').classList.add('active');
-}
-
-async function confirmSave() {
-  const project = $('save-project').value || 'Other';
-  const pdfName = $('pdf-name-input').value.trim() || currentPdfSource.name || 'PDF-' + new Date().toISOString().slice(0, 10);
-  const sourceUrl = $('pdf-source-url').value;
-  closeModal('save-modal');
-
-  const data = JSON.stringify({
+  const pdfName = currentPdfSource.name || prompt('Enter PDF name:') || 'PDF-' + new Date().toISOString().slice(0,10);
+  
+  const data = {
     pdf_name: pdfName,
-    project,
+    project: $('project-select').value || 'Other',
     total_pages: totalPages,
-    annotations,
-    source_url: sourceUrl,
+    annotations: annotations,
     source_type: currentPdfSource.type,
     created_at: new Date().toISOString()
+  };
+
+  // Get existing saves list or create new
+  let saves = JSON.parse(localStorage.getItem('pdf_annotator_saves') || '[]');
+  // Update if exists for same pdf name, otherwise add
+  const idx = saves.findIndex(s => s.pdf_name === pdfName);
+  if (idx >= 0) saves[idx] = { ...data, updated_at: new Date().toISOString() };
+  else saves.push(data);
+
+  // Store individual annotation data
+  localStorage.setItem(getStorageKey(), JSON.stringify(annotations));
+  localStorage.setItem('pdf_annotator_saves', JSON.stringify(saves));
+  alert('✅ Saved locally: ' + pdfName);
+}
+
+function loadFromLocal() {
+  const saves = JSON.parse(localStorage.getItem('pdf_annotator_saves') || '[]');
+  if (saves.length === 0) { alert('No saved annotations found.'); return; }
+
+  const container = $('saved-list');
+  container.innerHTML = '';
+  saves.forEach((item, i) => {
+    const name = item.pdf_name || 'Untitled';
+    const proj = item.project || '-';
+    const date = (item.updated_at || item.created_at || '').slice(0, 10);
+    const count = (item.annotations || []).length;
+    const el = document.createElement('div');
+    el.className = 'saved-item';
+    el.innerHTML = `<div class="name">${name}</div><div class="meta">${proj} · ${date} · ${count} annotations</div>`;
+    el.onclick = () => loadLocalAnnotations(item);
+    container.appendChild(el);
   });
-
-  const chunks = [];
-  for (let i = 0; i < data.length; i += 2000) chunks.push(data.slice(i, i + 2000));
-  const richTextParts = chunks.map(c => ({ text: { content: c } }));
-
-  try {
-    const resp = await fetch('https://api.notion.com/v1/pages', {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${NOTION_TOKEN}`,
-        'Content-Type': 'application/json',
-        'Notion-Version': '2022-06-28'
-      },
-      body: JSON.stringify({
-        parent: { database_id: notionConfig.dbId },
-        properties: {
-          'Name': { title: [{ text: { content: pdfName } }] },
-          'Project': { rich_text: [{ text: { content: project } }] },
-          'PdfName': { rich_text: [{ text: { content: pdfName } }] },
-          'Annotations': { rich_text: richTextParts },
-          'LastModified': { date: { start: new Date().toISOString() } }
-        }
-      })
-    });
-    const result = await resp.json();
-    if (result.object === 'error') alert('Save failed: ' + result.message);
-    else alert('✅ Saved: ' + pdfName + ' → ' + project);
-  } catch (e) {
-    alert('Save failed: ' + e.message);
-  }
+  $('load-modal').classList.add('active');
 }
 
-async function loadFromNotion() {
-  if (!notionReady || !notionConfig.dbId) { alert('Service not connected.'); return; }
-
-  try {
-    const project = $('project-select').value;
-    const body = project ? { filter: { property: 'Project', rich_text: { equals: project } } } : {};
-
-    const resp = await fetch(`https://api.notion.com/v1/databases/${notionConfig.dbId}/query`, {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${NOTION_TOKEN}`,
-        'Content-Type': 'application/json',
-        'Notion-Version': '2022-06-28'
-      },
-      body: JSON.stringify({ ...body, page_size: 50 })
-    });
-
-    const result = await resp.json();
-    if (result.object === 'error') { alert('Load failed: ' + result.message); return; }
-
-    const list = result.results || [];
-    if (list.length === 0) { alert('No saved annotations found.'); return; }
-
-    const container = $('saved-list');
-    container.innerHTML = '';
-    list.forEach((page) => {
-      const name = page.properties.Name?.title?.[0]?.plain_text || 'Untitled';
-      const proj = page.properties.Project?.rich_text?.[0]?.plain_text || '-';
-      const date = page.properties.LastModified?.date?.start?.slice(0, 10) || '-';
-      const item = document.createElement('div');
-      item.className = 'saved-item';
-      item.innerHTML = `<div class="name">${name}</div><div class="meta">${proj} · ${date}</div>`;
-      item.onclick = () => loadAnnotations(page);
-      container.appendChild(item);
-    });
-    $('load-modal').classList.add('active');
-  } catch (e) {
-    alert('Load failed: ' + e.message);
-  }
-}
-
-async function loadAnnotations(page) {
-  const dataStr = (page.properties.Annotations?.rich_text || []).map(rt => rt.plain_text).join('');
-  if (!dataStr) { alert('No annotation data found.'); return; }
-
-  try {
-    const data = JSON.parse(dataStr);
-    annotations = data.annotations || [];
-    currentPdfSource = { type: data.source_type || 'local', name: data.pdf_name, url: data.source_url || '' };
-
-    if (currentPdfSource.url && currentPdfSource.url.includes('file.notion.so')) {
-      $('notion-url-input').value = currentPdfSource.url;
-      await loadFromNotionUrl();
-    } else if (currentPdfSource.type === 'local') {
-      alert('This is a local PDF annotation. Please re-open the same PDF file.');
-      $('upload-section').classList.remove('hidden');
-      $('pdf-section').classList.remove('active');
-    }
-
+function loadLocalAnnotations(item) {
+  annotations = item.annotations || [];
+  currentPdfSource = { type: item.source_type || 'local', name: item.pdf_name, url: '' };
+  
+  // If we have a loaded PDF, render the annotations on it
+  if (pdfDoc) {
     annotations.forEach(a => {
       if (a.type === 'highlight') renderHighlight(a);
       else renderNote(a);
     });
-
     updateAnnotationList();
     closeModal('load-modal');
-
+    
     const myCount = annotations.filter(a => a.author === currentUser.name).length;
     const othersCount = annotations.length - myCount;
-    alert(`✅ Loaded: ${data.pdf_name}\n${annotations.length} annotations total\n• Yours: ${myCount}\n• Others: ${othersCount}`);
-  } catch (e) {
-    alert('Parse error: ' + e.message);
+    alert(`✅ Loaded: ${item.pdf_name}\n${annotations.length} annotations total\n• Yours: ${myCount}\n• Others: ${othersCount}`);
+  } else {
+    // No PDF loaded yet - just set annotations and show upload
+    alert(`${item.pdf_name}: ${annotations.length} annotations ready\nPlease upload "${item.pdf_name}" to view them.`);
+    $('upload-section').classList.remove('hidden');
+    $('pdf-section').classList.remove('active');
+    closeModal('load-modal');
   }
 }
+
 
 // ─── Event Listeners ──────────────────────────────────────────────────────────
 
@@ -1202,19 +1054,22 @@ document.addEventListener('keydown', (e) => {
 });
 
 // Expose to window
-window.loadFromNotionUrl = loadFromNotionUrl;
+window.loadFromNotionUrl = loadPDF;
 window.setMode = setMode;
 window.saveNote = saveNote;
 window.deleteNote = deleteNote;
 window.deleteHighlight = deleteHighlight;
 window.deleteAnnotation = deleteAnnotation;
-window.openNotionSetup = openNotionSetup;
+
 window.closeModal = closeModal;
-window.saveToNotion = saveToNotion;
-window.confirmSave = confirmSave;
-window.loadFromNotion = loadFromNotion;
+
+
+
 window.confirmNickname = confirmNickname;
 window.openNicknameModal = openNicknameModal;
+window.saveToLocal = saveToLocal;
+window.loadFromLocal = loadFromLocal;
 </script>
 </body>
 </html>
+
