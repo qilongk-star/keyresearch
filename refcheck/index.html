@@ -569,17 +569,27 @@ const journalRatings = {
     'scientific reports': { abs: '3', cas: '2', if: '4.6' },
     'plos one': { abs: '3', cas: '3', if: '3.7' },
     'journal of business and industrial marketing': { abs: '2', abdc: 'B', cas: '4', if: '2.2' },
+    'harvard business review': { ft50: true, abs: '3', abdc: 'A', cas: '3', if: '9.0' },
+    'california management review': { ft50: true, abs: '3', abdc: 'A', cas: '3', if: '5.2' },
+    'mit sloan management review': { ft50: true, abs: '3', abdc: 'A', cas: '3', if: '4.8' },
+    'industrial marketing management': { abs: '3', abdc: 'A*', cas: '2', if: '5.8' },
 };
 
 function getJournalRating(journalName) {
     if (!journalName) return null;
     const normalized = journalName.toLowerCase().trim();
+    let bestMatch = null;
+    let bestLen = 0;
     for (const [key, rating] of Object.entries(journalRatings)) {
         if (normalized.includes(key) || key.includes(normalized)) {
-            return rating;
+            // Longest match wins to avoid "Journal of Marketing" matching "Journal of Marketing Research"
+            if (key.length > bestLen) {
+                bestLen = key.length;
+                bestMatch = rating;
+            }
         }
     }
-    return null;
+    return bestMatch;
 }
 
 // Tier system (mutually exclusive, same as KeySearch)
@@ -1363,34 +1373,103 @@ function parseOneRef(text) {
     }
   }
 
-  // Extract journal name — look for journal name patterns after title/year
+  // Extract journal name — multi-strategy approach
   let journalName = '';
-  // Pattern: after title, look for italicized journal or known journal name patterns
-  // APA: Journal Name, Volume(Issue), Pages.
-  // Try to find journal name between title/year and volume/doi
-  const journalPatterns = [
-    // "Journal Name, Vol(Issue)" or "Journal Name, Vol"
-    /(?:[.!?]\s+|\)\.\s+)([A-Z][\w\s&'-]+(?:Journal|Review|Letters|Science|Nature|Proceedings|Transactions|Advances|Physics|Chemistry|Biology|Medicine|Engineering|Computing|IEEE|ACM|Management|Research|Studies|Psychology|Education|Communications|Technology|Policy|Annals|Quarterly|Bulletin|Reports))[,\s]\s*\d+/,
-    // "Journal Name, Vol" — after year
-    /(?:\d{4}[a-z]?[).]\s+|[.!?]\s+)([A-Z][\w\s&'-]+(?:Journal|Review|Letters|Science|Nature|Proceedings|Transactions|Advances|Physics|Chemistry|Biology|Medicine|Engineering|Computing|IEEE|ACM|Management|Research|Studies|Psychology|Education|Communications|Technology|Policy|Annals|Quarterly|Bulletin|Reports))/,
-  ];
-  for (const jp of journalPatterns) {
-    const jm = text.match(jp);
-    if (jm && jm[1].length > 5) {
-      journalName = jm[1].trim();
-      break;
-    }
+  
+  // Helper: try to match extracted name against journalRatings
+  function tryMatchRating(name) {
+    if (!name || name.length < 4) return null;
+    name = name.trim().replace(/^(?:In\s+|Available at:\s*)/i, '');
+    return getJournalRating(name);
   }
-  // Fallback: try CrossRef container-title style — any capitalized multi-word before volume
-  if (!journalName && title) {
-    const afterTitle = text.indexOf(title);
-    if (afterTitle >= 0) {
-      const rest = text.substring(afterTitle + title.length);
-      const volMatch = rest.match(/[.,;:]\s*([A-Z][\w\s&'-]+?),?\s*\d+\s*[\(]?/);
-      if (volMatch && volMatch[1].length > 5) {
-        journalName = volMatch[1].trim();
+  
+  // Strategy 1: Direct database matching — scan text for any known journal name (longest match wins)
+  const knownJournals = Object.keys(journalRatings);
+  let bestMatchLen = 0;
+  for (const jName of knownJournals) {
+    const idx = text.toLowerCase().indexOf(jName);
+    if (idx >= 0) {
+      const before = idx > 0 ? text[idx - 1] : ' ';
+      const after = text[idx + jName.length] || ' ';
+      if (/[\s,;:.("'"/-]/.test(before) || /[\s,;:."')/-]/.test(after) || idx === 0) {
+        if (jName.length > bestMatchLen) {
+          bestMatchLen = jName.length;
+          journalName = jName;
+        }
       }
     }
+  }
+  
+  // Strategy 2: If not found by direct match, try structural extraction
+  if (!journalName) {
+    const journalEndWords = [
+      'Journal', 'Review', 'Letters', 'Science', 'Nature', 'Proceedings',
+      'Transactions', 'Advances', 'Physics', 'Chemistry', 'Biology', 'Medicine',
+      'Engineering', 'Computing', 'IEEE', 'ACM', 'Management', 'Research',
+      'Studies', 'Psychology', 'Education', 'Communications', 'Technology',
+      'Policy', 'Annals', 'Quarterly', 'Bulletin', 'Reports', 'Behavior',
+      'Processes', 'Economics', 'Law', 'Systems', 'Innovation'
+    ];
+    const endPattern = journalEndWords.join('|');
+    
+    // Pattern A: After title ending (. " " or ") "), capture journal name (may include commas, parentheses, "and", "of the")
+    // Captures: "Journal of Marketing, 85" or "Journal Name (2020)" or "Journal of the Academy..."
+    const patA = new RegExp(
+      `(?:[.!?]\\s+|\\)\\.\\s+)` +  // after title sentence
+      `((?:[A-Z][A-Za-z\\s&'()\\-]+?)(?:${endPattern})(?:[A-Za-z\\s&'()\\-]*?))` +  // journal name
+      `[,\\s]*(?:\\d{1,4}|\\(|$|\\.\\s|http)`,  // ends at volume/year/doi/end
+      'i'
+    );
+    const mA = text.match(patA);
+    if (mA && mA[1] && mA[1].length > 5) {
+      const cleaned = mA[1].trim().replace(/[.,;:]+$/, '');
+      if (tryMatchRating(cleaned)) journalName = cleaned;
+    }
+    
+    // Pattern B: After year "YYYY. " or "(Year). " — capture journal name
+    if (!journalName) {
+      const patB = new RegExp(
+        `(?:\\d{4}[a-z]?[).]\\s+|\\(n\\.d\\.\\)\\.\\s+)` +
+        `(([A-Z][A-Za-z\\s&'()\\-]+?(?:${endPattern})[A-Za-z\\s&'()\\-]*?)?)` +
+        `[,\\s]*\\d`,
+        'i'
+      );
+      const mB = text.match(patB);
+      if (mB && mB[1] && mB[1].length > 5) {
+        const cleaned = mB[1].trim().replace(/[.,;:]+$/, '');
+        if (tryMatchRating(cleaned)) journalName = cleaned;
+      }
+    }
+    
+    // Pattern C: "In JournalName" format (book chapters, edited volumes)
+    if (!journalName) {
+      const patC = new RegExp(
+        `\\bIn\\s+([A-Z][A-Za-z\\s&'()\\-]+?(?:${endPattern})[A-Za-z\\s&'()\\-]*?)`,
+        'i'
+      );
+      const mC = text.match(patC);
+      if (mC && mC[1] && mC[1].length > 5) {
+        const cleaned = mC[1].trim().replace(/[.,;:]+$/, '');
+        if (tryMatchRating(cleaned)) journalName = cleaned;
+      }
+    }
+    
+    // Pattern D: Proceedings format — "Proceedings of the ... Conference ... (ACM/ICIS/AMCIS)."
+    if (!journalName && /proceedings/i.test(text)) {
+      const patD = /(Proceedings\s+of\s+the\s+[A-Za-z\s()&'\\-]+?(?:Conference|Symposium|Workshop|Academy|Meeting)[A-Za-z\s()&'\\-]*?)(?:\s*[\(]|\s*\.\s*$)/i;
+      const mD = text.match(patD);
+      if (mD && mD[1]) {
+        const cleaned = mD[1].trim().replace(/[.,;:]+$/, '');
+        if (tryMatchRating(cleaned)) journalName = cleaned;
+      }
+    }
+  }
+  
+  // Clean up journal name
+  if (journalName) {
+    journalName = journalName.replace(/^(?:In\s+|Available at:\s*)/i, '');
+    journalName = journalName.replace(/^\s+|\s+$/g, '');
+    journalName = journalName.replace(/[.,;:]+$/, '');
   }
 
   // Get journal rating
