@@ -251,6 +251,10 @@ body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-
 .vm-match-panel.active { display: block; }
 .vm-match-search { width: 100%; padding: 8px 12px; border-radius: 8px; border: 1px solid var(--accent); background: var(--bg); color: var(--text); font-size: 13px; outline: none; margin-bottom: 8px; }
 .vm-match-cit-info { font-size: 12px; color: var(--warning); margin-bottom: 8px; display: flex; align-items: center; gap: 6px; }
+.vm-match-tabs { display: flex; gap: 4px; margin-bottom: 6px; }
+.vm-match-tab { padding: 4px 12px; border-radius: 6px; font-size: 11px; font-weight: 600; cursor: pointer; background: var(--bg); color: var(--muted); border: 1px solid transparent; transition: all 0.15s; }
+.vm-match-tab.active { color: var(--accent); border-color: var(--accent); background: rgba(99,102,241,0.1); }
+.vm-match-tab:hover { color: var(--text); }
 .vm-match-ref-list { max-height: 200px; overflow-y: auto; display: flex; flex-direction: column; gap: 4px; }
 .vm-match-ref-item { display: flex; align-items: flex-start; gap: 8px; padding: 8px; border-radius: 8px; background: var(--bg); cursor: pointer; transition: all 0.15s; border: 1px solid transparent; }
 .vm-match-ref-item:hover { border-color: var(--accent); background: rgba(99,102,241,0.05); }
@@ -746,8 +750,8 @@ function splitBodyAndRefs() {
     refSectionText = candidateRefText;
     bodyText = cleaned.substring(0, best.pos).trim();
 
-    // Trim non-reference sections AFTER References (Appendix, Supplementary, etc.)
-    const trailingSectionPattern = /\n\s*(?:Appendix|Appendices|Supplementary(?:\s+Material)?|Supplement|Online\s+Supplement|Table\s+[A-Z]\.\d|Figure\s+[A-Z]\.\d|Appendix\s+Table)\b/i;
+    // Trim non-reference sections AFTER References (Appendix, Supplementary, Tables, Figures, Endnotes, etc.)
+    const trailingSectionPattern = /\n\s*(?:Appendix|Appendices|Supplementary(?:\s+Material)?|Supplement|Online\s+Supplement|Appendix\s+Table|Table\s+\d|Figure\s+\d|Endnotes?|Footnotes?|Notes?\.\s*$|Data\s+(?:Sources?|Availability)|Acknowledgments?)\b/i;
     const trailMatch = refSectionText.match(trailingSectionPattern);
     if (trailMatch && trailMatch.index > 50) {
       refSectionText = refSectionText.substring(0, trailMatch.index).trim();
@@ -908,7 +912,36 @@ function parseReferences() {
   // Store detected format for display
   window._refFormat = refFormat;
 
-  // Post-parse validation: if refs look suspicious (no years, no DOIs, very long entries),
+  // Post-parse validation: filter out entries that look like tables, endnotes, data sources, etc.
+  const nonRefPatterns = [
+    /^(?:Table\s+\d|Figure\s+\d|Endnotes?|Footnotes?|Data\s+(?:Sources?|Availability))/i,
+    /^(?:Sample sizes|Standard errors|Coarsened Exact Matching|Cluster Rule|Impact of|Trends in)/i,
+    /^(?:Unfortunately|At that point|Census disclosure)/i,
+    /^Bureau of (?:Economic|Labor)/i,
+    /^Lockwood-Post/i,
+    /^\(?(?:Accessed|Retrieved)\s/i,
+    /^http/i,
+    /(?:MACT|BAT|CEM)\s*(?:\*|\()?\s*(?:Y|MYR|BYR)/,  // regression table rows
+    /(?:log\s*\(TFP\)|log\s*\(LP\)|Adj\s*R\s*2|Std\.?\s*Err)/,  // regression output
+    /\*\*?\*?\s*p\s*<\s*0\.\d/,  // significance stars
+    /^\s*\d+\.\d{4}\s*\(/,  // regression coefficients like 0.0706***
+    /N\s*=\s*\d{3,}/,  // sample size indicators
+  ];
+
+  references = references.filter(r => {
+    const text = r.text;
+    for (const pat of nonRefPatterns) {
+      if (pat.test(text)) return false;
+    }
+    return true;
+  });
+
+  // Re-index after filtering
+  references.forEach((r, i) => r.index = i + 1);
+
+  console.log('[RefCheck] After non-ref filtering:', references.length, 'refs remain');
+
+  // Additional safety: if refs look suspicious (very long, no years, no DOIs),
   // check if they might actually be body text
   if (references.length > 0 && references.length < 5) {
     const avgLen = references.reduce((s, r) => s + r.text.length, 0) / references.length;
@@ -2910,6 +2943,7 @@ function sharedPrefixLen(a, b) {
 
 // ============ MANUAL MATCH (Visual Mode) ============
 let vmMatchCitHlId = null; // currently selected highlight for matching
+let vmMatchTab = 'parsed'; // current match tab: 'parsed' or 'original'
 
 function openMatchPanel(hlId) {
   const panel = $('vm-match-panel');
@@ -2962,10 +2996,42 @@ function toggleMatchPanel() {
   }
 }
 
+function switchMatchTab(tab) {
+  vmMatchTab = tab;
+  document.getElementById('mm-tab-parsed').classList.toggle('active', tab === 'parsed');
+  document.getElementById('mm-tab-original').classList.toggle('active', tab === 'original');
+  filterMatchRefs();
+}
+
 function filterMatchRefs() {
   const query = ($('vm-match-search').value || '').trim().toLowerCase();
   const list = $('vm-match-ref-list');
-  
+
+  if (vmMatchTab === 'original') {
+    // Show original reference lines
+    if (!refSectionText || refSectionText.trim().length === 0) {
+      list.innerHTML = '<div style="color:var(--muted);text-align:center;padding:12px;font-size:12px;">No original references loaded</div>';
+      return;
+    }
+    const lines = refSectionText.split('\n').filter(l => l.trim().length > 10);
+    let filtered = lines;
+    if (query.length > 1) {
+      filtered = lines.filter(l => l.toLowerCase().includes(query));
+    }
+    list.innerHTML = filtered.map((line, i) => {
+      const trimmed = line.trim();
+      return `
+        <div class="vm-match-ref-item" onclick="assignMatchOriginal(${i})">
+          <span class="vm-match-ref-idx" style="font-size:10px;">[${i + 1}]</span>
+          <div>
+            <div class="vm-match-ref-text">${esc(trimmed.length > 150 ? trimmed.substring(0, 150) + '...' : trimmed)}</div>
+          </div>
+        </div>`;
+    }).join('');
+    return;
+  }
+
+  // Parsed refs (default)
   let filtered = references;
   if (query.length > 1) {
     filtered = references.filter(r => {
@@ -2979,14 +3045,14 @@ function filterMatchRefs() {
              query.split(/\s+/).every(w => w.length > 1 && (text.includes(w) || author.includes(w)));
     });
   }
-  
+
   // Sort: unreferenced first, then by relevance
   filtered = [...filtered].sort((a, b) => {
     if (a.matchCount === 0 && b.matchCount > 0) return -1;
     if (a.matchCount > 0 && b.matchCount === 0) return 1;
     return 0;
   });
-  
+
   list.innerHTML = filtered.map(r => {
     const cls = r.classification || classifyReference(r);
     r.classification = cls;
@@ -3001,6 +3067,48 @@ function filterMatchRefs() {
         </div>
       </div>`;
   }).join('');
+}
+
+function assignMatchOriginal(lineIdx) {
+  // Match to an original reference line — find the best matching parsed ref
+  if (vmMatchCitHlId === null) return;
+  const hl = (window._vmHighlights || []).find(h => h.hlId === vmMatchCitHlId);
+  if (!hl) return;
+
+  const lines = (refSectionText || '').split('\n').filter(l => l.trim().length > 10);
+  if (lineIdx >= lines.length) return;
+  const origText = lines[lineIdx].trim();
+
+  // Find the best matching parsed reference by text similarity
+  const citObj = { text: hl.text, authors: [], year: '' };
+  const yearM = hl.text.match(/\d{4}/);
+  if (yearM) citObj.year = yearM[0];
+  const namesFound = hl.text.match(new RegExp(_nameP, 'gi'));
+  if (namesFound) citObj.authors = namesFound.map(n => n.trim()).filter(n => n.length > 1);
+
+  // First try to find best match among parsed references
+  const best = findBestMatch(citObj, references);
+  if (best && best.confidence > 0.3) {
+    // Use the parsed ref index
+    assignMatch(best.ref.index);
+    return;
+  }
+
+  // If no good match, try to find a parsed ref that contains the original text prefix
+  const origPrefix = origText.substring(0, 60).toLowerCase();
+  let matchedRef = references.find(r => r.text.toLowerCase().includes(origPrefix));
+
+  if (!matchedRef) {
+    // Try shorter prefix
+    const origPrefix2 = origText.substring(0, 30).toLowerCase();
+    matchedRef = references.find(r => r.text.toLowerCase().includes(origPrefix2));
+  }
+
+  if (matchedRef) {
+    assignMatch(matchedRef.index);
+  } else {
+    toast('Could not find a matching parsed reference for this original line.', 'warning');
+  }
 }
 
 function assignMatch(refIdx) {
@@ -3417,6 +3525,10 @@ function setStep(n) {
   <div class="vm-match-panel" id="vm-match-panel">
     <div class="vm-match-cit-info" id="vm-match-cit-info">Click an <span style="text-decoration:underline wavy var(--danger);">unmatched citation</span> in the text to match it manually</div>
     <input type="text" class="vm-match-search" id="vm-match-search" placeholder="Search references by author, title, DOI..." oninput="filterMatchRefs()">
+    <div class="vm-match-tabs">
+      <div class="vm-match-tab active" id="mm-tab-parsed" onclick="switchMatchTab('parsed')">Parsed Refs</div>
+      <div class="vm-match-tab" id="mm-tab-original" onclick="switchMatchTab('original')">Original Refs</div>
+    </div>
     <div class="vm-match-ref-list" id="vm-match-ref-list"></div>
     <div class="vm-match-actions">
       <button class="btn btn-secondary btn-sm" id="vm-match-close-btn" onclick="closeMatchPanel()" style="display:none;">✕ Close</button>
