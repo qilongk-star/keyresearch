@@ -3894,6 +3894,32 @@ function renderTextPanel() {
         h.confidence = mm.confidence;
       }
     }
+    // Sync manual matches back to citations[] so Report stays accurate
+    for (const mm of window._manualMatches) {
+      const hlNorm = mm.text.toLowerCase().replace(/[()[\],;:{}]/g, '').trim();
+      const mmYear = (mm.text.match(/\b((?:19|20)\d{2}[a-z]?)\b/) || [])[1] || '';
+      const mmFirstAuthor = hlNorm.split(/\s+/)[0];
+      
+      const cit = citations.find(c => {
+        if (c.isNumeric || c.matchedRef !== null) return false;
+        const cNorm = c.text.toLowerCase().replace(/[()[\],;:{}]/g, '').trim();
+        if (cNorm === hlNorm) return true;
+        return false;
+      }) || citations.find(c => {
+        if (c.isNumeric || c.matchedRef !== null) return false;
+        const cYear = c.year || (c.text.match(/\b((?:19|20)\d{2}[a-z]?)\b/) || [])[1] || '';
+        if (cYear !== mmYear || !mmYear) return false;
+        const cNorm = c.text.toLowerCase().replace(/[()[\],;:{}]/g, '').trim();
+        const cFirstAuthor = cNorm.split(/\s+/)[0];
+        if (cFirstAuthor && mmFirstAuthor && cFirstAuthor === mmFirstAuthor) return true;
+        return false;
+      });
+      
+      if (cit) {
+        cit.matchedRef = mm.matchedRef;
+        cit.matchType = 'manual';
+      }
+    }
   }
 
   // Build highlighted HTML using markers (works correctly with HTML escaping)
@@ -4314,20 +4340,67 @@ function assignMatch(refIdx) {
   
   // Store in persistent manual-match cache (survives re-renders)
   if (!window._manualMatches) window._manualMatches = [];
+  // Remove any existing match for this same highlight text to avoid duplicates
+  window._manualMatches = window._manualMatches.filter(m => m.text !== hl.text);
   window._manualMatches.push({
     text: hl.text,
     matchedRef: refIdx,
     confidence: 1.0
   });
   
+  // Update the highlight object in-place so renderTextPanel picks it up
+  hl.matchedRef = refIdx;
+  hl.confidence = 1.0;
+  
   // Also update the corresponding citation in the citations array if possible
-  // Find a citation with matching text and position
-  const matchingCit = citations.find(c => {
+  // Try multiple matching strategies:
+  // 1. Exact text match (after normalizing parens/punctuation)
+  const hlNorm = hl.text.toLowerCase().replace(/[()[\],;:{}]/g, '').trim();
+  const yearM = hl.text.match(/\b((?:19|20)\d{2}[a-z]?)\b/);
+  const hlYear = yearM ? yearM[1] : '';
+  const hlFirstAuthor = hlNorm.split(/\s+/)[0];
+  
+  let matchingCit = citations.find(c => {
     if (c.isNumeric) return false;
-    const citLower = c.text.toLowerCase();
-    const hlLower = hl.text.toLowerCase().replace(/[(),]/g, '').trim();
-    return citLower.includes(hlLower.split(',')[0].trim().split(' ')[0]) && c.matchedRef === null;
+    if (c.matchedRef !== null) return false;
+    const cNorm = c.text.toLowerCase().replace(/[()[\],;:{}]/g, '').trim();
+    // Try exact normalized match
+    if (cNorm === hlNorm) return true;
+    return false;
   });
+  
+  // 2. Fuzzy: same year + first author word matches
+  if (!matchingCit && hlYear) {
+    matchingCit = citations.find(c => {
+      if (c.isNumeric) return false;
+      if (c.matchedRef !== null) return false;
+      const cYear = c.year || (c.text.match(/\b((?:19|20)\d{2}[a-z]?)\b/) || [])[1] || '';
+      if (cYear !== hlYear) return false;
+      const cNorm = c.text.toLowerCase().replace(/[()[\],;:{}]/g, '').trim();
+      const cFirstAuthor = cNorm.split(/\s+/)[0];
+      if (cFirstAuthor && hlFirstAuthor && cFirstAuthor === hlFirstAuthor) return true;
+      // Also check if the highlight text is a substring of citation text or vice versa
+      if (cNorm.includes(hlFirstAuthor) || hlNorm.includes(cFirstAuthor)) return true;
+      return false;
+    });
+  }
+  
+  // 3. Very loose: same year + any word overlap > 2 chars
+  if (!matchingCit && hlYear) {
+    matchingCit = citations.find(c => {
+      if (c.isNumeric) return false;
+      if (c.matchedRef !== null) return false;
+      const cYear = c.year || (c.text.match(/\b((?:19|20)\d{2}[a-z]?)\b/) || [])[1] || '';
+      if (cYear !== hlYear) return false;
+      const cNorm = c.text.toLowerCase().replace(/[()[\],;:{}]/g, '').trim();
+      // Check if any word longer than 3 chars overlaps
+      const hlWords = hlNorm.split(/\s+/).filter(w => w.length > 3);
+      for (const w of hlWords) {
+        if (cNorm.includes(w)) return true;
+      }
+      return false;
+    });
+  }
   
   if (matchingCit) {
     matchingCit.matchedRef = refIdx;
