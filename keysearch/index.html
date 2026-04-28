@@ -365,6 +365,9 @@
         .paper-badges { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
         
         .badge { padding: 4px 10px; border-radius: 20px; font-size: 11px; font-weight: 600; }
+        .badge-tier1 { background: linear-gradient(135deg, #ffd700, #ffaa00); color: #333; }
+        .badge-tier2 { background: linear-gradient(135deg, #4ecdc4, #44b09e); color: white; }
+        .badge-tier3 { background: linear-gradient(135deg, #a8e6cf, #88c9a1); color: #333; }
         .badge-utd24 { background: #ffd700; color: #333; }
         .badge-ft50 { background: #ff6b6b; color: white; }
         .badge-abs { background: #4ecdc4; color: white; }
@@ -776,41 +779,14 @@
                         </div>
                         <div class="filter-group">
                             <label class="filter-label">
-                                <span data-zh="ABS 等级" data-en="ABS Rating"></span>
-                                <span class="en">2024</span>
+                                <span data-zh="期刊分级" data-en="Journal Tier"></span>
+                                <span class="en">Tier</span>
                             </label>
-                            <select class="filter-select" id="filterAbs">
+                            <select class="filter-select" id="filterTier" onchange="syncTierFilter()">
                                 <option value="" data-zh="不限" data-en="Any"></option>
-                                <option value="4*">4* <span data-zh="(顶级)" data-en="(Elite)"></span></option>
-                                <option value="4">4 <span data-zh="(优秀)" data-en="(Top)"></span></option>
-                                <option value="3+">3+ <span data-zh="(良好+)" data-en="(Good+)"></span></option>
-                                <option value="3">3 <span data-zh="(良好)" data-en="(Good)"></span></option>
-                                <option value="2">2 <span data-zh="(普通)" data-en="(Regular)"></span></option>
-                            </select>
-                        </div>
-                        <div class="filter-group">
-                            <label class="filter-label">
-                                <span data-zh="ABDC 等级" data-en="ABDC Rating"></span>
-                                <span class="en">2022</span>
-                            </label>
-                            <select class="filter-select" id="filterAbdc">
-                                <option value="" data-zh="不限" data-en="Any"></option>
-                                <option value="A*">A* <span data-zh="(顶级)" data-en="(Elite)"></span></option>
-                                <option value="A">A <span data-zh="(优秀)" data-en="(Top)"></span></option>
-                                <option value="B">B <span data-zh="(优质)" data-en="(Good)"></span></option>
-                                <option value="C">C <span data-zh="(普通)" data-en="(Regular)"></span></option>
-                            </select>
-                        </div>
-                        <div class="filter-group">
-                            <label class="filter-label">
-                                <span data-zh="中科院分区" data-en="CAS分区"></span>
-                                <span class="en">2025</span>
-                            </label>
-                            <select class="filter-select" id="filterCas">
-                                <option value="" data-zh="不限" data-en="Any"></option>
-                                <option value="1">Q1 <span data-zh="(顶级)" data-en="(Top 5%)"></span></option>
-                                <option value="2">Q2 <span data-zh="(优秀)" data-en="(Top 20%)"></span></option>
-                                <option value="3">Q3 <span data-zh="(良好)" data-en="(Top 50%)"></span></option>
+                                <option value="1">⭐ Tier 1 <span data-zh="— UTD24/FT50/ABS 4*/ABDC A*/CAS Q1" data-en="— UTD24/FT50/ABS 4*/ABDC A*/CAS Q1"></span></option>
+                                <option value="2">✨ Tier 2 <span data-zh="— ABS 3-4/ABDC A/CAS Q2" data-en="— ABS 3-4/ABDC A/CAS Q2"></span></option>
+                                <option value="3">Tier 3 <span data-zh="— ABS 2/ABDC B/CAS Q3" data-en="— ABS 2/ABDC B/CAS Q3"></span></option>
                             </select>
                         </div>
                         <div class="filter-group">
@@ -825,18 +801,7 @@
                                 <option value="3">≥ 3</option>
                             </select>
                         </div>
-                        <div class="filter-group">
-                            <label class="filter-checkbox">
-                                <input type="checkbox" id="filterUtd24">
-                                <span>UTD24 <span data-zh="(商学院顶级)" data-en="(Business Top)"></span></span>
-                            </label>
-                        </div>
-                        <div class="filter-group">
-                            <label class="filter-checkbox">
-                                <input type="checkbox" id="filterFt50">
-                                <span>FT50 <span data-zh="(金融时报)" data-en="(FT Top 50)"></span></span>
-                            </label>
-                        </div>
+                        <!-- UTD24 / FT50 checkbox filters removed — now covered by Tier 1 -->
                     </div>
                 </div>
                 
@@ -1347,6 +1312,33 @@
             return { peerReviewed: true };
         }
 
+        // ═══════════ Tier 分级系统（互斥，避免 duplication）═══════════
+        // Tier 1: UTD24 / FT50 / ABS 4* / ABDC A* / CAS Q1
+        // Tier 2: ABS 3-4 / ABDC A / CAS Q2
+        // Tier 3: ABS 2 / ABDC B / CAS Q3
+        function getJournalTier(rating) {
+            if (!rating) return null;
+            // Tier 1
+            if (rating.utd24 || rating.ft50) return 1;
+            if (rating.abs === '4*') return 1;
+            if (rating.abdc === 'A*') return 1;
+            if (rating.cas === '1') return 1;
+            // Tier 2
+            if (rating.abs === '4' || rating.abs === '3' || rating.abs === '3+') return 2;
+            if (rating.abdc === 'A') return 2;
+            if (rating.cas === '2') return 2;
+            // Tier 3
+            if (rating.abs === '2') return 3;
+            if (rating.abdc === 'B') return 3;
+            if (rating.cas === '3') return 3;
+            return null;
+        }
+
+        // Sync Tier filter checkbox states (UTD24/FT50 removed from UI)
+        function syncTierFilter() {
+            // Placeholder for future extensions if needed
+        }
+
         // ==================== 标签切换 ====================
         function switchTab(tabName) {
             document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
@@ -1403,12 +1395,8 @@
             
             const filters = {
                 peerReviewedOnly: document.getElementById('peerReviewedOnly').checked,
-                abs: document.getElementById('filterAbs').value,
-                abdc: document.getElementById('filterAbdc').value,
-                cas: document.getElementById('filterCas').value,
+                tier: document.getElementById('filterTier').value,
                 if: document.getElementById('filterIf').value,
-                utd24: document.getElementById('filterUtd24').checked,
-                ft50: document.getElementById('filterFt50').checked,
                 journals: getSelectedJournals(),
                 yearFrom: document.getElementById('filterYearFrom').value || null,
                 yearTo: document.getElementById('filterYearTo').value || null
@@ -2082,11 +2070,11 @@
         function applyFilters(paper, filters) {
             const r = paper.journalRating || {};
             if (filters.peerReviewedOnly && !r.peerReviewed) return false;
-            if (filters.utd24 && !r.utd24) return false;
-            if (filters.ft50 && !r.ft50) return false;
-            if (filters.abs && r.abs && r.abs < filters.abs) return false;
-            if (filters.abdc && r.abdc && r.abdc < filters.abdc) return false;
-            if (filters.cas && r.cas && r.cas > filters.cas) return false;
+            // Tier 分级过滤（互斥）
+            if (filters.tier) {
+                const tier = getJournalTier(r);
+                if (!tier || tier !== parseInt(filters.tier)) return false;
+            }
             if (filters.if && r.if && parseFloat(r.if) < parseFloat(filters.if)) return false;
             // 年份范围过滤
             const paperYear = parseInt(paper.year);
@@ -2103,14 +2091,11 @@
 
         function calculateScore(rating) {
             if (!rating) return 0;
+            const tier = getJournalTier(rating);
             let score = 0;
-            if (rating.utd24) score += 100;
-            if (rating.ft50) score += 90;
-            if (rating.abs === '4*') score += 80;
-            else if (rating.abs === '4') score += 60;
-            else if (rating.abs === '3') score += 40;
-            if (rating.cas === '1') score += 50;
-            else if (rating.cas === '2') score += 30;
+            if (tier === 1) score += 100;
+            else if (tier === 2) score += 60;
+            else if (tier === 3) score += 30;
             if (rating.if) score += parseFloat(rating.if);
             return score;
         }
@@ -2375,6 +2360,12 @@
         function renderBadges(rating) {
             if (!rating) return '';
             let badges = '';
+            // Tier badge first (互斥分级)
+            const tier = getJournalTier(rating);
+            if (tier === 1) badges += '<span class="badge badge-tier1">⭐ Tier 1</span>';
+            else if (tier === 2) badges += '<span class="badge badge-tier2">✨ Tier 2</span>';
+            else if (tier === 3) badges += '<span class="badge badge-tier3">Tier 3</span>';
+            // Detailed badges
             if (rating.utd24) badges += '<span class="badge badge-utd24">UTD24</span>';
             if (rating.ft50) badges += '<span class="badge badge-ft50">FT50</span>';
             if (rating.abs) badges += `<span class="badge badge-abs">ABS ${rating.abs}</span>`;
