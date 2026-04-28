@@ -2167,6 +2167,59 @@
                 crossref: 'CrossRef'
             };
             
+            // ========== Journal Tier Classification ==========
+            // Classify papers by journal quality tier
+            const tiers = {
+                'tier1': { label: '⭐ Tier 1', desc: 'UTD24 / FT50 / ABS 4* / ABDC A* / CAS Q1', color: '#ffd700', count: 0, ifSum: 0, ifCount: 0 },
+                'tier2': { label: '🌟 Tier 2', desc: 'ABS 3-4 / ABDC A / CAS Q1-Q2', color: '#ff6b6b', count: 0, ifSum: 0, ifCount: 0 },
+                'tier3': { label: '✨ Tier 3', desc: 'ABS 2 / ABDC B / CAS Q2-Q3', color: '#4ecdc4', count: 0, ifSum: 0, ifCount: 0 },
+                'others': { label: '📚 Others', desc: 'Other journals / Unknown rating', color: '#999', count: 0, ifSum: 0, ifCount: 0 }
+            };
+
+            const papers = _currentResultPapers || [];
+            let totalIf = 0, totalIfCount = 0;
+            let utd24Count = 0, ft50Count = 0, abs4starCount = 0, abdcAstarCount = 0;
+            let totalCited = 0;
+
+            for (const p of papers) {
+                const r = p.journalRating || (p.venue ? getJournalRating(p.venue) : null);
+                if (!r) {
+                    tiers.others.count++;
+                    continue;
+                }
+                // Track specific top lists
+                if (r.utd24) utd24Count++;
+                if (r.ft50) ft50Count++;
+                if (r.abs === '4*') abs4starCount++;
+                if (r.abdc === 'A*') abdcAstarCount++;
+
+                // Track IF and citations
+                if (r.if) { totalIf += parseFloat(r.if); totalIfCount++; }
+                totalCited += (p.citationCount || 0);
+
+                // Classify into tier
+                const isUTD24orFT50 = r.utd24 || r.ft50;
+                const isABS4star = r.abs === '4*';
+                const isABDCAstar = r.abdc === 'A*';
+                const isCAS1 = r.cas === '1';
+
+                if (isUTD24orFT50 || isABS4star || isABDCAstar || isCAS1) {
+                    tiers.tier1.count++;
+                    if (r.if) { tiers.tier1.ifSum += parseFloat(r.if); tiers.tier1.ifCount++; }
+                } else if ((r.abs === '4' || r.abs === '3+' || r.abs === '3') || (r.abdc === 'A') || (r.cas === '1' || r.cas === '2')) {
+                    tiers.tier2.count++;
+                    if (r.if) { tiers.tier2.ifSum += parseFloat(r.if); tiers.tier2.ifCount++; }
+                } else if ((r.abs === '2' || r.abs === '1') || (r.abdc === 'B' || r.abdc === 'C') || (r.cas === '3')) {
+                    tiers.tier3.count++;
+                    if (r.if) { tiers.tier3.ifSum += parseFloat(r.if); tiers.tier3.ifCount++; }
+                } else {
+                    tiers.others.count++;
+                    if (r.if) { tiers.others.ifSum += parseFloat(r.if); tiers.others.ifCount++; }
+                }
+            }
+
+            const avgIf = totalIfCount > 0 ? (totalIf / totalIfCount).toFixed(1) : '-';
+
             let html = `<div class="search-stats">`;
             html += `<div class="stat-item"><span>${i18n.currentLang === 'zh' ? '总计' : 'Total'}:</span><span class="stat-value">${total}</span></div>`;
             
@@ -2186,6 +2239,46 @@
             }
             
             html += `</div>`;
+
+            // ========== Tier Summary Panel ==========
+            if (papers.length > 0) {
+                html += `<div style="margin-top:12px;padding:16px;background:#f8f9fa;border-radius:12px;border:1px solid #e9ecef;">`;
+                html += `<div style="font-size:14px;font-weight:600;margin-bottom:10px;color:#333;">📊 ${i18n.currentLang === 'zh' ? '期刊等级分布' : 'Journal Tier Distribution'}</div>`;
+                
+                // Summary counts
+                html += `<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:8px;margin-bottom:12px;">`;
+                if (utd24Count > 0) html += `<div style="background:#fff8e1;padding:6px 10px;border-radius:8px;font-size:12px;"><span style="font-weight:700;color:#f9a825;">UTD24</span>: <b>${utd24Count}</b></div>`;
+                if (ft50Count > 0) html += `<div style="background:#ffebee;padding:6px 10px;border-radius:8px;font-size:12px;"><span style="font-weight:700;color:#e53935;">FT50</span>: <b>${ft50Count}</b></div>`;
+                if (abs4starCount > 0) html += `<div style="background:#e0f2f1;padding:6px 10px;border-radius:8px;font-size:12px;"><span style="font-weight:700;color:#00897b;">ABS 4*</span>: <b>${abs4starCount}</b></div>`;
+                if (abdcAstarCount > 0) html += `<div style="background:#e8f5e9;padding:6px 10px;border-radius:8px;font-size:12px;"><span style="font-weight:700;color:#2e7d32;">ABDC A*</span>: <b>${abdcAstarCount}</b></div>`;
+                html += `<div style="background:#f3e5f5;padding:6px 10px;border-radius:8px;font-size:12px;">Avg IF: <b>${avgIf}</b></div>`;
+                html += `<div style="background:#e8eaf6;padding:6px 10px;border-radius:8px;font-size:12px;">Total Cited: <b>${totalCited.toLocaleString()}</b></div>`;
+                html += `</div>`;
+
+                // Tier bars
+                const totalWithTier = Object.values(tiers).reduce((s, t) => s + t.count, 0);
+                for (const [key, tier] of Object.entries(tiers)) {
+                    if (tier.count === 0) continue;
+                    const pct = totalWithTier > 0 ? Math.round(tier.count / totalWithTier * 100) : 0;
+                    const tierAvgIf = tier.ifCount > 0 ? (tier.ifSum / tier.ifCount).toFixed(1) : '-';
+                    html += `<div style="display:flex;align-items:center;gap:8px;margin-bottom:6px;">`;
+                    html += `<div style="min-width:80px;font-size:11px;font-weight:600;color:${tier.color};">${tier.label}</div>`;
+                    html += `<div style="flex:1;height:22px;background:#eee;border-radius:4px;overflow:hidden;position:relative;">`;
+                    html += `<div style="height:100%;width:${pct}%;background:${tier.color};border-radius:4px;transition:width 0.3s;display:flex;align-items:center;padding-left:6px;">`;
+                    html += `<span style="font-size:10px;font-weight:700;color:${tier.count > 0 ? '#fff' : '#666'};">${tier.count} (${pct}%)</span>`;
+                    html += `</div></div>`;
+                    html += `<div style="min-width:60px;font-size:10px;color:#888;text-align:right;">IF: ${tierAvgIf}</div>`;
+                    html += `</div>`;
+                }
+
+                html += `<div style="font-size:10px;color:#999;margin-top:6px;line-height:1.5;">`;
+                html += `Tier 1: UTD24/FT50/ABS4*/ABDC-A*/CAS-Q1 · `;
+                html += `Tier 2: ABS3-4/ABDC-A/CAS-Q1-2 · `;
+                html += `Tier 3: ABS2/ABDC-B/CAS-Q2-3`;
+                html += `</div>`;
+                html += `</div>`;
+            }
+
             statsDiv.innerHTML = html;
         }
 
