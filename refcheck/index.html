@@ -2655,6 +2655,18 @@ function renderTextPanel() {
   // Sort by position descending (insert from end to preserve offsets)
   highlights.sort((a, b) => b.pos - a.pos);
 
+  // Apply persistent manual-match cache (survives re-renders)
+  if (window._manualMatches && window._manualMatches.length > 0) {
+    for (const h of highlights) {
+      if (h.matchedRef !== null) continue; // already matched by auto
+      const mm = window._manualMatches.find(m => m.text === h.text);
+      if (mm) {
+        h.matchedRef = mm.matchedRef;
+        h.confidence = mm.confidence;
+      }
+    }
+  }
+
   // Build highlighted HTML using markers (works correctly with HTML escaping)
   // Step 1: Build raw text with markers at highlight positions
   let raw = text;
@@ -2992,9 +3004,13 @@ function assignMatch(refIdx) {
   const ref = references.find(r => r.index === refIdx);
   if (!ref) return;
   
-  // Update the highlight's matched reference
-  hl.matchedRef = refIdx;
-  hl.confidence = 1.0;
+  // Store in persistent manual-match cache (survives re-renders)
+  if (!window._manualMatches) window._manualMatches = [];
+  window._manualMatches.push({
+    text: hl.text,
+    matchedRef: refIdx,
+    confidence: 1.0
+  });
   
   // Also update the corresponding citation in the citations array if possible
   // Find a citation with matching text and position
@@ -3180,6 +3196,8 @@ function calculateHealthScore() {
   const unreferencedRefs = references.filter(r => r.matchCount === 0).length;
   const verifiedRefs = references.filter(r => r.status === 'verified' || r.status === 'likely').length;
   const manualCits = citations.filter(c => c.source === 'manual').length;
+  const manualMatchedCits = citations.filter(c => c.matchType === 'manual').length;
+  const manualMatchCount = window._manualMatches ? window._manualMatches.length : 0;
   
   // Classify references
   let academicCount = 0;
@@ -3208,9 +3226,11 @@ function calculateHealthScore() {
   const verifyRate = totalRefs > 0 ? verifiedRefs / totalRefs : 0;
   totalScore += Math.round(verifyRate * 15);
   
-  // 4. Source Quality (10 points): penalty for manual citations and unmatched
-  const manualPenalty = totalCits > 0 ? Math.min(manualCits / totalCits, 0.5) : 0;
-  totalScore += Math.round((1 - manualPenalty) * 10);
+  // 4. Source Quality (10 points): reward manual matching, penalty for unmatched only
+  // Manual matches IMPROVE quality — count them positively
+  const manualBonus = totalCits > 0 ? Math.min(manualMatchedCits / totalCits, 0.3) : 0;
+  const unmatchedPenalty = totalCits > 0 ? Math.min(unmatchedCits / totalCits, 0.5) : 0;
+  totalScore += Math.round(Math.min(1, (1 - unmatchedPenalty) + manualBonus) * 10);
   
   // 5. Completeness (10 points): no unmatched AND no unreferenced
   const completenessPenalty = (unmatchedCits > 0 ? 0.3 : 0) + (unreferencedRefs > 0 ? 0.3 : 0);
@@ -3250,6 +3270,7 @@ function calculateHealthScore() {
       coverageRate: Math.round(coverageRate * 100),
       verifyRate: Math.round(verifyRate * 100),
       manualCits,
+      manualMatchedCits,
       unmatchedCits,
       unreferencedRefs,
       academicCount,
