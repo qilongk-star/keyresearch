@@ -149,8 +149,18 @@ body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-
 .vm-close:hover { border-color: var(--danger); color: var(--danger); }
 .vm-body { display: flex; flex: 1; overflow: hidden; }
 .vm-text-panel { flex: 1; overflow-y: auto; padding: 24px 32px; border-right: 1px solid var(--border); font-size: 14px; line-height: 1.8; color: var(--muted); white-space: pre-wrap; word-break: break-word; }
-.vm-ref-panel { width: 420px; overflow-y: auto; padding: 16px; background: var(--surface); flex-shrink: 0; }
-.vm-ref-panel h3 { font-size: 13px; font-weight: 600; color: var(--muted); margin-bottom: 8px; text-transform: uppercase; letter-spacing: 0.5px; }
+.vm-ref-panel { width: 420px; overflow: hidden; display: flex; flex-direction: column; background: var(--surface); flex-shrink: 0; }
+.vm-ref-section { flex: 1; display: flex; flex-direction: column; overflow: hidden; padding: 12px 16px; }
+.vm-ref-section h3 { font-size: 13px; font-weight: 600; color: var(--muted); margin-bottom: 8px; text-transform: uppercase; letter-spacing: 0.5px; display: flex; align-items: center; gap: 6px; flex-shrink: 0; }
+.vm-ref-count { font-size: 11px; font-weight: 700; color: var(--accent); background: rgba(99,102,241,0.1); padding: 1px 6px; border-radius: 10px; }
+.vm-ref-divider { height: 1px; background: var(--border); margin: 0 16px; flex-shrink: 0; }
+.vm-ref-parsed { overflow-y: auto; }
+.vm-ref-original { overflow-y: auto; }
+.vm-ref-original-list { font-size: 12px; line-height: 1.7; color: var(--text); white-space: pre-wrap; word-break: break-word; }
+.vm-ref-original-list .orig-ref-line { padding: 6px 0; border-bottom: 1px solid rgba(128,128,128,0.1); cursor: pointer; transition: background 0.15s; }
+.vm-ref-original-list .orig-ref-line:hover { background: rgba(99,102,241,0.06); }
+.vm-ref-original-list .orig-ref-line.highlighted { background: rgba(99,102,241,0.12); }
+.vm-ref-original-list .orig-ref-num { display: inline-block; width: 28px; font-size: 11px; font-weight: 700; color: var(--muted); text-align: right; margin-right: 8px; }
 .vm-ref-item { padding: 10px 12px; margin-bottom: 4px; border-radius: 8px; border-left: 3px solid transparent; cursor: pointer; transition: all 0.15s; }
 .vm-ref-item:hover { background: var(--bg); }
 .vm-ref-item.has-cit { border-left-color: var(--success); }
@@ -225,7 +235,9 @@ body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-
 @media (max-width: 900px) {
   .vm-body { flex-direction: column; }
   .vm-text-panel { border-right: none; border-bottom: 1px solid var(--border); max-height: 50vh; }
-  .vm-ref-panel { width: 100%; }
+  .vm-ref-panel { width: 100%; flex-direction: row; }
+  .vm-ref-divider { width: 1px; height: auto; margin: 0; }
+  .vm-ref-section { width: 50%; }
 }
 </style>
 </head>
@@ -2509,8 +2521,13 @@ function renderTextPanel() {
 
 function renderRefPanel() {
   const list = $('vm-ref-list');
+  const origList = $('vm-ref-original-list');
+  const parsedCountEl = $('vm-ref-parsed-count');
+
+  // --- Parsed References (top half) ---
   // Sort by matchCount ascending (unreferenced first) for VM panel
   const sorted = [...references].sort((a, b) => a.matchCount - b.matchCount);
+  if (parsedCountEl) parsedCountEl.textContent = references.length;
   list.innerHTML = sorted.map((r, i) => {
     const hasCit = r.matchCount > 0;
     const cls = hasCit ? 'has-cit' : 'no-cit';
@@ -2526,6 +2543,22 @@ function renderRefPanel() {
         </div>
       </div>`;
   }).join('');
+
+  // --- Original Reference List (bottom half) ---
+  if (!refSectionText || refSectionText.trim().length === 0) {
+    origList.innerHTML = '<div style="color:var(--muted);text-align:center;padding:20px;font-size:12px;">No reference list loaded</div>';
+    return;
+  }
+
+  // Split the original text into lines and display them
+  const lines = refSectionText.split('\n');
+  let html = '';
+  lines.forEach((line, i) => {
+    const trimmed = line.trim();
+    if (!trimmed) return;
+    html += `<div class="orig-ref-line" data-line-idx="${i}" onclick="vmOrigLineClick(${i})">${esc(trimmed)}</div>`;
+  });
+  origList.innerHTML = html || '<div style="color:var(--muted);text-align:center;padding:20px;font-size:12px;">Empty</div>';
 }
 
 function vmHlClick(hlId) {
@@ -2586,6 +2619,97 @@ function vmRefClick(refIdx) {
     // No citations match this ref — it's unreferenced
     document.querySelectorAll('.cit-hl').forEach(el => el.classList.remove('dimmed'));
   }
+
+  // Also highlight the corresponding original text in bottom panel
+  highlightOrigTextForRef(refIdx);
+}
+
+function highlightOrigTextForRef(refIdx) {
+  // Clear previous highlights
+  document.querySelectorAll('.orig-ref-line').forEach(el => el.classList.remove('highlighted'));
+
+  if (!refSectionText || refIdx < 1 || refIdx > references.length) return;
+
+  // Find the reference text in the original section
+  const ref = references[refIdx - 1];
+  if (!ref || !ref.rawText) return;
+
+  // Search for the raw text (or a substantial prefix) in the original lines
+  const searchKey = ref.rawText.substring(0, 60).trim().toLowerCase();
+  const lines = refSectionText.split('\n');
+  for (let i = 0; i < lines.length; i++) {
+    if (lines[i].trim().toLowerCase().includes(searchKey)) {
+      const origEl = document.querySelector(`.orig-ref-line[data-line-idx="${i}"]`);
+      if (origEl) {
+        origEl.classList.add('highlighted');
+        origEl.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+      }
+      // Also highlight nearby continuation lines (within 5 lines)
+      for (let j = i + 1; j < Math.min(i + 6, lines.length); j++) {
+        if (lines[j].trim().length > 0 && !/^\s*[A-Z][a-z]+,?\s+[A-Z]\./.test(lines[j].trim())) {
+          const contEl = document.querySelector(`.orig-ref-line[data-line-idx="${j}"]`);
+          if (contEl) contEl.classList.add('highlighted');
+        } else {
+          break;
+        }
+      }
+      break;
+    }
+  }
+}
+
+function vmOrigLineClick(lineIdx) {
+  // When clicking a line in original reference list, try to find the matching parsed reference
+  if (!refSectionText) return;
+  const lines = refSectionText.split('\n');
+  const clickedText = (lines[lineIdx] || '').trim().toLowerCase();
+  if (!clickedText || clickedText.length < 10) return;
+
+  // Clear highlights
+  document.querySelectorAll('.orig-ref-line').forEach(el => el.classList.remove('highlighted'));
+  document.querySelectorAll('.vm-ref-item').forEach(el => el.classList.remove('selected'));
+
+  // Highlight clicked line
+  const clickedEl = document.querySelector(`.orig-ref-line[data-line-idx="${lineIdx}"]`);
+  if (clickedEl) clickedEl.classList.add('highlighted');
+
+  // Try to match against parsed references
+  let bestRefIdx = null;
+  let bestScore = 0;
+  for (const ref of references) {
+    if (!ref.rawText) continue;
+    const rawPrefix = ref.rawText.substring(0, 60).trim().toLowerCase();
+    // Check if the clicked line matches the start of any reference
+    if (rawPrefix && clickedText.includes(rawPrefix)) {
+      bestRefIdx = ref.index;
+      bestScore = 100;
+      break;
+    }
+    // Also check partial overlap
+    const overlap = sharedPrefixLen(clickedText, rawPrefix);
+    if (overlap > bestScore && overlap > 20) {
+      bestScore = overlap;
+      bestRefIdx = ref.index;
+    }
+  }
+
+  if (bestRefIdx !== null) {
+    const refEl = document.getElementById(`vm-ref-${bestRefIdx}`);
+    if (refEl) {
+      refEl.classList.add('selected');
+      refEl.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    }
+  }
+}
+
+function sharedPrefixLen(a, b) {
+  let len = 0;
+  const max = Math.min(a.length, b.length);
+  for (let i = 0; i < max; i++) {
+    if (a[i] === b[i]) len++;
+    else break;
+  }
+  return len;
 }
 
 // Close visual mode on Escape
@@ -2729,8 +2853,15 @@ function setStep(n) {
     <!-- Floating button for text selection -->
     <button class="vm-sel-btn" id="vm-sel-btn" onclick="addSelectedTextAsCitation()">✋ Add as Citation</button>
     <div class="vm-ref-panel" id="vm-ref-panel">
-      <h3>References</h3>
-      <div id="vm-ref-list"></div>
+      <div class="vm-ref-section vm-ref-parsed">
+        <h3>Parsed References <span class="vm-ref-count" id="vm-ref-parsed-count">0</span></h3>
+        <div id="vm-ref-list"></div>
+      </div>
+      <div class="vm-ref-divider"></div>
+      <div class="vm-ref-section vm-ref-original">
+        <h3>Original Reference List</h3>
+        <div id="vm-ref-original-list"></div>
+      </div>
     </div>
   </div>
 </div>
