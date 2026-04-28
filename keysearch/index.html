@@ -693,7 +693,7 @@
                             <span class="uncheck-icon">⭕</span>
                             <span class="check-icon">✅</span>
                             <span>Semantic Scholar</span>
-                            <span class="source-badge badge-free">LINK</span>
+                            <span class="source-badge badge-free">FREE</span>
                         </div>
                         <div class="source-checkbox" onclick="toggleSource(this, 'pubmed')">
                             <input type="checkbox" id="sourcePubMed">
@@ -1409,16 +1409,14 @@
                 // 并行搜索多个数据库
                 const searchPromises = [];
                 
-                // Google Scholar 和 Semantic Scholar 改为直接打开网页搜索
+                // Google Scholar 改为直接打开网页搜索（无API）
                 if (sources.includes('google_scholar')) {
                     const gsUrl = `https://scholar.google.com/scholar?q=${encodeURIComponent(keyword)}`;
                     window.open(gsUrl, '_blank');
                     sourceStats['google_scholar'] = 'link';
                 }
                 if (sources.includes('semantic_scholar')) {
-                    const ssUrl = `https://www.semanticscholar.org/search?q=${encodeURIComponent(keyword)}&sort=relevance`;
-                    window.open(ssUrl, '_blank');
-                    sourceStats['semantic_scholar'] = 'link';
+                    searchPromises.push(searchSemanticScholar(keyword, filters));
                 }
                 if (sources.includes('pubmed')) {
                     searchPromises.push(searchPubMed(keyword, filters));
