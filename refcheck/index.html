@@ -157,10 +157,11 @@ body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-
 .vm-ref-parsed { overflow-y: auto; }
 .vm-ref-original { overflow-y: auto; }
 .vm-ref-original-list { font-size: 12px; line-height: 1.7; color: var(--text); white-space: pre-wrap; word-break: break-word; }
-.vm-ref-original-list .orig-ref-line { padding: 6px 0; border-bottom: 1px solid rgba(128,128,128,0.1); cursor: pointer; transition: background 0.15s; }
+.vm-ref-original-list .orig-ref-line { display: flex; gap: 8px; padding: 8px 4px; border-bottom: 1px solid rgba(128,128,128,0.1); cursor: pointer; transition: background 0.15s; align-items: flex-start; }
 .vm-ref-original-list .orig-ref-line:hover { background: rgba(99,102,241,0.06); }
 .vm-ref-original-list .orig-ref-line.highlighted { background: rgba(99,102,241,0.12); }
-.vm-ref-original-list .orig-ref-num { display: inline-block; width: 28px; font-size: 11px; font-weight: 700; color: var(--muted); text-align: right; margin-right: 8px; }
+.vm-ref-original-list .orig-ref-num { display: inline-block; font-size: 11px; font-weight: 700; color: var(--accent); text-align: right; min-width: 30px; flex-shrink: 0; line-height: 1.6; }
+.vm-ref-original-list .orig-ref-text { flex: 1; font-size: 12px; line-height: 1.7; color: var(--text); word-break: break-word; }
 .vm-ref-item { padding: 10px 12px; margin-bottom: 4px; border-radius: 8px; border-left: 3px solid transparent; cursor: pointer; transition: all 0.15s; }
 .vm-ref-item:hover { background: var(--bg); }
 .vm-ref-item.has-cit { border-left-color: var(--success); }
@@ -229,6 +230,35 @@ body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-
 .cit-count-badge.some { background: rgba(34,197,94,0.15); color: var(--success); }
 .cit-count-badge.high { background: rgba(99,102,241,0.2); color: var(--accent); }
 
+/* Non-academic badge */
+.badge-nonacademic { background: rgba(251,146,60,0.15); color: #fb923c; }
+.vm-ref-item.non-academic { border-left-color: #fb923c; }
+.vm-ref-item.non-academic .vm-ref-text { color: var(--muted); }
+
+/* Health Score */
+.health-score-ring { width: 72px; height: 72px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 22px; font-weight: 800; flex-shrink: 0; position: relative; }
+.health-score-ring::before { content: ''; position: absolute; inset: 0; border-radius: 50%; border: 4px solid var(--border); }
+.health-score-ring::after { content: ''; position: absolute; inset: 0; border-radius: 50%; border: 4px solid transparent; border-top-color: var(--accent); border-right-color: var(--accent); }
+.health-score-container { display: flex; gap: 20px; align-items: center; padding: 16px; background: var(--bg); border-radius: 12px; margin-bottom: 16px; }
+.health-score-details { display: flex; flex-direction: column; gap: 4px; flex: 1; }
+.health-score-bar { height: 6px; background: var(--border); border-radius: 3px; overflow: hidden; flex: 1; }
+.health-score-bar-fill { height: 100%; border-radius: 3px; transition: width 0.4s ease; }
+.health-score-item { display: flex; align-items: center; gap: 8px; font-size: 12px; color: var(--muted); }
+.health-score-item .hs-val { font-weight: 700; min-width: 40px; text-align: right; }
+
+/* VM Manual Match panel */
+.vm-match-panel { display: none; padding: 12px 16px; background: var(--surface2); border-bottom: 1px solid var(--border); }
+.vm-match-panel.active { display: block; }
+.vm-match-search { width: 100%; padding: 8px 12px; border-radius: 8px; border: 1px solid var(--accent); background: var(--bg); color: var(--text); font-size: 13px; outline: none; margin-bottom: 8px; }
+.vm-match-cit-info { font-size: 12px; color: var(--warning); margin-bottom: 8px; display: flex; align-items: center; gap: 6px; }
+.vm-match-ref-list { max-height: 200px; overflow-y: auto; display: flex; flex-direction: column; gap: 4px; }
+.vm-match-ref-item { display: flex; align-items: flex-start; gap: 8px; padding: 8px; border-radius: 8px; background: var(--bg); cursor: pointer; transition: all 0.15s; border: 1px solid transparent; }
+.vm-match-ref-item:hover { border-color: var(--accent); background: rgba(99,102,241,0.05); }
+.vm-match-ref-item .vm-match-ref-idx { font-size: 11px; font-weight: 700; color: var(--accent); min-width: 24px; }
+.vm-match-ref-item .vm-match-ref-text { font-size: 12px; color: var(--text); line-height: 1.5; }
+.vm-match-ref-item .vm-match-ref-meta { font-size: 10px; color: var(--muted); margin-top: 2px; }
+.vm-match-actions { display: flex; gap: 8px; margin-top: 8px; }
+
 
 
 /* Responsive */
@@ -249,7 +279,7 @@ body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-
   <!-- Header -->
   <div class="header" style="position:relative;">
     <a class="back-link" href="../">← Portal</a>
-    <h1>Ref<span>Check</span></h1>
+    <h1>Ref<span>Check</span> <span style="font-size:13px;font-weight:400;color:var(--muted);margin-left:6px;">v3.0</span></h1>
     <p>Upload your paper → Extract & verify references → Match in-text citations → Generate report</p>
   </div>
 
@@ -351,6 +381,7 @@ body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-
     <div class="tabs" id="report-tabs">
       <div class="tab active" onclick="showReportTab(this, 'unmatched')">❌ Unmatched Citations</div>
       <div class="tab" onclick="showReportTab(this, 'unreferenced')">⚠️ Unreferenced</div>
+      <div class="tab" onclick="showReportTab(this, 'nonacademic')">🌐 Non-academic</div>
       <div class="tab" onclick="showReportTab(this, 'manual')">✋ Manual Citations</div>
       <div class="tab" onclick="showReportTab(this, 'compare')">🔀 AI vs Regex</div>
       <div class="tab" onclick="showReportTab(this, 'all')">📋 All References</div>
@@ -668,10 +699,12 @@ function splitBodyAndRefs() {
   ];
 
   // Find all positions where a section heading appears on its own line
+  // Supports both "References" and "References:" (with trailing colon)
+  // Also supports numbered headings like "9. Reference List"
   let headingPositions = [];
   for (const name of sectionNames) {
     const escaped = name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-    const regex = new RegExp(`(?:^|\\n)\\s*${escaped}\\s*(?:\\n|\\s*$)`, 'gi');
+    const regex = new RegExp(`(?:^|\\n)\\s*(?:\\d+\\.?\\s+)?${escaped}\\s*:?(?:\\n|\\s*$)`, 'gi');
     let m;
     while ((m = regex.exec(cleaned)) !== null) {
       const pos = m.index + m[0].length;
@@ -685,7 +718,24 @@ function splitBodyAndRefs() {
   let detectedFormat = '';
   if (headingPositions.length > 0) {
     const best = headingPositions[0];
-    refSectionText = cleaned.substring(best.pos).trim();
+    const candidateRefText = cleaned.substring(best.pos).trim();
+    
+    // Safeguard: check if the text after the heading actually looks like references
+    // Heuristic: if less than 20% of lines start with an author pattern, it's probably not a ref section
+    // Also reject if it's more than 80% of the total document length (entire doc misdetected)
+    const totalLen = cleaned.length;
+    const refLen = candidateRefText.length;
+    
+    // Reject if the "reference section" is more than 70% of the document
+    if (refLen > totalLen * 0.7 && totalLen > 2000) {
+      console.log('[RefCheck] WARNING: Reference section is too large (>70% of doc), likely misdetection');
+      bodyText = cleaned;
+      refSectionText = '';
+      toast('Reference section may be misdetected. Check the raw text.', 'warning');
+      return;
+    }
+    
+    refSectionText = candidateRefText;
     bodyText = cleaned.substring(0, best.pos).trim();
 
     // Trim non-reference sections AFTER References (Appendix, Supplementary, etc.)
@@ -728,7 +778,7 @@ function splitBodyAndRefs() {
     // Remove lines that are just a number (page numbers from PDF extraction)
     .replace(/(?:^|\n)\s*\d{1,3}\s*(?:\n|$)/g, '\n')
     // Remove "References" or similar heading if it appears again at the top
-    .replace(/^\s*(?:References|Bibliography|Reference List|Works Cited|参考文献|引用文献|Reference)\s*/i, '')
+    .replace(/^\s*(?:References|Bibliography|Reference List|Works Cited|参考文献|引用文献|Reference)\s*:?\s*/i, '')
     .trim();
 
   console.log('[RefCheck] Section detected:', detectedFormat);
@@ -849,6 +899,22 @@ function parseReferences() {
 
   // Store detected format for display
   window._refFormat = refFormat;
+
+  // Post-parse validation: if refs look suspicious (no years, no DOIs, very long entries),
+  // check if they might actually be body text
+  if (references.length > 0 && references.length < 5) {
+    const avgLen = references.reduce((s, r) => s + r.text.length, 0) / references.length;
+    const yearCount = references.filter(r => r.year).length;
+    const doiCount = references.filter(r => r.doi).length;
+    
+    // If refs are very long on average (>500 chars) and have no years/DOIs, likely body text
+    if (avgLen > 500 && yearCount === 0 && doiCount === 0) {
+      console.warn('[RefCheck] WARNING: Parsed references look like body text (avg length:', avgLen, ', years:', yearCount, '). Rejecting.');
+      references = [];
+      refSectionText = '';
+      window._refFormat = 'rejected (body text)';
+    }
+  }
 }
 
 function parseAPARefs(text) {
@@ -1315,9 +1381,12 @@ function renderReferences() {
   $('ref-list').innerHTML = sorted.map((r, i) => {
     const countCls = r.matchCount === 0 ? 'zero' : r.matchCount >= 3 ? 'high' : 'some';
     const countIcon = r.matchCount === 0 ? '🚫' : '📌';
+    const cls = r.classification || classifyReference(r);
+    r.classification = cls;
+    const nonAcadBadge = cls === 'non_academic' ? '<span class="badge badge-nonacademic">🌐 Non-academic</span>' : '';
     return `
-    <div class="ref-item" data-ref-idx="${references.indexOf(r)}">
-      <div class="ref-num">${r.index}</div>
+    <div class="ref-item" data-ref-idx="${references.indexOf(r)}"${cls==='non_academic'?' style="border-left:3px solid #fb923c"':''}>
+      <div class="ref-num" style="${cls==='non_academic'?'background:#fb923c;color:#000':''}">${r.index}</div>
       <div class="ref-body">
         <div class="ref-text">${esc(r.text)}</div>
         <div class="ref-meta">
@@ -1326,6 +1395,7 @@ function renderReferences() {
           <span>${r.firstAuthor || 'Unknown author'}</span>
           ${r.status !== 'pending' ? `<span class="badge ${statusBadge(r.status)}">${statusLabel(r.status)}</span>` : '<span class="badge badge-muted">⏳ Pending</span>'}
           <span class="cit-count-badge ${countCls}">${countIcon} Cited ${r.matchCount}×</span>
+          ${nonAcadBadge}
         </div>
       </div>
     </div>`;
@@ -2054,6 +2124,10 @@ function generateReport() {
   const unreferencedRefs = references.filter(r => r.matchCount === 0).length;
   const manualCits = citations.filter(c => c.source === 'manual').length;
 
+  // Classify references and compute health score
+  const healthScore = calculateHealthScore();
+  const nonAcademicCount = healthScore.breakdown.nonAcademicCount;
+
   const uniqueCits = new Set(citations.map(c => c.text.toLowerCase())).size;
   $('report-stats').innerHTML = `
     <div class="stat-card"><div class="stat-val" style="color:var(--accent)">${totalRefs}</div><div class="stat-label">Total References</div></div>
@@ -2062,7 +2136,15 @@ function generateReport() {
     <div class="stat-card"><div class="stat-val" style="color:var(--warning)">${manualCits}</div><div class="stat-label">Manual Citations</div></div>
     <div class="stat-card"><div class="stat-val" style="color:${unmatchedCits?'var(--danger)':'var(--success)'}">${unmatchedCits}</div><div class="stat-label">Unmatched</div></div>
     <div class="stat-card"><div class="stat-val" style="color:${unreferencedRefs?'var(--warning)':'var(--success)'}">${unreferencedRefs}</div><div class="stat-label">Unreferenced</div></div>
+    <div class="stat-card"><div class="stat-val" style="color:#fb923c">${nonAcademicCount}</div><div class="stat-label">Non-academic</div></div>
   `;
+  // Insert or update health score above the stats
+  let hsContainer = $('health-score-container');
+  if (!hsContainer) {
+    $('report-stats').insertAdjacentHTML('beforebegin', '<div id="health-score-container"></div>');
+    hsContainer = $('health-score-container');
+  }
+  hsContainer.innerHTML = renderHealthScoreHTML(healthScore);
   showReportTab(document.querySelector('#report-tabs .tab.active'), 'unmatched');
 }
 
@@ -2093,6 +2175,20 @@ function showReportTab(tabEl, tab) {
           </div>
         </div>
       </div>`).join('') : '<div style="color:var(--success);text-align:center;padding:24px;">✅ All references are cited!</div>';
+  } else if (tab === 'nonacademic') {
+    const items = references.filter(r => (r.classification || classifyReference(r)) === 'non_academic');
+    $('report-content').innerHTML = items.length ? items.map((r, i) => `
+      <div class="ref-item">
+        <div class="ref-num" style="background:#fb923c;color:#000">🌐</div>
+        <div class="ref-body">
+          <div class="ref-text">${esc(r.text)}</div>
+          <div class="ref-meta">
+            <span class="badge badge-nonacademic">Non-academic Source</span>
+            ${r.matchCount === 0 ? '<span class="badge badge-warn">⚠️ Not cited</span>' : ''}
+            <span class="badge ${statusBadge(r.status)}">${statusLabel(r.status)}</span>
+          </div>
+        </div>
+      </div>`).join('') : '<div style="color:var(--success);text-align:center;padding:24px;">✅ All references appear to be from academic sources!</div>';
   } else if (tab === 'manual') {
     const manualCits = citations.filter(c => c.source === 'manual');
     $('report-content').innerHTML = manualCits.length ? manualCits.map((c, i) => `
@@ -2137,23 +2233,32 @@ function showReportTab(tabEl, tab) {
   } else {
     // All References tab — sorted by matchCount ascending (unreferenced first)
     const sortedRefs = [...references].sort((a, b) => a.matchCount - b.matchCount);
-    $('report-content').innerHTML = sortedRefs.map(r => `
+    $('report-content').innerHTML = sortedRefs.map(r => {
+      const cls = r.classification || classifyReference(r);
+      r.classification = cls;
+      const clsBadge = cls === 'non_academic' ? '<span class="badge badge-nonacademic">🌐 Non-academic</span>' : '';
+      return `
       <div class="ref-item">
-        <div class="ref-num" style="${r.matchCount?'':'background:var(--warning);color:#000'}">${r.index}</div>
+        <div class="ref-num" style="${r.matchCount?'':'background:var(--warning);color:#000'}${cls==='non_academic'?';background:#fb923c;color:#000':''}">${r.index}</div>
         <div class="ref-body">
           <div class="ref-text">${esc(r.text)}</div>
           <div class="ref-meta">
             <span class="badge ${statusBadge(r.status)}">${statusLabel(r.status)}</span>
             <span>📌 Cited ${r.matchCount}×</span>
             ${r.doi ? `<span>DOI: ${esc(r.doi)}</span>` : '<span>No DOI</span>'}
+            ${clsBadge}
           </div>
         </div>
-      </div>`).join('');
+      </div>`;}).join('');
   }
 }
 
 function exportReport() {
-  const lines = [`RefCheck Report`, `${'='.repeat(50)}`, ''];
+  const healthScore = calculateHealthScore();
+  const lines = [`RefCheck Report (v3.0)`, `${'='.repeat(50)}`, ''];
+  lines.push(`Health Score: ${healthScore.total}/100 | Academic Source Score: ${healthScore.academic}/100`);
+  lines.push(`Non-academic References: ${healthScore.breakdown.nonAcademicCount}`);
+  lines.push('');
   lines.push(`Total References: ${references.length}`);
   lines.push(`Verified: ${references.filter(r=>r.status==='verified').length}`);
   lines.push(`Likely: ${references.filter(r=>r.status==='likely').length}`);
@@ -2185,7 +2290,13 @@ function exportReport() {
 }
 
 function exportMarkdown() {
-  let md = `# RefCheck Report\n\n`;
+  const healthScore = calculateHealthScore();
+  let md = `# RefCheck Report (v3.0)\n\n`;
+  md += `## Health Scores\n\n`;
+  md += `| Score | Value |\n|-------|-------|\n`;
+  md += `| Total Health Score | **${healthScore.total}/100** |\n`;
+  md += `| Academic Source Score | **${healthScore.academic}/100** |\n`;
+  md += `| Non-academic Refs | ${healthScore.breakdown.nonAcademicCount} |\n\n`;
   md += `| Metric | Count |\n|--------|-------|\n`;
   md += `| Total References | ${references.length} |\n`;
   md += `| Verified | ${references.filter(r=>r.status==='verified').length} |\n`;
@@ -2308,6 +2419,14 @@ function renderVisualMode() {
   $('vm-matched').textContent = matchedCits;
   $('vm-unmatched').textContent = unmatchedCits;
   $('vm-unreferenced').textContent = unreferencedRefs;
+
+  // Health score
+  const healthScore = calculateHealthScore();
+  const hsEl = $('vm-health-score');
+  if (hsEl) {
+    hsEl.textContent = healthScore.total + '/100';
+    hsEl.style.color = getScoreColor(healthScore.total);
+  }
 
   // Build highlighted body text
   renderTextPanel();
@@ -2559,7 +2678,7 @@ function renderTextPanel() {
       ? `→ Ref #${refIdx}`
       : 'No matching reference';
     const srcIcon = h.source === 'manual' ? ' ✋' : ' 🔤';
-    return `<span class="cit-hl ${cls}" data-ref-idx="${refIdx !== null ? refIdx : ''}" data-hl-id="${h.hlId}" onclick="vmHlClick(${h.hlId})">${esc(rawText)}<span class="cit-tip">${tip}${srcIcon}</span></span>`;
+    return `<span class="cit-hl ${cls}" data-ref-idx="${refIdx !== null ? refIdx : ''}" data-hl-id="${h.hlId}" onclick="vmHlClickV3(${h.hlId})">${esc(rawText)}<span class="cit-tip">${tip}${srcIcon}</span></span>`;
   });
 
   // Store highlights globally for click handling
@@ -2582,14 +2701,19 @@ function renderRefPanel() {
     const hasCit = r.matchCount > 0;
     const cls = hasCit ? 'has-cit' : 'no-cit';
     const countCls = r.matchCount === 0 ? 'zero' : r.matchCount >= 3 ? 'high' : 'some';
+    const refCls = r.classification || classifyReference(r);
+    r.classification = refCls;
+    const nonAcadClass = refCls === 'non_academic' ? ' non-academic' : '';
+    const nonAcadBadge = refCls === 'non_academic' ? '<span class="badge badge-nonacademic">🌐</span>' : '';
     return `
-      <div class="vm-ref-item ${cls}" data-ref-idx="${r.index}" onclick="vmRefClick(${r.index})" id="vm-ref-${r.index}">
+      <div class="vm-ref-item ${cls}${nonAcadClass}" data-ref-idx="${r.index}" onclick="vmRefClick(${r.index})" id="vm-ref-${r.index}">
         <div class="vm-ref-idx">[${r.index}]</div>
         <div class="vm-ref-text">${esc(r.text.length > 150 ? r.text.substring(0, 150) + '...' : r.text)}</div>
         <div class="vm-ref-meta">
           <span class="badge ${statusBadge(r.status)}">${statusLabel(r.status)}</span>
           <span class="cit-count-badge ${countCls}">📌 ${r.matchCount}×</span>
           ${r.year ? `<span>${r.year}</span>` : ''}
+          ${nonAcadBadge}
         </div>
       </div>`;
   }).join('');
@@ -2608,7 +2732,7 @@ function renderRefPanel() {
     const trimmed = line.trim();
     if (!trimmed) return;
     lineNum++;
-    html += `<div class="orig-ref-line" data-line-idx="${i}" onclick="vmOrigLineClick(${i})"><span class="orig-ref-num">${lineNum}.</span>${esc(trimmed)}</div>`;
+    html += `<div class="orig-ref-line" data-line-idx="${i}" onclick="vmOrigLineClick(${i})"><span class="orig-ref-num">【${lineNum}】</span><span class="orig-ref-text">${esc(trimmed)}</span></div>`;
   });
   origList.innerHTML = html || '<div style="color:var(--muted);text-align:center;padding:20px;font-size:12px;">Empty</div>';
 }
@@ -2764,6 +2888,172 @@ function sharedPrefixLen(a, b) {
   return len;
 }
 
+// ============ MANUAL MATCH (Visual Mode) ============
+let vmMatchCitHlId = null; // currently selected highlight for matching
+
+function openMatchPanel(hlId) {
+  const panel = $('vm-match-panel');
+  panel.classList.add('active');
+  vmMatchCitHlId = hlId;
+  
+  const hl = (window._vmHighlights || []).find(h => h.hlId === hlId);
+  if (hl) {
+    $('vm-match-cit-info').innerHTML = `Matching: <strong style="color:var(--danger)">"${esc(hl.text)}"</strong> — Select a reference below`;
+    // Pre-fill search with author/year from the citation
+    const searchInput = $('vm-match-search');
+    if (!searchInput.value) {
+      // Extract author part
+      const yearMatch = hl.text.match(/\d{4}/);
+      if (yearMatch) {
+        const yearIdx = hl.text.lastIndexOf(yearMatch[0]);
+        const author = hl.text.substring(0, yearIdx).replace(/[(&,;]\s*$/g, '').trim();
+        searchInput.value = author + ' ' + yearMatch[0];
+      } else {
+        searchInput.value = hl.text;
+      }
+    }
+    filterMatchRefs();
+    searchInput.focus();
+  }
+  $('vm-match-close-btn').style.display = 'inline-flex';
+  $('vm-add-panel').classList.remove('active');
+}
+
+function closeMatchPanel() {
+  const panel = $('vm-match-panel');
+  panel.classList.remove('active');
+  $('vm-match-search').value = '';
+  $('vm-match-ref-list').innerHTML = '';
+  $('vm-match-cit-info').innerHTML = 'Click an <span style="text-decoration:underline wavy var(--danger);">unmatched citation</span> in the text to match it manually';
+  $('vm-match-close-btn').style.display = 'none';
+  vmMatchCitHlId = null;
+}
+
+function toggleMatchPanel() {
+  const panel = $('vm-match-panel');
+  if (panel.classList.contains('active')) {
+    closeMatchPanel();
+  } else {
+    panel.classList.add('active');
+    $('vm-match-cit-info').innerHTML = 'Click an <span style="text-decoration:underline wavy var(--danger);">unmatched citation</span> in the text, or search below';
+    $('vm-match-search').focus();
+    $('vm-match-close-btn').style.display = 'inline-flex';
+    filterMatchRefs();
+  }
+}
+
+function filterMatchRefs() {
+  const query = ($('vm-match-search').value || '').trim().toLowerCase();
+  const list = $('vm-match-ref-list');
+  
+  let filtered = references;
+  if (query.length > 1) {
+    filtered = references.filter(r => {
+      const text = (r.text || '').toLowerCase();
+      const author = (r.firstAuthor || '').toLowerCase();
+      const title = (r.title || '').toLowerCase();
+      const doi = (r.doi || '').toLowerCase();
+      const year = (r.year || '');
+      return text.includes(query) || author.includes(query) || title.includes(query) ||
+             doi.includes(query) || year === query ||
+             query.split(/\s+/).every(w => w.length > 1 && (text.includes(w) || author.includes(w)));
+    });
+  }
+  
+  // Sort: unreferenced first, then by relevance
+  filtered = [...filtered].sort((a, b) => {
+    if (a.matchCount === 0 && b.matchCount > 0) return -1;
+    if (a.matchCount > 0 && b.matchCount === 0) return 1;
+    return 0;
+  });
+  
+  list.innerHTML = filtered.map(r => {
+    const cls = r.classification || classifyReference(r);
+    r.classification = cls;
+    const nonAcadBadge = cls === 'non_academic' ? ' 🌐' : '';
+    const matchInfo = r.matchCount > 0 ? `<span style="color:var(--muted)">📌 cited ${r.matchCount}×</span>` : '<span style="color:var(--warning)">⚠️ unreferenced</span>';
+    return `
+      <div class="vm-match-ref-item" onclick="assignMatch(${r.index})">
+        <span class="vm-match-ref-idx">[${r.index}]</span>
+        <div>
+          <div class="vm-match-ref-text">${esc(r.text.length > 120 ? r.text.substring(0, 120) + '...' : r.text)}${nonAcadBadge}</div>
+          <div class="vm-match-ref-meta">${matchInfo} · ${r.year || '?'} · ${r.firstAuthor || '?'}</div>
+        </div>
+      </div>`;
+  }).join('');
+}
+
+function assignMatch(refIdx) {
+  if (vmMatchCitHlId === null) return;
+  
+  const hl = (window._vmHighlights || []).find(h => h.hlId === vmMatchCitHlId);
+  if (!hl) return;
+  
+  const ref = references.find(r => r.index === refIdx);
+  if (!ref) return;
+  
+  // Update the highlight's matched reference
+  hl.matchedRef = refIdx;
+  hl.confidence = 1.0;
+  
+  // Also update the corresponding citation in the citations array if possible
+  // Find a citation with matching text and position
+  const matchingCit = citations.find(c => {
+    if (c.isNumeric) return false;
+    const citLower = c.text.toLowerCase();
+    const hlLower = hl.text.toLowerCase().replace(/[(),]/g, '').trim();
+    return citLower.includes(hlLower.split(',')[0].trim().split(' ')[0]) && c.matchedRef === null;
+  });
+  
+  if (matchingCit) {
+    matchingCit.matchedRef = refIdx;
+    matchingCit.matchType = 'manual';
+  }
+  
+  // Update match count
+  ref.matchCount++;
+  
+  toast(`✅ Matched "${hl.text.substring(0, 40)}..." → Ref #${refIdx}`, 'success');
+  
+  // Re-render
+  renderVisualMode();
+  renderCitations();
+  renderReferences();
+  generateReport();
+  closeMatchPanel();
+}
+
+// Update vmHlClick to also open match panel for unmatched citations
+function vmHlClickV3(hlId) {
+  const hl = (window._vmHighlights || []).find(h => h.hlId === hlId);
+  if (!hl) return;
+
+  // Highlight the clicked citation
+  document.querySelectorAll('.cit-hl').forEach(el => el.classList.remove('flash'));
+  const el = document.querySelector(`.cit-hl[data-hl-id="${hlId}"]`);
+  if (el) {
+    el.classList.add('flash');
+    setTimeout(() => el.classList.remove('flash'), 800);
+  }
+
+  if (hl.matchedRef !== null) {
+    // Already matched — show reference
+    document.querySelectorAll('.vm-ref-item').forEach(el => el.classList.remove('selected'));
+    const refEl = document.getElementById(`vm-ref-${hl.matchedRef}`);
+    if (refEl) {
+      refEl.classList.add('selected');
+      refEl.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    }
+    document.querySelectorAll('.cit-hl').forEach(el => el.classList.add('dimmed'));
+    document.querySelectorAll(`.cit-hl[data-ref-idx="${hl.matchedRef}"]`).forEach(el => el.classList.remove('dimmed'));
+  } else {
+    // Unmatched — open match panel
+    document.querySelectorAll('.cit-hl').forEach(el => el.classList.remove('dimmed'));
+    document.querySelectorAll('.vm-ref-item').forEach(el => el.classList.remove('selected'));
+    openMatchPanel(hlId);
+  }
+}
+
 // Close visual mode on Escape
 document.addEventListener('keydown', e => {
   if (e.key === 'Escape' && $('vm-overlay').classList.contains('active')) {
@@ -2829,6 +3119,198 @@ function submitErrorReport() {
   toast('Report page opened! Please click "Submit new issue" to send.', 'success');
 }
 
+// ============ NON-ACADEMIC DETECTION ============
+function classifyReference(ref) {
+  // Returns 'academic', 'non_academic', or 'unknown'
+  const text = (ref.text || '').toLowerCase();
+  
+  // Non-academic indicators
+  const nonAcademicPatterns = [
+    /(?:https?:\/\/)(?!doi\.org|dx\.doi\.org|api\.crossref|scholar\.google|pubmed|arxiv|semanticscholar|researchgate|acm\.org|ieee\.org|springer|elsevier|wiley|tandfonline|sagepub|nature\.com|science\.org|jstor|pnas|sciencedirect|link\.springer|onlinelibrary\.wiley|academic\.oup|cambridge|oxfordacademic|apa\.org|psycnet|ncbi\.nlm|taylorfrancis|mdpi|frontiersin|plos|hindawi|sci-hub)/i,
+    /\.(com|org|net|io|co|gov|edu)(?:\/|\s|$)/,
+    /(?:www\.|web\.|blog\.|news\.|tech\.|medium\.|linkedin\.|twitter\.|facebook\.|instagram\.|youtube\.|wikipedia\.)/i,
+    /(?:website|webpage|web site|online article|blog post|news article|news report|press release|white paper|industry report|market report|company report|annual report|consulting report|url|accessed|retrieved)\b/i,
+    /(?:statista|tradingeconomics|worldbank\.org|imf\.org|oecd\.org|data\.worldbank|ourworldindata)/i,
+    /(?:\/[^/]*\.(html|htm|php|asp))/,
+    /(?:linkedin\.com|twitter\.com|x\.com|facebook\.com|instagram\.com|reddit\.com|quora\.com)/i,
+  ];
+  
+  // Academic indicators (override non-academic if present)
+  const academicPatterns = [
+    /doi\.org|dx\.doi\.org/i,
+    /\b(?:journal|proceedings|transactions|letters|review|advances|science|nature|communications|physics|chemistry|biology|medicine|engineering|computing)\b/i,
+    /\b(?:vol\.?|volume|issue|pp\.?|pages?|article|manuscript|preprint)\b/i,
+    /\barXiv[:\s]/i,
+    /\bSSRN\b/i,
+    /\b(?:PhD|Master|dissertation|thesis)\b/i,
+    /\b(?:university|institute|department|school of|college of)\b/i,
+    /(?:springerlink|sciencedirect|wileyonlinelibrary|tandfonline|sagepub|academic\.oup|cambridge|oxfordacademic|nature\.com|science\.org|pnas\.org)/i,
+    /\b(?:IEEE|ACM|APA|MLA)\b/,
+  ];
+  
+  // Check for non-academic indicators first
+  let nonAcademicScore = 0;
+  for (const pat of nonAcademicPatterns) {
+    if (pat.test(text)) nonAcademicScore++;
+  }
+  
+  // Check for academic indicators
+  let academicScore = 0;
+  for (const pat of academicPatterns) {
+    if (pat.test(text)) academicScore++;
+  }
+  
+  // If there's a DOI, it's almost certainly academic
+  if (ref.doi) return 'academic';
+  
+  if (academicScore > nonAcademicScore) return 'academic';
+  if (nonAcademicScore > 0 && nonAcademicScore > academicScore) return 'non_academic';
+  
+  return 'unknown';
+}
+
+// ============ HEALTH SCORE ============
+function calculateHealthScore() {
+  if (references.length === 0 && citations.length === 0) return { total: 0, academic: 0, breakdown: {} };
+  
+  const totalRefs = references.length;
+  const totalCits = citations.filter(c => !c.isNumeric || true).length;
+  const matchedCits = citations.filter(c => c.matchedRef !== null).length;
+  const unmatchedCits = totalCits - matchedCits;
+  const unreferencedRefs = references.filter(r => r.matchCount === 0).length;
+  const verifiedRefs = references.filter(r => r.status === 'verified' || r.status === 'likely').length;
+  const manualCits = citations.filter(c => c.source === 'manual').length;
+  
+  // Classify references
+  let academicCount = 0;
+  let nonAcademicCount = 0;
+  let unknownCount = 0;
+  for (const ref of references) {
+    const cls = ref.classification || classifyReference(ref);
+    ref.classification = cls; // cache
+    if (cls === 'academic') academicCount++;
+    else if (cls === 'non_academic') nonAcademicCount++;
+    else unknownCount++;
+  }
+  
+  // Total Score calculation (100 points)
+  let totalScore = 0;
+  
+  // 1. Citation Matching (40 points): how many citations match a reference
+  const matchRate = totalCits > 0 ? matchedCits / totalCits : 1;
+  totalScore += Math.round(matchRate * 40);
+  
+  // 2. Reference Coverage (25 points): how many references are cited
+  const coverageRate = totalRefs > 0 ? (totalRefs - unreferencedRefs) / totalRefs : 1;
+  totalScore += Math.round(coverageRate * 25);
+  
+  // 3. Verification (15 points): how many references verified
+  const verifyRate = totalRefs > 0 ? verifiedRefs / totalRefs : 0;
+  totalScore += Math.round(verifyRate * 15);
+  
+  // 4. Source Quality (10 points): penalty for manual citations and unmatched
+  const manualPenalty = totalCits > 0 ? Math.min(manualCits / totalCits, 0.5) : 0;
+  totalScore += Math.round((1 - manualPenalty) * 10);
+  
+  // 5. Completeness (10 points): no unmatched AND no unreferenced
+  const completenessPenalty = (unmatchedCits > 0 ? 0.3 : 0) + (unreferencedRefs > 0 ? 0.3 : 0);
+  totalScore += Math.round((1 - Math.min(completenessPenalty, 0.6)) * 10);
+  
+  totalScore = Math.min(100, Math.max(0, totalScore));
+  
+  // Academic Source Score (100 points) — only based on reference quality
+  let academicScore = 0;
+  
+  // 1. Academic ratio (40 points)
+  const refWithClass = totalRefs - unknownCount;
+  const academicRatio = refWithClass > 0 ? academicCount / refWithClass : 0.5;
+  academicScore += Math.round(academicRatio * 40);
+  
+  // 2. Verification of academic refs (30 points)
+  const academicVerified = references.filter(r => r.classification === 'academic' && (r.status === 'verified' || r.status === 'likely')).length;
+  const academicVerifyRate = academicCount > 0 ? academicVerified / academicCount : 0;
+  academicScore += Math.round(academicVerifyRate * 30);
+  
+  // 3. Citation of academic refs (20 points)
+  const academicCited = references.filter(r => r.classification === 'academic' && r.matchCount > 0).length;
+  const academicCiteRate = academicCount > 0 ? academicCited / academicCount : 0;
+  academicScore += Math.round(academicCiteRate * 20);
+  
+  // 4. Non-academic penalty (10 points)
+  const nonAcadRatio = totalRefs > 0 ? nonAcademicCount / totalRefs : 0;
+  academicScore += Math.round((1 - Math.min(nonAcadRatio * 2, 1)) * 10);
+  
+  academicScore = Math.min(100, Math.max(0, academicScore));
+  
+  return {
+    total: totalScore,
+    academic: academicScore,
+    breakdown: {
+      matchRate: Math.round(matchRate * 100),
+      coverageRate: Math.round(coverageRate * 100),
+      verifyRate: Math.round(verifyRate * 100),
+      manualCits,
+      unmatchedCits,
+      unreferencedRefs,
+      academicCount,
+      nonAcademicCount,
+      unknownCount,
+      totalRefs,
+      totalCits,
+      matchedCits,
+      verifiedRefs
+    }
+  };
+}
+
+function getScoreColor(score) {
+  if (score >= 80) return 'var(--success)';
+  if (score >= 60) return 'var(--warning)';
+  return 'var(--danger)';
+}
+
+function renderHealthScoreHTML(score) {
+  const bd = score.breakdown;
+  return `
+    <div class="health-score-container">
+      <div style="display:flex;flex-direction:column;align-items:center;gap:4px;">
+        <div class="health-score-ring" style="color:${getScoreColor(score.total)};border-color:${getScoreColor(score.total)}20;">
+          <span style="position:relative;z-index:1;">${score.total}</span>
+        </div>
+        <span style="font-size:10px;color:var(--muted);font-weight:600;">TOTAL</span>
+      </div>
+      <div style="width:1px;height:50px;background:var(--border);flex-shrink:0;"></div>
+      <div style="display:flex;flex-direction:column;align-items:center;gap:4px;">
+        <div class="health-score-ring" style="width:56px;height:56px;font-size:17px;color:${getScoreColor(score.academic)};">
+          <span style="position:relative;z-index:1;">${score.academic}</span>
+        </div>
+        <span style="font-size:10px;color:var(--muted);font-weight:600;">ACADEMIC</span>
+      </div>
+      <div class="health-score-details">
+        <div class="health-score-item">
+          <span>Citation Match</span>
+          <div class="health-score-bar"><div class="health-score-bar-fill" style="width:${bd.matchRate}%;background:${getScoreColor(bd.matchRate)}"></div></div>
+          <span class="hs-val" style="color:${getScoreColor(bd.matchRate)}">${bd.matchRate}%</span>
+        </div>
+        <div class="health-score-item">
+          <span>Ref Coverage</span>
+          <div class="health-score-bar"><div class="health-score-bar-fill" style="width:${bd.coverageRate}%;background:${getScoreColor(bd.coverageRate)}"></div></div>
+          <span class="hs-val" style="color:${getScoreColor(bd.coverageRate)}">${bd.coverageRate}%</span>
+        </div>
+        <div class="health-score-item">
+          <span>Verification</span>
+          <div class="health-score-bar"><div class="health-score-bar-fill" style="width:${bd.verifyRate}%;background:${getScoreColor(bd.verifyRate)}"></div></div>
+          <span class="hs-val" style="color:${getScoreColor(bd.verifyRate)}">${bd.verifyRate}%</span>
+        </div>
+        <div class="health-score-item" style="gap:12px;">
+          <span>📚 Academic: <b style="color:var(--success)">${bd.academicCount}</b></span>
+          <span>🌐 Non-academic: <b style="color:#fb923c">${bd.nonAcademicCount}</b></span>
+          <span>❓ Unknown: <b>${bd.unknownCount}</b></span>
+        </div>
+      </div>
+    </div>`;
+}
+
 // ============ UTILS ============
 function esc(s) { const d = document.createElement('div'); d.textContent = s || ''; return d.innerHTML; }
 function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
@@ -2871,12 +3353,13 @@ function setStep(n) {
 <div class="vm-overlay" id="vm-overlay">
   <div class="vm-header">
     <div class="vm-header-left">
-      <h2>Ref<span>Check</span> Visual</h2>
+      <h2>Ref<span>Check</span> <span style="font-size:11px;font-weight:400;color:var(--muted);margin-left:4px;">v3.0</span></h2>
       <div class="vm-stats-mini" id="vm-stats">
         <div class="vm-stat">Total: <b id="vm-total">0</b></div>
         <div class="vm-stat">Matched: <b class="ok" id="vm-matched">0</b></div>
         <div class="vm-stat">Unmatched: <b class="err" id="vm-unmatched">0</b></div>
         <div class="vm-stat">Unreferenced: <b class="warn" id="vm-unreferenced">0</b></div>
+        <div class="vm-stat">Score: <b id="vm-health-score" style="color:var(--accent)">—</b></div>
       </div>
     </div>
     <button class="vm-close" onclick="closeVisualMode()">✕</button>
@@ -2892,6 +3375,7 @@ function setStep(n) {
       <div class="vm-legend-item"><div class="vm-legend-dot" style="background:repeating-linear-gradient(45deg,rgba(245,158,11,0.4),rgba(245,158,11,0.4) 2px,transparent 2px,transparent 4px)"></div>Duplicate</div>
     </div>
     <div style="flex:1"></div>
+    <button class="vm-add-cit-btn" onclick="toggleMatchPanel()" style="border-color:var(--accent);color:var(--accent);background:rgba(99,102,241,0.1);">🔗 Match Ref</button>
     <button class="vm-add-cit-btn" onclick="toggleVMAddPanel()">✋ Add Citation</button>
   </div>
   <!-- VM Manual Add Panel -->
@@ -2899,6 +3383,15 @@ function setStep(n) {
     <input type="text" id="vm-manual-cit-input" placeholder='Type citation e.g. "Smith et al., 2020"' onkeydown="if(event.key==='Enter'){addManualCitationFromVM();}">
     <button class="btn btn-primary btn-sm" onclick="addManualCitationFromVM()">Add</button>
     <button class="btn btn-secondary btn-sm" onclick="toggleVMAddPanel()">Cancel</button>
+  </div>
+  <!-- VM Manual Match Panel -->
+  <div class="vm-match-panel" id="vm-match-panel">
+    <div class="vm-match-cit-info" id="vm-match-cit-info">Click an <span style="text-decoration:underline wavy var(--danger);">unmatched citation</span> in the text to match it manually</div>
+    <input type="text" class="vm-match-search" id="vm-match-search" placeholder="Search references by author, title, DOI..." oninput="filterMatchRefs()">
+    <div class="vm-match-ref-list" id="vm-match-ref-list"></div>
+    <div class="vm-match-actions">
+      <button class="btn btn-secondary btn-sm" id="vm-match-close-btn" onclick="closeMatchPanel()" style="display:none;">✕ Close</button>
+    </div>
   </div>
   <div class="vm-body">
     <div class="vm-text-panel" id="vm-text-panel" style="position:relative;"></div>
