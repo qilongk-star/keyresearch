@@ -219,15 +219,7 @@ body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-
 .cit-count-badge.some { background: rgba(34,197,94,0.15); color: var(--success); }
 .cit-count-badge.high { background: rgba(99,102,241,0.2); color: var(--accent); }
 
-/* Feedback modal */
-.feedback-overlay { position: fixed; inset: 0; z-index: 2000; background: rgba(0,0,0,0.6); display: none; align-items: center; justify-content: center; }
-.feedback-overlay.active { display: flex; }
-.feedback-modal { background: var(--surface); border: 1px solid var(--border); border-radius: 14px; padding: 24px; width: 480px; max-width: 90vw; }
-.feedback-modal h3 { font-size: 16px; font-weight: 700; margin-bottom: 8px; }
-.feedback-modal p { font-size: 13px; color: var(--muted); margin-bottom: 16px; }
-.feedback-textarea { width: 100%; min-height: 120px; padding: 12px; border-radius: 8px; border: 1px solid var(--border); background: var(--bg); color: var(--text); font-size: 13px; font-family: inherit; resize: vertical; outline: none; }
-.feedback-textarea:focus { border-color: var(--danger); }
-.feedback-actions { display: flex; gap: 8px; justify-content: flex-end; margin-top: 12px; }
+
 
 /* Responsive */
 @media (max-width: 900px) {
@@ -355,7 +347,7 @@ body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-
     <div class="input-row" style="margin-top:16px;display:flex;gap:10px;flex-wrap:wrap;">
       <button class="btn btn-primary" onclick="exportReport()">📋 Copy Report</button>
       <button class="btn btn-secondary" onclick="exportMarkdown()">📝 Copy Markdown</button>
-      <button class="report-error-btn" onclick="openFeedbackModal()">🐛 Report Error</button>
+      <button class="report-error-btn" onclick="submitErrorReport()">🐛 Report Error</button>
     </div>
   </div>
 
@@ -2592,22 +2584,6 @@ document.addEventListener('keydown', e => {
 });
 
 // ============ FEEDBACK ============
-function openFeedbackModal() {
-  $('feedback-overlay').classList.add('active');
-  $('feedback-text').value = '';
-  $('feedback-text').placeholder = 'Describe the issue... We will attach your analysis results automatically.';
-  $('feedback-text').focus();
-  const btn = $('feedback-submit-btn');
-  btn.disabled = false;
-  btn.textContent = 'Open GitHub Issue';
-  $('feedback-status').textContent = '';
-  $('feedback-status').style.display = 'none';
-}
-
-function closeFeedbackModal() {
-  $('feedback-overlay').classList.remove('active');
-}
-
 function buildFeedbackBody(userMessage) {
   const unmatched = citations.filter(c => c.matchedRef === null);
   const unreferenced = references.filter(r => r.matchCount === 0);
@@ -2645,14 +2621,16 @@ function buildFeedbackBody(userMessage) {
   return body;
 }
 
-function submitFeedback() {
-  const text = $('feedback-text').value.trim();
-  if (!text || text.length < 10) {
-    return toast('Please describe the issue (at least 10 characters)', 'error');
+function submitErrorReport() {
+  if (references.length === 0 && citations.length === 0) {
+    return toast('Please upload and analyze a document first', 'error');
   }
 
-  const body = buildFeedbackBody(text);
-  const title = `[RefCheck] ${text.substring(0, 80)}${text.length > 80 ? '...' : ''}`;
+  const userMsg = prompt('Please describe the issue you found:\n\n(Your analysis results will be attached automatically)');
+  if (!userMsg || userMsg.trim().length < 5) return;
+
+  const body = buildFeedbackBody(userMsg.trim());
+  const title = '[RefCheck] ' + userMsg.trim().substring(0, 80) + (userMsg.trim().length > 80 ? '...' : '');
 
   const url = 'https://github.com/qilongk-star/keyresearch/issues/new'
     + '?labels=bug-report'
@@ -2660,8 +2638,7 @@ function submitFeedback() {
     + '&body=' + encodeURIComponent(body);
 
   window.open(url, '_blank');
-  toast('Opening GitHub to submit your report...', 'success');
-  closeFeedbackModal();
+  toast('Report page opened! Please click "Submit new issue" to send.', 'success');
 }
 
 // ============ UTILS ============
@@ -2746,19 +2723,7 @@ function setStep(n) {
   </div>
 </div>
 
-<!-- Feedback Modal -->
-<div class="feedback-overlay" id="feedback-overlay" onclick="if(event.target===this)closeFeedbackModal()">
-  <div class="feedback-modal">
-    <h3>🐛 Report an Error</h3>
-    <p>Found something wrong? We'll automatically attach your analysis results to the report.</p>
-    <textarea class="feedback-textarea" id="feedback-text" placeholder="Describe what went wrong, what you expected, and any steps to reproduce the issue..."></textarea>
-    <div id="feedback-status" style="font-size:13px;margin-bottom:8px;display:none;"></div>
-    <div class="feedback-actions">
-      <button class="btn btn-secondary" onclick="closeFeedbackModal()">Cancel</button>
-      <button class="btn btn-primary" id="feedback-submit-btn" onclick="submitFeedback()">Open GitHub Issue</button>
-    </div>
-  </div>
-</div>
+
 
 </body>
 </html>
