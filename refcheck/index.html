@@ -924,6 +924,53 @@ function parseAPARefs(text) {
     }
   }
 
+  // === Post-access split ===
+  // Harvard refs often end with "Available at: URL (Accessed: DD Month YYYY)."
+  // followed immediately by the next reference starting with an author name.
+  // Detect these boundaries and split any merged refs.
+  if (refs.length > 0) {
+    // Pattern: (Accessed: ... YYYY). followed by new Author name at start
+    const accessSplitRe = /\((?:Accessed|accessed|Retrieved|retrieved)[^)]*\d{4}\)\s*\.\s+/g;
+    const newRefs = [];
+    for (const ref of refs) {
+      // Only try splitting refs that contain "Available at:" or "Retrieved from" + URL
+      if (!/(?:Available at|Retrieved from)\s*:\s*https?:\/\//i.test(ref) &&
+          !/https?:\/\/[^\s]+\s+\(Accessed:/i.test(ref)) {
+        newRefs.push(ref);
+        continue;
+      }
+      let lastEnd = 0;
+      let found = false;
+      let m2;
+      accessSplitRe.lastIndex = 0;
+      while ((m2 = accessSplitRe.exec(ref)) !== null) {
+        const afterMatch = m2.index + m2[0].length;
+        const remaining = ref.substring(afterMatch).trim();
+        // Check if remaining starts with a new author pattern
+        // Formats: "Lastname, F.", "Lastname F.", "Lastname and ...", "Lastname & ..."
+        if (/^[A-Z][a-z'öüäéèêëàâîïôûçñ-]+[.,]?\s+[A-Z]/.test(remaining) ||
+            /^[A-Z][a-z'öüäéèêëàâîïôûçñ-]+\s+and\s+[A-Z]/i.test(remaining) ||
+            /^[A-Z][a-z'öüäéèêëàâîïôûçñ-]+\s+&\s+[A-Z]/.test(remaining)) {
+          // This is a valid split point
+          const firstPart = ref.substring(lastEnd, m2.index + m2[0].length).trim().replace(/\s+/g, ' ');
+          if (firstPart.length > 20) newRefs.push(firstPart);
+          lastEnd = afterMatch;
+          found = true;
+        }
+      }
+      if (found) {
+        // Add remaining text as last ref
+        const lastPart = ref.substring(lastEnd).trim().replace(/\s+/g, ' ');
+        if (lastPart.length > 20) newRefs.push(lastPart);
+      } else {
+        newRefs.push(ref);
+      }
+    }
+    if (newRefs.length > refs.length) {
+      refs = newRefs;
+    }
+  }
+
   return refs;
 }
 
@@ -1374,10 +1421,13 @@ function addManualCitation() {
   const isNumeric = /^\d/.test(text) || /^\[\d/.test(text);
 
   if (!isNumeric) {
-    const m = text.match(new RegExp('^(' + _nameP + '(?:\\s+(?:et\\s+al\\.?))?)(?:\\s*[&,]\\s*' + _nameP + ')*(?:,\\s*|[\\s(])(\\d{4}[a-z]?)'));
+    // Support formats: "Smith, 2020", "Smith et al., 2020", "Smith & Jones, 2020",
+    // "Smith and Jones (2020)", "Du et al. 2025"
+    const citRe = new RegExp('^(' + _nameP + '(?:\\s+(?:et\\s+al\\.?))?)(?:\\s*(?:[&,]|and\\s+)\\s*' + _nameP + ')*(?:,\\s*|[\\s(])(\\d{4}[a-z]?|n\\.d\\.)');
+    const m = text.match(citRe);
     if (m) {
       year = m[m.length - 1];
-      const authorPart = text.substring(0, text.lastIndexOf(year)).replace(/[&,]/g, ' ');
+      const authorPart = text.substring(0, text.lastIndexOf(year)).replace(/[&,]/g, ' ').replace(/\band\b/gi, ' ');
       const nameMatches = authorPart.match(new RegExp(_nameP, 'gi'));
       if (nameMatches) authors = nameMatches.map(n => n).filter(n => n.length > 1);
     }
@@ -1686,11 +1736,11 @@ function findBestMatch(citText, refs) {
 
   // Parse from text if not pre-parsed
   if (citAuthors.length === 0) {
-    const citMatch = citText.match(new RegExp('^(' + _nameP + '(?:\\s+(?:et\\s+al\\.?))?)(?:\\s*[&,]\\s*' + _nameP + ')*(?:,\\s*|[\\s(])(\\d{4}[a-z]?|n\\.d\\.)'));
+    const citMatch = citText.match(new RegExp('^(' + _nameP + '(?:\\s+(?:et\\s+al\\.?))?)(?:\\s*(?:[&,]|and\\s+)\\s*' + _nameP + ')*(?:,\\s*|[\\s(])(\\d{4}[a-z]?|n\\.d\\.)'));
     if (!citMatch) return null;
     citYear = citMatch[citMatch.length - 1];
     // Extract all authors from citation text
-    const authorPart = citText.substring(0, citText.lastIndexOf(citYear)).replace(/[,&]/g, ' ').replace(/\s*n\.d\.\s*/gi, ' ');
+    const authorPart = citText.substring(0, citText.lastIndexOf(citYear)).replace(/[&,]/g, ' ').replace(/\band\b/gi, ' ').replace(/\s*n\.d\.\s*/gi, ' ');
     const nameMatches = authorPart.match(new RegExp(_nameP, 'gi'));
     if (nameMatches) {
       citAuthors = nameMatches.map(n => n.toLowerCase()).filter(n => n.length > 1);
@@ -2550,13 +2600,15 @@ function renderRefPanel() {
     return;
   }
 
-  // Split the original text into lines and display them
+  // Split the original text into lines and display them with line numbers
   const lines = refSectionText.split('\n');
   let html = '';
+  let lineNum = 0;
   lines.forEach((line, i) => {
     const trimmed = line.trim();
     if (!trimmed) return;
-    html += `<div class="orig-ref-line" data-line-idx="${i}" onclick="vmOrigLineClick(${i})">${esc(trimmed)}</div>`;
+    lineNum++;
+    html += `<div class="orig-ref-line" data-line-idx="${i}" onclick="vmOrigLineClick(${i})"><span class="orig-ref-num">${lineNum}.</span>${esc(trimmed)}</div>`;
   });
   origList.innerHTML = html || '<div style="color:var(--muted);text-align:center;padding:20px;font-size:12px;">Empty</div>';
 }
