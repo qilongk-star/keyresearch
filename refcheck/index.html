@@ -81,6 +81,10 @@ body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-
 .badge-err { background: rgba(239,68,68,0.15); color: var(--danger); }
 .badge-info { background: rgba(6,182,212,0.15); color: var(--info); }
 .badge-muted { background: rgba(148,163,184,0.15); color: var(--muted); }
+.badge-tier1 { background: linear-gradient(135deg, #ffd700, #ffaa00); color: #333; font-weight: 700; }
+.badge-tier2 { background: linear-gradient(135deg, #4ecdc4, #44b09e); color: #fff; }
+.badge-tier3 { background: linear-gradient(135deg, #a8e6cf, #88c9a1); color: #333; }
+.badge-journal-detail { background: rgba(99,102,241,0.1); color: var(--accent); font-size: 10px; }
 
 /* Stats summary */
 .stats-row { display: flex; gap: 12px; margin-bottom: 16px; flex-wrap: wrap; }
@@ -460,6 +464,162 @@ function saveSettings() {
   toast('Settings saved', 'success');
 }
 loadSettingsUI();
+
+// ============ JOURNAL RATING & TIER SYSTEM ============
+// Shared with KeySearch — ABS 2024 / ABDC 2022 / CAS 2025
+const journalRatings = {
+    'academy of management journal': { utd24: true, abs: '4*', abdc: 'A*', cas: '1', if: '9.5' },
+    'academy of management review': { utd24: true, abs: '4*', abdc: 'A*', cas: '1', if: '10.2' },
+    'administrative science quarterly': { utd24: true, abs: '4*', abdc: 'A*', cas: '1', if: '8.9' },
+    'journal of marketing': { utd24: true, abs: '4*', abdc: 'A*', cas: '1', if: '12.5' },
+    'journal of marketing research': { utd24: true, abs: '4*', abdc: 'A*', cas: '1', if: '5.0' },
+    'marketing science': { utd24: true, abs: '4*', abdc: 'A*', cas: '1', if: '4.8' },
+    'management science': { utd24: true, abs: '4*', abdc: 'A*', cas: '1', if: '5.4' },
+    'operations research': { utd24: true, abs: '4*', abdc: 'A*', cas: '1', if: '3.2' },
+    'journal of finance': { utd24: true, abs: '4*', abdc: 'A*', cas: '1', if: '7.6' },
+    'journal of financial economics': { utd24: true, abs: '4*', abdc: 'A*', cas: '1', if: '7.5' },
+    'review of financial studies': { utd24: true, abs: '4*', abdc: 'A*', cas: '1', if: '8.2' },
+    'journal of accounting research': { utd24: true, abs: '4*', abdc: 'A*', cas: '1', if: '3.8' },
+    'journal of accounting and economics': { utd24: true, abs: '4*', abdc: 'A*', cas: '1', if: '3.9' },
+    'the accounting review': { utd24: true, abs: '4*', abdc: 'A*', cas: '1', if: '3.2' },
+    'journal of operations management': { utd24: true, abs: '4*', abdc: 'A*', cas: '1', if: '6.8' },
+    'mis quarterly': { utd24: true, abs: '4*', abdc: 'A*', cas: '1', if: '7.3' },
+    'information systems research': { utd24: true, abs: '4*', abdc: 'A*', cas: '1', if: '5.2' },
+    'journal of consumer research': { utd24: true, abs: '4*', abdc: 'A*', cas: '1', if: '5.0' },
+    'journal of political economy': { utd24: true, abs: '4*', abdc: 'A*', cas: '1', if: '9.1' },
+    'quarterly journal of economics': { utd24: true, abs: '4*', abdc: 'A*', cas: '1', if: '11.1' },
+    'american economic review': { utd24: true, abs: '4*', abdc: 'A*', cas: '1', if: '10.0' },
+    'review of economic studies': { utd24: true, abs: '4*', abdc: 'A*', cas: '1', if: '6.8' },
+    'econometrica': { utd24: true, abs: '4*', abdc: 'A*', cas: '1', if: '5.8' },
+    'production and operations management': { utd24: true, abs: '4', abdc: 'A*', cas: '2', if: '2.8' },
+    'strategic management journal': { ft50: true, abs: '4*', abdc: 'A*', cas: '1', if: '6.5' },
+    'organization science': { ft50: true, abs: '4*', abdc: 'A*', cas: '1', if: '5.2' },
+    'journal of international business studies': { ft50: true, abs: '4*', abdc: 'A*', cas: '1', if: '8.6' },
+    'journal of applied psychology': { ft50: true, abs: '4*', abdc: 'A*', cas: '1', if: '7.2' },
+    'psychological bulletin': { ft50: true, abs: '4', abdc: 'A*', cas: '1', if: '22.4' },
+    'journal of management': { ft50: true, abs: '4*', abdc: 'A*', cas: '1', if: '12.1' },
+    'journal of management studies': { ft50: true, abs: '4', abdc: 'A*', cas: '2', if: '7.2' },
+    'journal of the academy of marketing science': { abs: '4*', abdc: 'A*', cas: '1', if: '9.2' },
+    'international journal of research in marketing': { abs: '4', abdc: 'A*', cas: '1', if: '5.5' },
+    'journal of retailing': { abs: '4', abdc: 'A*', cas: '1', if: '8.0' },
+    'journal of business venturing': { abs: '4*', abdc: 'A*', cas: '1', if: '6.3' },
+    'entrepreneurship theory and practice': { abs: '4*', abdc: 'A*', cas: '1', if: '7.5' },
+    'academy of management annals': { abs: '4*', abdc: 'A*', cas: '1', if: '12.0' },
+    'journal of product innovation management': { abs: '4', abdc: 'A*', cas: '2', if: '5.2' },
+    'research policy': { abs: '4*', abdc: 'A*', cas: '1', if: '8.2' },
+    'organization studies': { abs: '4', abdc: 'A*', cas: '2', if: '4.8' },
+    'human resource management': { abs: '4', abdc: 'A', cas: '2', if: '4.2' },
+    'journal of organizational behavior': { abs: '4', abdc: 'A*', cas: '2', if: '6.5' },
+    'personnel psychology': { abs: '4*', abdc: 'A*', cas: '2', if: '5.8' },
+    'journal of business research': { abs: '3', abdc: 'A', cas: '2', if: '5.2' },
+    'technovation': { abs: '3', abdc: 'A', cas: '2', if: '4.0' },
+    'journal of business ethics': { abs: '3', abdc: 'A', cas: '1', if: '6.1' },
+    'european journal of marketing': { abs: '3', abdc: 'A*', cas: '3', if: '3.5' },
+    'industrial and corporate change': { abs: '3', abdc: 'A', cas: '3', if: '3.2' },
+    'journal of small business management': { abs: '3', abdc: 'A', cas: '3', if: '3.8' },
+    'family business review': { abs: '3', abdc: 'A', cas: '3', if: '4.5' },
+    'human relations': { abs: '4', abdc: 'A*', cas: '3', if: '3.8' },
+    'human resource management review': { abs: '3', abdc: 'A', cas: '2', if: '5.2' },
+    'marketing letters': { abs: '3', abdc: 'A', cas: '3', if: '2.5' },
+    'psychology & marketing': { abs: '3', abdc: 'A', cas: '3', if: '2.8' },
+    'international small business journal': { abs: '3', abdc: 'A', cas: '3', if: '3.2' },
+    'international business review': { abs: '3', abdc: 'A', cas: '2', if: '4.5' },
+    'journal of world business': { abs: '4', abdc: 'A*', cas: '1', if: '5.8' },
+    'long range planning': { abs: '4', abdc: 'A*', cas: '3', if: '3.5' },
+    'british journal of management': { abs: '4', abdc: 'A*', cas: '2', if: '4.2' },
+    'international journal of human resource management': { abs: '3', abdc: 'A', cas: '3', if: '3.0' },
+    'journal of management information systems': { abs: '4', abdc: 'A*', cas: '3', if: '3.8' },
+    'european journal of information systems': { abs: '4', abdc: 'A*', cas: '3', if: '3.5' },
+    'information & management': { abs: '3+', abdc: 'A*', cas: '2', if: '5.8' },
+    'journal of strategic information systems': { abs: '4', abdc: 'A*', cas: '2', if: '4.2' },
+    'journal of the association for information systems': { abs: '4*', abdc: 'A*', cas: '3', if: '3.2' },
+    'decision support systems': { abs: '3', abdc: 'A*', cas: '2', if: '5.5' },
+    'international journal of information management': { abs: '2', abdc: 'A', cas: '1', if: '8.2' },
+    'electronic commerce research and applications': { abs: '2', abdc: 'B', cas: '2', if: '4.5' },
+    'manufacturing & service operations management': { abs: '4*', abdc: 'A*', cas: '2', if: '4.2' },
+    'transportation science': { abs: '3', abdc: 'A*', cas: '2', if: '3.5' },
+    'naval research logistics': { abs: '3', abdc: 'B', cas: '3', if: '2.2' },
+    'european journal of operational research': { abs: '4', abdc: 'A*', cas: '2', if: '6.0' },
+    'operations research letters': { abs: '2', abdc: 'B', cas: '3', if: '1.8' },
+    'technological forecasting and social change': { abs: '3', abdc: 'A', cas: '1', if: '7.5' },
+    'r&d management': { abs: '3', abdc: 'A', cas: '3', if: '2.8' },
+    'ieee transactions on engineering management': { abs: '3', abdc: 'A', cas: '2', if: '3.5' },
+    'journal of supply chain management': { abs: '4', abdc: 'A*', cas: '2', if: '5.8' },
+    'international journal of operations & production management': { abs: '4', abdc: 'A', cas: '2', if: '4.5' },
+    'international journal of production economics': { abs: '3', abdc: 'A', cas: '2', if: '6.0' },
+    'journal of business logistics': { abs: '3', abdc: 'A', cas: '2', if: '5.2' },
+    'transportation research part e': { abs: '3+', abdc: 'A', cas: '1', if: '8.5' },
+    'contemporary accounting research': { abs: '4', abdc: 'A*', cas: '2', if: '2.8' },
+    'review of accounting studies': { abs: '4', abdc: 'A*', cas: '2', if: '2.5' },
+    'accounting organizations and society': { abs: '4', abdc: 'A*', cas: '2', if: '3.2' },
+    'journal of banking & finance': { abs: '3+', abdc: 'A*', cas: '2', if: '3.5' },
+    'journal of corporate finance': { abs: '4', abdc: 'A*', cas: '2', if: '4.2' },
+    'financial management': { abs: '3', abdc: 'A*', cas: '3', if: '2.2' },
+    'journal of econometrics': { abs: '4', abdc: 'A*', cas: '2', if: '3.8' },
+    'journal of economic theory': { abs: '4', abdc: 'A*', cas: '3', if: '2.5' },
+    'games and economic behavior': { abs: '3', abdc: 'A*', cas: '3', if: '1.8' },
+    'international economic review': { abs: '4', abdc: 'A*', cas: '3', if: '1.5' },
+    'journal of personality and social psychology': { abs: '4', abdc: 'A*', cas: '1', if: '5.8' },
+    'organizational behavior and human decision processes': { abs: '4', abdc: 'A*', cas: '2', if: '3.5' },
+    'leadership quarterly': { abs: '4', abdc: 'A*', cas: '2', if: '4.2' },
+    'nature': { abs: '4*', cas: '1', if: '64.8' },
+    'science': { abs: '4*', cas: '1', if: '56.9' },
+    'proceedings of the national academy of sciences': { abs: '4*', cas: '1', if: '11.1' },
+    'nature communications': { abs: '4*', cas: '1', if: '16.6' },
+    'scientific reports': { abs: '3', cas: '2', if: '4.6' },
+    'plos one': { abs: '3', cas: '3', if: '3.7' },
+    'journal of business and industrial marketing': { abs: '2', abdc: 'B', cas: '4', if: '2.2' },
+};
+
+function getJournalRating(journalName) {
+    if (!journalName) return null;
+    const normalized = journalName.toLowerCase().trim();
+    for (const [key, rating] of Object.entries(journalRatings)) {
+        if (normalized.includes(key) || key.includes(normalized)) {
+            return rating;
+        }
+    }
+    return null;
+}
+
+// Tier system (mutually exclusive, same as KeySearch)
+// ⭐ Tier 1: UTD24 / FT50 / ABS 4* / ABDC A* / CAS Q1
+// ✨ Tier 2: ABS 3-4 / ABDC A / CAS Q2
+// Tier 3: ABS 2 / ABDC B / CAS Q3
+function getJournalTier(rating) {
+    if (!rating) return null;
+    if (rating.utd24 || rating.ft50) return 1;
+    if (rating.abs === '4*') return 1;
+    if (rating.abdc === 'A*') return 1;
+    if (rating.cas === '1') return 1;
+    if (rating.abs === '4' || rating.abs === '3' || rating.abs === '3+') return 2;
+    if (rating.abdc === 'A') return 2;
+    if (rating.cas === '2') return 2;
+    if (rating.abs === '2') return 3;
+    if (rating.abdc === 'B') return 3;
+    if (rating.cas === '3') return 3;
+    return null;
+}
+
+function renderTierBadge(rating) {
+    const tier = getJournalTier(rating);
+    if (tier === 1) return '<span class="badge badge-tier1">⭐ Tier 1</span>';
+    if (tier === 2) return '<span class="badge badge-tier2">✨ Tier 2</span>';
+    if (tier === 3) return '<span class="badge badge-tier3">Tier 3</span>';
+    return '';
+}
+
+function renderJournalDetail(rating) {
+    if (!rating) return '';
+    let parts = [];
+    if (rating.abs) parts.push(`ABS ${rating.abs}`);
+    if (rating.abdc) parts.push(`ABDC ${rating.abdc}`);
+    if (rating.cas) parts.push(`CAS Q${rating.cas}`);
+    if (rating.if) parts.push(`IF ${rating.if}`);
+    if (rating.utd24) parts.push('UTD24');
+    if (rating.ft50) parts.push('FT50');
+    return parts.length ? parts.join(' · ') : '';
+}
 
 // ============ FILE UPLOAD ============
 const zone = $('upload-zone');
@@ -1203,8 +1363,41 @@ function parseOneRef(text) {
     }
   }
 
+  // Extract journal name — look for journal name patterns after title/year
+  let journalName = '';
+  // Pattern: after title, look for italicized journal or known journal name patterns
+  // APA: Journal Name, Volume(Issue), Pages.
+  // Try to find journal name between title/year and volume/doi
+  const journalPatterns = [
+    // "Journal Name, Vol(Issue)" or "Journal Name, Vol"
+    /(?:[.!?]\s+|\)\.\s+)([A-Z][\w\s&'-]+(?:Journal|Review|Letters|Science|Nature|Proceedings|Transactions|Advances|Physics|Chemistry|Biology|Medicine|Engineering|Computing|IEEE|ACM|Management|Research|Studies|Psychology|Education|Communications|Technology|Policy|Annals|Quarterly|Bulletin|Reports))[,\s]\s*\d+/,
+    // "Journal Name, Vol" — after year
+    /(?:\d{4}[a-z]?[).]\s+|[.!?]\s+)([A-Z][\w\s&'-]+(?:Journal|Review|Letters|Science|Nature|Proceedings|Transactions|Advances|Physics|Chemistry|Biology|Medicine|Engineering|Computing|IEEE|ACM|Management|Research|Studies|Psychology|Education|Communications|Technology|Policy|Annals|Quarterly|Bulletin|Reports))/,
+  ];
+  for (const jp of journalPatterns) {
+    const jm = text.match(jp);
+    if (jm && jm[1].length > 5) {
+      journalName = jm[1].trim();
+      break;
+    }
+  }
+  // Fallback: try CrossRef container-title style — any capitalized multi-word before volume
+  if (!journalName && title) {
+    const afterTitle = text.indexOf(title);
+    if (afterTitle >= 0) {
+      const rest = text.substring(afterTitle + title.length);
+      const volMatch = rest.match(/[.,;:]\s*([A-Z][\w\s&'-]+?),?\s*\d+\s*[\(]?/);
+      if (volMatch && volMatch[1].length > 5) {
+        journalName = volMatch[1].trim();
+      }
+    }
+  }
+
+  // Get journal rating
+  const journalRating = getJournalRating(journalName);
+
   return {
-    doi, firstAuthor, allAuthors, year,
+    doi, firstAuthor, allAuthors, year, journalName, journalRating,
     title: title.replace(/[""\u201C\u201D]/g, '')
   };
 }
@@ -1425,6 +1618,8 @@ function renderReferences() {
     const cls = r.classification || classifyReference(r);
     r.classification = cls;
     const nonAcadBadge = cls === 'non_academic' ? '<span class="badge badge-nonacademic">🌐 Non-academic</span>' : '';
+    const tierBadge = renderTierBadge(r.journalRating);
+    const journalDetail = renderJournalDetail(r.journalRating);
     return `
     <div class="ref-item" data-ref-idx="${references.indexOf(r)}"${cls==='non_academic'?' style="border-left:3px solid #fb923c"':''}>
       <div class="ref-num" style="${cls==='non_academic'?'background:#fb923c;color:#000':''}">${r.index}</div>
@@ -1436,6 +1631,8 @@ function renderReferences() {
           <span>${r.firstAuthor || 'Unknown author'}</span>
           ${r.status !== 'pending' ? `<span class="badge ${statusBadge(r.status)}">${statusLabel(r.status)}</span>` : '<span class="badge badge-muted">⏳ Pending</span>'}
           <span class="cit-count-badge ${countCls}">${countIcon} Cited ${r.matchCount}×</span>
+          ${tierBadge}
+          ${journalDetail ? `<span class="badge badge-journal-detail">${esc(journalDetail)}</span>` : ''}
           ${nonAcadBadge}
         </div>
       </div>
@@ -2170,11 +2367,23 @@ function generateReport() {
   const nonAcademicCount = healthScore.breakdown.nonAcademicCount;
 
   const uniqueCits = new Set(citations.map(c => c.text.toLowerCase())).size;
+
+  // Tier statistics
+  let tier1Count = 0, tier2Count = 0, tier3Count = 0;
+  for (const ref of references) {
+    const tier = getJournalTier(ref.journalRating);
+    if (tier === 1) tier1Count++;
+    else if (tier === 2) tier2Count++;
+    else if (tier === 3) tier3Count++;
+  }
+
   $('report-stats').innerHTML = `
     <div class="stat-card"><div class="stat-val" style="color:var(--accent)">${totalRefs}</div><div class="stat-label">Total References</div></div>
     <div class="stat-card"><div class="stat-val" style="color:var(--success)">${verifiedRefs}</div><div class="stat-label">Verified</div></div>
     <div class="stat-card"><div class="stat-val" style="color:var(--info)">${totalCits}</div><div class="stat-label">In-text Citations</div></div>
-    <div class="stat-card"><div class="stat-val" style="color:var(--warning)">${manualCits}</div><div class="stat-label">Manual Citations</div></div>
+    <div class="stat-card" style="border:1px solid rgba(255,215,0,0.3)"><div class="stat-val" style="color:#ffd700">⭐ ${tier1Count}</div><div class="stat-label">Tier 1</div></div>
+    <div class="stat-card" style="border:1px solid rgba(78,205,196,0.3)"><div class="stat-val" style="color:#4ecdc4">✨ ${tier2Count}</div><div class="stat-label">Tier 2</div></div>
+    <div class="stat-card"><div class="stat-val" style="color:#88c9a1">${tier3Count}</div><div class="stat-label">Tier 3</div></div>
     <div class="stat-card"><div class="stat-val" style="color:${unmatchedCits?'var(--danger)':'var(--success)'}">${unmatchedCits}</div><div class="stat-label">Unmatched</div></div>
     <div class="stat-card"><div class="stat-val" style="color:${unreferencedRefs?'var(--warning)':'var(--success)'}">${unreferencedRefs}</div><div class="stat-label">Unreferenced</div></div>
     <div class="stat-card"><div class="stat-val" style="color:#fb923c">${nonAcademicCount}</div><div class="stat-label">Non-academic</div></div>
@@ -2213,6 +2422,8 @@ function showReportTab(tabEl, tab) {
             <span class="badge badge-warn">⚠️ Not cited in text</span>
             ${r.doi ? `<span>DOI: ${esc(r.doi)}</span>` : ''}
             <span class="badge ${statusBadge(r.status)}">${statusLabel(r.status)}</span>
+            ${renderTierBadge(r.journalRating)}
+            ${renderJournalDetail(r.journalRating) ? `<span class="badge badge-journal-detail">${esc(renderJournalDetail(r.journalRating))}</span>` : ''}
           </div>
         </div>
       </div>`).join('') : '<div style="color:var(--success);text-align:center;padding:24px;">✅ All references are cited!</div>';
@@ -2278,6 +2489,8 @@ function showReportTab(tabEl, tab) {
       const cls = r.classification || classifyReference(r);
       r.classification = cls;
       const clsBadge = cls === 'non_academic' ? '<span class="badge badge-nonacademic">🌐 Non-academic</span>' : '';
+      const tierBadge = renderTierBadge(r.journalRating);
+      const journalDetail = renderJournalDetail(r.journalRating);
       return `
       <div class="ref-item">
         <div class="ref-num" style="${r.matchCount?'':'background:var(--warning);color:#000'}${cls==='non_academic'?';background:#fb923c;color:#000':''}">${r.index}</div>
@@ -2287,6 +2500,8 @@ function showReportTab(tabEl, tab) {
             <span class="badge ${statusBadge(r.status)}">${statusLabel(r.status)}</span>
             <span>📌 Cited ${r.matchCount}×</span>
             ${r.doi ? `<span>DOI: ${esc(r.doi)}</span>` : '<span>No DOI</span>'}
+            ${tierBadge}
+            ${journalDetail ? `<span class="badge badge-journal-detail">${esc(journalDetail)}</span>` : ''}
             ${clsBadge}
           </div>
         </div>
@@ -2758,6 +2973,8 @@ function renderRefPanel() {
     r.classification = refCls;
     const nonAcadClass = refCls === 'non_academic' ? ' non-academic' : '';
     const nonAcadBadge = refCls === 'non_academic' ? '<span class="badge badge-nonacademic">🌐</span>' : '';
+    const tierBadge = renderTierBadge(r.journalRating);
+    const journalDetail = renderJournalDetail(r.journalRating);
     return `
       <div class="vm-ref-item ${cls}${nonAcadClass}" data-ref-idx="${r.index}" onclick="vmRefClick(${r.index})" id="vm-ref-${r.index}">
         <div class="vm-ref-idx">[${r.index}]</div>
@@ -2766,6 +2983,8 @@ function renderRefPanel() {
           <span class="badge ${statusBadge(r.status)}">${statusLabel(r.status)}</span>
           <span class="cit-count-badge ${countCls}">📌 ${r.matchCount}×</span>
           ${r.year ? `<span>${r.year}</span>` : ''}
+          ${tierBadge}
+          ${journalDetail ? `<span class="badge badge-journal-detail">${esc(journalDetail)}</span>` : ''}
           ${nonAcadBadge}
         </div>
       </div>`;
