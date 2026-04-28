@@ -2594,15 +2594,55 @@ document.addEventListener('keydown', e => {
 // ============ FEEDBACK ============
 function openFeedbackModal() {
   $('feedback-overlay').classList.add('active');
-  // Pre-fill with useful context
-  const info = `RefCheck ${references.length} refs, ${citations.length} citations, ${citations.filter(c=>c.matchedRef===null).length} unmatched\n\n`;
   $('feedback-text').value = '';
-  $('feedback-text').placeholder = `Describe the issue...\n\nContext: ${info.trim()}`;
+  $('feedback-text').placeholder = 'Describe the issue... We will attach your analysis results automatically.';
   $('feedback-text').focus();
+  const btn = $('feedback-submit-btn');
+  btn.disabled = false;
+  btn.textContent = 'Open GitHub Issue';
+  $('feedback-status').textContent = '';
+  $('feedback-status').style.display = 'none';
 }
 
 function closeFeedbackModal() {
   $('feedback-overlay').classList.remove('active');
+}
+
+function buildFeedbackBody(userMessage) {
+  const unmatched = citations.filter(c => c.matchedRef === null);
+  const unreferenced = references.filter(r => r.matchCount === 0);
+
+  let body = `## User Report\n${userMessage}\n\n`;
+  body += `## Analysis Stats\n`;
+  body += `| Metric | Count |\n|--------|-------|\n`;
+  body += `| Total references | ${references.length} |\n`;
+  body += `| Total in-text citations | ${citations.length} |\n`;
+  body += `| Unmatched citations | ${unmatched.length} |\n`;
+  body += `| Unreferenced entries | ${unreferenced.length} |\n`;
+  body += `| Manual matches | ${citations.filter(c => c.source === 'manual').length} |\n`;
+  body += `| AI matches | ${citations.filter(c => c.source === 'ai' || c.source === 'both').length} |\n`;
+
+  if (unmatched.length > 0) {
+    body += `\n## Unmatched Citations (${unmatched.length})\n`;
+    unmatched.slice(0, 30).forEach((c, i) => {
+      const txt = c.text.substring(0, 150).replace(/[`\\]/g, '\\$&');
+      body += `${i + 1}. \`${txt}\`\n`;
+    });
+    if (unmatched.length > 30) body += `\n... and ${unmatched.length - 30} more\n`;
+  }
+
+  if (unreferenced.length > 0) {
+    body += `\n## Unreferenced Entries (${unreferenced.length})\n`;
+    unreferenced.slice(0, 15).forEach((r, i) => {
+      const txt = r.raw.substring(0, 150).replace(/[`\\]/g, '\\$&');
+      body += `${i + 1}. \`${txt}\`\n`;
+    });
+    if (unreferenced.length > 15) body += `\n... and ${unreferenced.length - 15} more\n`;
+  }
+
+  body += `\n---\n*Submitted from RefCheck at ${new Date().toISOString()}*\n`;
+  body += `*${navigator.userAgent}*\n`;
+  return body;
 }
 
 function submitFeedback() {
@@ -2611,39 +2651,17 @@ function submitFeedback() {
     return toast('Please describe the issue (at least 10 characters)', 'error');
   }
 
-  // Build feedback payload
-  const feedback = {
-    type: 'refcheck_error_report',
-    timestamp: new Date().toISOString(),
-    stats: {
-      totalRefs: references.length,
-      totalCitations: citations.length,
-      unmatchedCitations: citations.filter(c => c.matchedRef === null).length,
-      unreferencedRefs: references.filter(r => r.matchCount === 0).length,
-      manualCitations: citations.filter(c => c.source === 'manual').length,
-      aiCitations: citations.filter(c => c.source === 'ai' || c.source === 'both').length,
-    },
-    message: text,
-    userAgent: navigator.userAgent
-  };
+  const body = buildFeedbackBody(text);
+  const title = `[RefCheck] ${text.substring(0, 80)}${text.length > 80 ? '...' : ''}`;
 
-  // Try to submit via a webhook or just copy to clipboard
-  // For now, copy to clipboard as a JSON and show toast
-  const feedbackStr = JSON.stringify(feedback, null, 2);
+  const url = 'https://github.com/qilongk-star/keyresearch/issues/new'
+    + '?labels=bug-report'
+    + '&title=' + encodeURIComponent(title)
+    + '&body=' + encodeURIComponent(body);
 
-  // Try sending to a Google Form webhook or just copy
-  // Fallback: copy feedback to clipboard
-  navigator.clipboard.writeText(feedbackStr).then(() => {
-    toast('Feedback copied to clipboard! Please paste it in our feedback channel.', 'success');
-    closeFeedbackModal();
-  }).catch(() => {
-    // Fallback: open mailto
-    const subject = encodeURIComponent('RefCheck Error Report');
-    const body = encodeURIComponent(feedbackStr);
-    window.open(`mailto:feedback@example.com?subject=${subject}&body=${body}`, '_blank');
-    closeFeedbackModal();
-    toast('Opening email client to send feedback...', 'info');
-  });
+  window.open(url, '_blank');
+  toast('Opening GitHub to submit your report...', 'success');
+  closeFeedbackModal();
 }
 
 // ============ UTILS ============
@@ -2732,11 +2750,12 @@ function setStep(n) {
 <div class="feedback-overlay" id="feedback-overlay" onclick="if(event.target===this)closeFeedbackModal()">
   <div class="feedback-modal">
     <h3>🐛 Report an Error</h3>
-    <p>Found something wrong? Help us improve RefCheck by describing the issue below.</p>
+    <p>Found something wrong? We'll automatically attach your analysis results to the report.</p>
     <textarea class="feedback-textarea" id="feedback-text" placeholder="Describe what went wrong, what you expected, and any steps to reproduce the issue..."></textarea>
+    <div id="feedback-status" style="font-size:13px;margin-bottom:8px;display:none;"></div>
     <div class="feedback-actions">
       <button class="btn btn-secondary" onclick="closeFeedbackModal()">Cancel</button>
-      <button class="btn btn-primary" onclick="submitFeedback()">Submit Feedback</button>
+      <button class="btn btn-primary" id="feedback-submit-btn" onclick="submitFeedback()">Open GitHub Issue</button>
     </div>
   </div>
 </div>
