@@ -1,0 +1,297 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>KeyResearch - Team Portal</title>
+<style>
+  :root {
+    --bg: #0f172a;
+    --surface: #1e293b;
+    --border: #334155;
+    --text: #e2e8f0;
+    --muted: #94a3b8;
+    --accent: #6366f1;
+    --accent-hover: #818cf8;
+    --danger: #ef4444;
+    --success: #22c55e;
+    --warning: #f59e0b;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    background: var(--bg); color: var(--text);
+    min-height: 100vh; display: flex; align-items: center; justify-content: center;
+  }
+
+  /* ===== Login Screen ===== */
+  #login-screen {
+    width: 100%; max-width: 420px; padding: 20px;
+    display: flex; flex-direction: column; align-items: center; gap: 24px;
+  }
+  .login-logo {
+    width: 72px; height: 72px; border-radius: 20px;
+    background: linear-gradient(135deg, var(--accent), #a855f7);
+    display: flex; align-items: center; justify-content: center;
+    font-size: 32px; font-weight: 800; color: #fff;
+    box-shadow: 0 8px 32px rgba(99,102,241,0.3);
+  }
+  .login-title { font-size: 28px; font-weight: 700; text-align: center; }
+  .login-subtitle { color: var(--muted); font-size: 14px; text-align: center; }
+  .login-form { width: 100%; display: flex; flex-direction: column; gap: 16px; }
+  .input-group { display: flex; flex-direction: column; gap: 6px; }
+  .input-group label { font-size: 13px; color: var(--muted); font-weight: 500; }
+  .input-group input {
+    padding: 12px 16px; border-radius: 10px; border: 1px solid var(--border);
+    background: var(--surface); color: var(--text); font-size: 15px;
+    outline: none; transition: border-color 0.2s;
+  }
+  .input-group input:focus { border-color: var(--accent); }
+  .input-group input.error { border-color: var(--danger); }
+  .error-msg { color: var(--danger); font-size: 13px; min-height: 18px; }
+  .login-btn {
+    padding: 12px; border-radius: 10px; border: none;
+    background: var(--accent); color: #fff; font-size: 15px; font-weight: 600;
+    cursor: pointer; transition: background 0.2s;
+  }
+  .login-btn:hover { background: var(--accent-hover); }
+  .login-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+
+  /* ===== Portal Screen ===== */
+  #portal-screen { display: none; width: 100%; max-width: 900px; padding: 20px; }
+  .portal-header {
+    display: flex; justify-content: space-between; align-items: center;
+    margin-bottom: 40px; padding-bottom: 20px; border-bottom: 1px solid var(--border);
+  }
+  .portal-brand { display: flex; align-items: center; gap: 14px; }
+  .portal-logo {
+    width: 44px; height: 44px; border-radius: 12px;
+    background: linear-gradient(135deg, var(--accent), #a855f7);
+    display: flex; align-items: center; justify-content: center;
+    font-size: 20px; font-weight: 800; color: #fff;
+  }
+  .portal-name { font-size: 22px; font-weight: 700; }
+  .portal-subtitle { color: var(--muted); font-size: 13px; }
+  .logout-btn {
+    padding: 8px 16px; border-radius: 8px; border: 1px solid var(--border);
+    background: transparent; color: var(--muted); font-size: 13px;
+    cursor: pointer; transition: all 0.2s;
+  }
+  .logout-btn:hover { border-color: var(--danger); color: var(--danger); }
+  .projects-grid {
+    display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+    gap: 20px;
+  }
+  .project-card {
+    padding: 24px; border-radius: 14px; border: 1px solid var(--border);
+    background: var(--surface); cursor: pointer;
+    transition: all 0.2s; text-decoration: none; color: var(--text);
+    display: flex; flex-direction: column; gap: 12px;
+  }
+  .project-card:hover {
+    border-color: var(--accent); transform: translateY(-2px);
+    box-shadow: 0 8px 24px rgba(0,0,0,0.3);
+  }
+  .project-card.no-link { cursor: default; }
+  .project-card.no-link:hover { transform: none; box-shadow: none; }
+  .card-icon { font-size: 32px; }
+  .card-title { font-size: 18px; font-weight: 600; }
+  .card-desc { color: var(--muted); font-size: 13px; line-height: 1.5; }
+  .card-badge {
+    display: inline-flex; align-items: center; gap: 4px;
+    font-size: 11px; padding: 3px 8px; border-radius: 6px;
+    background: rgba(99,102,241,0.1); color: var(--accent); width: fit-content;
+  }
+
+  /* ===== Stats Card ===== */
+  .stats-grid {
+    display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px;
+    margin-top: 4px;
+  }
+  .stat-item {
+    background: rgba(255,255,255,0.04); border-radius: 8px;
+    padding: 10px 12px; text-align: center;
+  }
+  .stat-value {
+    font-size: 24px; font-weight: 700; color: var(--accent);
+    line-height: 1.2;
+  }
+  .stat-label {
+    font-size: 11px; color: var(--muted); margin-top: 2px;
+  }
+  .stat-loading {
+    color: var(--muted); font-size: 13px; padding: 16px 0;
+    text-align: center;
+  }
+  .stat-error {
+    color: var(--danger); font-size: 12px; padding: 8px 0;
+  }
+</style>
+</head>
+<body>
+
+<!-- ===== Login ===== -->
+<div id="login-screen">
+  <div class="login-logo">K</div>
+  <div class="login-title">KeyResearch</div>
+  <div class="login-subtitle">Enter team password to access projects</div>
+  <form class="login-form" id="login-form" onsubmit="handleLogin(event)">
+    <div class="input-group">
+      <label for="password-input">Password</label>
+      <input type="password" id="password-input" placeholder="Team access password" autofocus>
+    </div>
+    <div class="error-msg" id="error-msg"></div>
+    <button class="login-btn" type="submit" id="login-btn">Sign In</button>
+  </form>
+</div>
+
+<!-- ===== Portal ===== -->
+<div id="portal-screen">
+  <div class="portal-header">
+    <div class="portal-brand">
+      <div class="portal-logo">K</div>
+      <div>
+        <div class="portal-name">KeyResearch</div>
+        <div class="portal-subtitle">Research Team Workspace</div>
+      </div>
+    </div>
+    <button class="logout-btn" onclick="handleLogout()">Sign Out</button>
+  </div>
+  <div class="projects-grid">
+    <a class="project-card" href="keysearch/">
+      <div class="card-icon">馃攳</div>
+      <div class="card-title">KeySearch</div>
+      <div class="card-desc">Academic paper search across IEEE, Scopus, Semantic Scholar, CrossRef &amp; more.</div>
+      <div class="card-badge">鈼?Active</div>
+    </a>
+    <a class="project-card" href="papers-app/">
+      <div class="card-icon">馃搫</div>
+      <div class="card-title">PapersHub</div>
+      <div class="card-desc">Team paper library with annotations, folders, and real-time collaboration.</div>
+      <div class="card-badge">鈼?Active</div>
+    </a>
+    <a class="project-card" href="refcheck/">
+      <div class="card-icon">馃敆</div>
+      <div class="card-title">RefCheck</div>
+      <div class="card-desc">Verify references &amp; match in-text citations using CrossRef + AI.</div>
+      <div class="card-badge">鈼?Active</div>
+    </a>
+    <a class="project-card" href="scale-bank/">
+      <div class="card-icon">馃搹</div>
+      <div class="card-title">Scale Bank</div>
+      <div class="card-desc">Store and manage research scales, manipulations, and their paper links.</div>
+      <div class="card-badge">鈼?New</div>
+    </a>
+    <div class="project-card no-link" id="stats-card">
+      <div class="card-icon">馃搳</div>
+      <div class="card-title">Paper Archive</div>
+      <div class="card-desc">Overview of team paper library status and activity.</div>
+      <div class="card-badge">鈼?Overview</div>
+      <div id="stats-content">
+        <div class="stat-loading">Loading stats...</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+const ACCESS_PASSWORD = 'keyresearch2026';
+const SUPABASE_URL = 'https://hhgundxzxiqeglzbatmd.supabase.co';
+const SUPABASE_KEY = 'sb_publishable_U2qfHiGyIWB9QZtsU6K0QA_a2U4bxDH';
+
+// Check session on load
+(function() {
+  if (sessionStorage.getItem('kr_auth') === '1') {
+    showPortal();
+    loadStats();
+  }
+})();
+
+function handleLogin(e) {
+  e.preventDefault();
+  const pwd = document.getElementById('password-input').value;
+  const errEl = document.getElementById('error-msg');
+  errEl.textContent = '';
+
+  if (pwd === ACCESS_PASSWORD) {
+    sessionStorage.setItem('kr_auth', '1');
+    showPortal();
+    loadStats();
+  } else {
+    errEl.textContent = 'Incorrect password';
+    document.getElementById('password-input').classList.add('error');
+  }
+}
+
+function showPortal() {
+  document.getElementById('login-screen').style.display = 'none';
+  document.getElementById('portal-screen').style.display = 'block';
+}
+
+function handleLogout() {
+  sessionStorage.removeItem('kr_auth');
+  document.getElementById('portal-screen').style.display = 'none';
+  document.getElementById('login-screen').style.display = 'flex';
+  document.getElementById('password-input').value = '';
+  document.getElementById('error-msg').textContent = '';
+}
+
+document.getElementById('password-input').addEventListener('input', function() {
+  this.classList.remove('error');
+  document.getElementById('error-msg').textContent = '';
+});
+
+// ===== Load PapersHub Stats =====
+async function loadStats() {
+  const container = document.getElementById('stats-content');
+  try {
+    // Load supabase SDK dynamically (same CDN as papers-app)
+    if (typeof supabase === 'undefined') {
+      await new Promise((resolve, reject) => {
+        const s = document.createElement('script');
+        s.src = 'https://unpkg.com/@supabase/supabase-js@2.49.1/dist/umd/supabase.js';
+        s.onload = resolve;
+        s.onerror = reject;
+        document.head.appendChild(s);
+      });
+    }
+
+    const sb = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+
+    // Fetch papers count
+    const { count: paperCount } = await sb.from('papers').select('*', { count: 'exact', head: true });
+
+    // Fetch annotations count
+    const { count: annoCount } = await sb.from('annotations').select('*', { count: 'exact', head: true });
+
+    // Fetch unique contributors
+    const { data: papers } = await sb.from('papers').select('uploaded_by');
+    const contributors = [...new Set((papers || []).map(p => p.uploaded_by))];
+
+    // Fetch folders count
+    const { count: folderCount } = await sb.from('folders').select('*', { count: 'exact', head: true });
+
+    container.innerHTML = `
+      <div class="stats-grid">
+        <div class="stat-item">
+          <div class="stat-value">${paperCount || 0}</div>
+          <div class="stat-label">Papers</div>
+        </div>
+        <div class="stat-item">
+          <div class="stat-value">${annoCount || 0}</div>
+          <div class="stat-label">Annotations</div>
+        </div>
+        <div class="stat-item">
+          <div class="stat-value">${contributors.length}</div>
+          <div class="stat-label">Contributors</div>
+        </div>
+      </div>
+    `;
+  } catch (e) {
+    console.error('Stats load error:', e);
+    container.innerHTML = `<div class="stat-error">Failed to load stats</div>`;
+  }
+}
+</script>
+</body>
+</html>
