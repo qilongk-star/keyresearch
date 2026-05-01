@@ -126,7 +126,7 @@ a:hover { text-decoration: underline; }
 
   <div class="content" id="content">
     <div class="empty-state" id="empty-state">
-      <div style="font-size:48px;">馃搹</div>
+      <div style="font-size:48px;">&#x1F4CF;</div>
       <div>Select a scale from the left, or create a new one.</div>
       <button class="btn btn-primary btn-sm" onclick="openCreateModal()" style="margin-top:8px;">Create Scale</button>
     </div>
@@ -239,9 +239,9 @@ let linkedPapers = [];
 let selectedScale = null;
 let editingScaleId = null;
 
-// 鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺?
+// ═══════════════════════════════════════════
 // INIT
-// 鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺?
+// ═══════════════════════════════════════════
 async function init() {
   console.log('Scale Bank init...');
   try {
@@ -284,14 +284,14 @@ async function loadPapers() {
   } catch(e) { console.error('Load papers error:', e); }
 }
 
-// 鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺?
+// ═══════════════════════════════════════════
 // ERROR HELPER
-// 鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺?
+// ═══════════════════════════════════════════
 function showError(title, msg) {
   const content = document.getElementById('content');
   content.innerHTML = `
     <div class="error-box">
-      <h4>鈿狅笍 ${esc(title)}</h4>
+      <h4>&#x26A0;&#xFE0F; ${esc(title)}</h4>
       <p>${esc(msg)}</p>
       <p style="margin-top:12px;font-size:12px;color:var(--text-muted);">
         If this says "relation does not exist", you need to run the SQL in <code>scale-bank/init-db.sql</code> in Supabase Dashboard.
@@ -301,9 +301,9 @@ function showError(title, msg) {
     </div>`;
 }
 
-// 鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺?
+// ═══════════════════════════════════════════
 // SCALE LIST
-// 鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺?
+// ═══════════════════════════════════════════
 function renderScaleList(filter = '') {
   const list = document.getElementById('scale-list');
   const lower = filter.toLowerCase();
@@ -315,7 +315,7 @@ function renderScaleList(filter = '') {
   list.innerHTML = filtered.map(s => `
     <div class="scale-item ${selectedScale?.id===s.id?'active':''}" onclick="selectScale('${s.id}')">
       <div class="scale-item-name">${esc(s.name)}</div>
-      <div class="scale-item-meta">${(s.items||[]).length} items 路 ${s.source_type} 路 ${s.scale_papers?.length||0} papers</div>
+      <div class="scale-item-meta">${(s.items||[]).length} items · ${s.source_type} · ${s.scale_papers?.length||0} papers</div>
     </div>
   `).join('');
 }
@@ -330,9 +330,9 @@ function selectScale(id) {
   renderDetail();
 }
 
-// 鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺?
+// ═══════════════════════════════════════════
 // DETAIL VIEW
-// 鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺?
+// ═══════════════════════════════════════════
 function renderDetail() {
   const emptyState = document.getElementById('empty-state');
   const detailView = document.getElementById('detail-view');
@@ -380,15 +380,15 @@ function renderDetail() {
       <div class="paper-link">
         <a href="../papers-app/#${lp.paper_id}" target="_blank">${esc(lp.papers?.title||'Unknown Paper')}</a>
         <span class="usage-badge">${lp.usage_type}</span>
-        <span class="btn btn-ghost btn-sm" style="padding:2px 6px;" onclick="unlinkPaper('${lp.id}')">鉁?/span>
+        <span class="btn btn-ghost btn-sm" style="padding:2px 6px;" onclick="unlinkPaper('${lp.id}')">&times;</span>
       </div>
     `).join('');
   }
 }
 
-// 鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺?
+// ═══════════════════════════════════════════
 // CREATE / EDIT MODAL
-// 鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺?
+// ═══════════════════════════════════════════
 function openCreateModal() {
   editingScaleId = null;
   document.getElementById('modal-title').textContent = 'Create Scale';
@@ -435,7 +435,7 @@ function addItemRow(item = null) {
   row.innerHTML = `
     <input placeholder="Item label" value="${esc(item?.label||item?.text||'')}">
     <label><input type="checkbox" ${item?.reverse_scored?'checked':''}> Reverse</label>
-    <span class="btn btn-ghost btn-sm" style="padding:2px 6px;color:var(--danger);" onclick="this.parentElement.remove()">鉁?/span>
+    <span class="btn btn-ghost btn-sm" style="padding:2px 6px;color:var(--danger);" onclick="this.parentElement.remove()">&times;</span>
   `;
   editor.appendChild(row);
 }
@@ -482,9 +482,9 @@ function closeScaleModal() {
   editingScaleId = null;
 }
 
-// 鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺?
+// ═══════════════════════════════════════════
 // LINK PAPER
-// 鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺?
+// ═══════════════════════════════════════════
 function openLinkPaperModal() {
   if (!selectedScale) return;
   const select = document.getElementById('paper-select');
@@ -533,9 +533,9 @@ function closeLinkPaperModal() {
   document.getElementById('link-paper-modal').style.display = 'none';
 }
 
-// 鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺?
+// ═══════════════════════════════════════════
 // DELETE
-// 鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺?
+// ═══════════════════════════════════════════
 async function deleteScaleConfirm() {
   if (!selectedScale) return;
   if (!confirm(`Delete scale "${selectedScale.name}"? This cannot be undone.`)) return;
@@ -559,9 +559,9 @@ function closeDetail() {
   renderScaleList();
 }
 
-// 鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺?
+// ═══════════════════════════════════════════
 // UTILITIES
-// 鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺?
+// ═══════════════════════════════════════════
 function esc(s) {
   if (!s) return '';
   return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
@@ -576,9 +576,9 @@ function toast(msg, type = 'info') {
   setTimeout(() => { t.style.opacity = '0'; setTimeout(() => t.remove(), 300); }, 3000);
 }
 
-// 鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺?
+// ═══════════════════════════════════════════
 // BOOT
-// 鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺?
+// ═══════════════════════════════════════════
 init();
 </script>
 </body>
