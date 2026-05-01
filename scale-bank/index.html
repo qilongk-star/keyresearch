@@ -89,6 +89,8 @@ a:hover { text-decoration: underline; }
 .toast-error { background:#7f1d1d; color:#fca5a5; }
 .toast-info { background:#1e3a5f; color:#93c5fd; }
 @keyframes slideIn { from { transform:translateX(100%); opacity:0; } to { transform:translateX(0); opacity:1; } }
+    .lang-switch { padding:6px 14px;border-radius:6px;background:rgba(255,255,255,0.08);color:var(--text-secondary);cursor:pointer;font-size:12px;font-weight:600;border:1px solid var(--border);transition:0.15s;margin-left:auto; }
+    .lang-switch:hover { background:rgba(255,255,255,0.15);color:var(--text-primary); }
 
 /* Error Display */
 .error-box { background:#2d1b1b; border:1px solid var(--danger); border-radius:8px; padding:16px; color:var(--danger); font-size:13px; margin:20px; }
@@ -110,16 +112,17 @@ a:hover { text-decoration: underline; }
       <a href="../silicon-sampling/">Silicon Sampling</a>
     </nav>
   </div>
+  <div class="lang-switch" onclick="toggleLang()" id="langBtn" style="padding:6px 14px;border-radius:6px;background:rgba(255,255,255,0.08);color:var(--text-secondary);cursor:pointer;font-size:12px;font-weight:600;border:1px solid var(--border);transition:0.15s;">中文</div>
 </div>
 
 <div class="main">
   <div class="sidebar">
     <div class="sidebar-header">
-      <h3>Scales & Manipulations</h3>
-      <button class="btn btn-primary btn-sm" onclick="openCreateModal()">+ New</button>
+      <h3 data-zh="量表与操作" data-en="Scales &amp; Manipulations">Scales &amp; Manipulations</h3>
+      <button class="btn btn-primary btn-sm" onclick="openCreateModal()">+ <span data-zh="新建" data-en="New">New</span></button>
     </div>
     <div style="padding:8px 12px;">
-      <input class="search-box" id="search-input" placeholder="Search scales..." oninput="filterScales()">
+      <input class="search-box" id="search-input" data-zh-placeholder="搜索量表..." data-en-placeholder="Search scales..." placeholder="Search scales..." oninput="filterScales()">
     </div>
     <div class="scale-list" id="scale-list" onclick="console.log('list clicked')"></div>
   </div>
@@ -127,33 +130,33 @@ a:hover { text-decoration: underline; }
   <div class="content" id="content">
     <div class="empty-state" id="empty-state">
       <div style="font-size:48px;">&#x1F4CF;</div>
-      <div>Select a scale from the left, or create a new one.</div>
-      <button class="btn btn-primary btn-sm" onclick="openCreateModal()" style="margin-top:8px;">Create Scale</button>
+      <div data-zh="从左侧选择量表，或创建新量表" data-en="Select a scale from the left, or create a new one.">Select a scale from the left, or create a new one.</div>
+      <button class="btn btn-primary btn-sm" onclick="openCreateModal()" style="margin-top:8px;"><span data-zh="创建量表" data-en="Create Scale">Create Scale</span></button>
     </div>
     <div id="detail-view" style="display:none;">
       <div class="content-header">
         <h2 id="detail-title">-</h2>
         <div style="display:flex;gap:8px;">
-          <button class="btn btn-ghost btn-sm" onclick="openEditModal()">Edit</button>
-          <button class="btn btn-danger btn-sm" onclick="deleteScaleConfirm()">Delete</button>
+          <button class="btn btn-ghost btn-sm" onclick="openEditModal()"><span data-zh="编辑" data-en="Edit">Edit</span></button>
+          <button class="btn btn-danger btn-sm" onclick="deleteScaleConfirm()"><span data-zh="删除" data-en="Delete">Delete</span></button>
         </div>
       </div>
       <div class="detail-grid">
         <div class="detail-card">
-          <h4>Description</h4>
+          <h4 data-zh="描述" data-en="Description">Description</h4>
           <p id="detail-desc" style="font-size:13px;line-height:1.6;color:var(--text-secondary);"></p>
         </div>
         <div class="detail-card">
-          <h4>Source Type</h4>
+          <h4 data-zh="来源类型" data-en="Source Type">Source Type</h4>
           <p id="detail-source-type" style="font-size:13px;"></p>
           <div id="detail-original" style="margin-top:8px;"></div>
         </div>
         <div class="detail-card">
-          <h4>Items (Click to reverse-score)</h4>
+          <h4><span data-zh="条目（点击可反转计分）" data-en="Items (Click to reverse-score)">Items (Click to reverse-score)</span></h4>
           <div id="detail-items"></div>
         </div>
         <div class="detail-card">
-          <h4>Linked Papers <button class="btn btn-ghost btn-sm" onclick="openLinkPaperModal()" style="float:right;">+ Link</button></h4>
+          <h4><span data-zh="关联论文" data-en="Linked Papers">Linked Papers</span> <button class="btn btn-ghost btn-sm" onclick="openLinkPaperModal()" style="float:right;">+ <span data-zh="关联" data-en="Link">Link</span></button></h4>
           <div id="detail-papers"></div>
         </div>
       </div>
@@ -164,35 +167,35 @@ a:hover { text-decoration: underline; }
 <!-- Create/Edit Scale Modal -->
 <div class="modal-overlay" id="scale-modal" style="display:none;">
   <div class="modal">
-    <h3 id="modal-title">Create Scale</h3>
+    <h3 id="modal-title" data-zh="创建量表" data-en="Create Scale">Create Scale</h3>
     <div class="form-group">
-      <label>Scale Name *</label>
-      <input id="scale-name" placeholder="e.g., Big Five Personality Traits">
+      <label data-zh="量表名称 *" data-en="Scale Name *">Scale Name *</label>
+      <input id="scale-name" data-zh-placeholder="例如：大五人格量表" data-en-placeholder="e.g., Big Five Personality Traits" placeholder="e.g., Big Five Personality Traits">
     </div>
     <div class="form-group">
-      <label>Description</label>
-      <textarea id="scale-desc" placeholder="Brief description of the scale..."></textarea>
+      <label data-zh="描述" data-en="Description">Description</label>
+      <textarea id="scale-desc" data-zh-placeholder="量表简要描述..." data-en-placeholder="Brief description of the scale..." placeholder="Brief description of the scale..."></textarea>
     </div>
     <div class="form-group">
-      <label>Source Type</label>
+      <label data-zh="来源类型" data-en="Source Type">Source Type</label>
       <select id="scale-source-type" onchange="toggleOriginalGroup()">
-        <option value="original">Original</option>
-        <option value="adapted">Adapted from another scale</option>
-        <option value="modified">Modified from another scale</option>
+        <option value="original" data-zh="原创" data-en="Original">Original</option>
+        <option value="adapted" data-zh="改编自其他量表" data-en="Adapted from another scale">Adapted from another scale</option>
+        <option value="modified" data-zh="修改自其他量表" data-en="Modified from another scale">Modified from another scale</option>
       </select>
     </div>
     <div class="form-group" id="original-scale-group" style="display:none;">
-      <label>Adapted/Modified From</label>
+      <label data-zh="改编/修改自" data-en="Adapted/Modified From">Adapted/Modified From</label>
       <select id="original-scale-select"></select>
     </div>
     <div class="form-group">
-      <label>Items</label>
+      <label data-zh="条目" data-en="Items">Items</label>
       <div class="item-editor" id="items-editor"></div>
-      <button class="btn btn-ghost btn-sm" style="margin-top:8px;" onclick="addItemRow()">+ Add Item</button>
+      <button class="btn btn-ghost btn-sm" style="margin-top:8px;" onclick="addItemRow()">+ <span data-zh="添加条目" data-en="Add Item">Add Item</span></button>
     </div>
     <div class="form-actions">
-      <button class="btn btn-ghost" onclick="closeScaleModal()">Cancel</button>
-      <button class="btn btn-primary" onclick="saveScale()">Save Scale</button>
+      <button class="btn btn-ghost" onclick="closeScaleModal()"><span data-zh="取消" data-en="Cancel">Cancel</span></button>
+      <button class="btn btn-primary" onclick="saveScale()"><span data-zh="保存量表" data-en="Save Scale">Save Scale</span></button>
     </div>
   </div>
 </div>
@@ -240,10 +243,114 @@ let selectedScale = null;
 let editingScaleId = null;
 
 // ═══════════════════════════════════════════
+// i18n
+// ═══════════════════════════════════════════
+const i18n = {
+    currentLang: localStorage.getItem('scaleLang') || 'en',
+    toggle() {
+        this.currentLang = this.currentLang === 'en' ? 'zh' : 'en';
+        localStorage.setItem('scaleLang', this.currentLang);
+        this.apply();
+    },
+    apply() {
+        document.getElementById('langBtn').textContent = this.currentLang === 'en' ? '中文' : 'EN';
+        document.querySelectorAll('[data-zh][data-en]').forEach(el => {
+            el.textContent = el.getAttribute('data-' + this.currentLang);
+        });
+        document.querySelectorAll('[data-zh-placeholder][data-en-placeholder]').forEach(el => {
+            el.placeholder = el.getAttribute('data-' + this.currentLang + '-placeholder');
+        });
+        document.querySelectorAll('option[data-zh][data-en]').forEach(opt => {
+            opt.textContent = opt.getAttribute('data-' + this.currentLang);
+        });
+    }
+};
+
+function toggleLang() { i18n.toggle(); }
+
+const translations = {
+    zh: {
+        pleaseEnterName: '请输入量表名称',
+        saveSuccess: '量表已保存！',
+        createSuccess: '量表已创建！',
+        updateFailed: '更新失败：',
+        createFailed: '创建失败：',
+        networkError: '网络错误：',
+        linkSuccess: '论文已关联！',
+        linkFailed: '关联失败：',
+        unlinkConfirm: '确定取消关联此论文？',
+        unlinkSuccess: '已取消关联',
+        deleteConfirm: '删除量表 "{name}"？此操作不可恢复。',
+        deleteSuccess: '量表已删除',
+        deleteFailed: '删除失败：',
+        parseDistSuccess: '解析成功：{n} 个类别',
+        parseDistError: '无法解析，请确认格式',
+        pleasePasteDist: '请先输入或粘贴分布数据',
+        noDataToExport: '没有数据可导出',
+        noResults: '暂无结果',
+        apiKeyRequired: '请先填写 API Key',
+        screenshotRequired: '请先上传截图',
+        extractionSuccess: 'Demographics 提取成功！',
+        extractionFailed: '提取失败：',
+        selectDistFirst: '请先选择分布',
+        atLeastOneCity: '请至少选择一个城市',
+        generating: '正在生成 {n} 个虚拟受访者...',
+        generated: '已生成 {n} 个虚拟受访者',
+        generatedFromLit: '已基于文献数据生成 {n} 个虚拟受访者',
+        noQuestions: '请先配置问卷',
+        noProfiles: '请先生成虚拟受访者',
+        noApi: '请先配置 API',
+        samplingComplete: '采样完成！{n} 个受访者，{e} 个错误',
+        exportSuccess: '导出成功',
+    },
+    en: {
+        pleaseEnterName: 'Please enter a scale name',
+        saveSuccess: 'Scale updated!',
+        createSuccess: 'Scale created!',
+        updateFailed: 'Update failed: ',
+        createFailed: 'Create failed: ',
+        networkError: 'Network error: ',
+        linkSuccess: 'Paper linked!',
+        linkFailed: 'Link failed: ',
+        unlinkConfirm: 'Unlink this paper from the scale?',
+        unlinkSuccess: 'Paper unlinked',
+        deleteConfirm: 'Delete scale "{name}"? This cannot be undone.',
+        deleteSuccess: 'Scale deleted',
+        deleteFailed: 'Delete failed: ',
+        parseDistSuccess: 'Parse success: {n} categories',
+        parseDistError: 'Cannot parse, please check format',
+        pleasePasteDist: 'Please paste distribution data first',
+        noDataToExport: 'No data to export',
+        noResults: 'No results yet',
+        apiKeyRequired: 'Please enter API Key',
+        screenshotRequired: 'Please upload screenshots first',
+        extractionSuccess: 'Demographics extracted!',
+        extractionFailed: 'Extraction failed: ',
+        selectDistFirst: 'Please select a distribution first',
+        atLeastOneCity: 'Please select at least one city',
+        generating: 'Generating {n} virtual respondents...',
+        generated: 'Generated {n} virtual respondents',
+        generatedFromLit: 'Generated {n} virtual respondents from literature data',
+        noQuestions: 'Please configure the questionnaire first',
+        noProfiles: 'Please generate virtual respondents first',
+        noApi: 'Please configure API first',
+        samplingComplete: 'Sampling complete! {n} respondents, {e} errors',
+        exportSuccess: 'Export successful',
+    }
+};
+
+function t(key, vars = {}) {
+    let s = (translations[i18n.currentLang] && translations[i18n.currentLang][key]) || key;
+    Object.entries(vars).forEach(([k, v]) => { s = s.replace('{' + k + '}', v); });
+    return s;
+}
+
+// ═══════════════════════════════════════════
 // INIT
 // ═══════════════════════════════════════════
 async function init() {
   console.log('Scale Bank init...');
+  i18n.apply();
   try {
     await Promise.all([loadScales(), loadPapers()]);
     console.log('Scales loaded:', scales.length);
@@ -442,7 +549,7 @@ function addItemRow(item = null) {
 
 async function saveScale() {
   const name = document.getElementById('scale-name').value.trim();
-  if (!name) { toast('Please enter a scale name', 'error'); return; }
+  if (!name) { toast(t('pleaseEnterName'), 'error'); return; }
   const desc = document.getElementById('scale-desc').value.trim();
   const sourceType = document.getElementById('scale-source-type').value;
   const originalId = sourceType !== 'original' ? document.getElementById('original-scale-select').value || null : null;
@@ -459,15 +566,15 @@ async function saveScale() {
   try {
     if (editingScaleId) {
       const { error } = await sb.from('scales').update(payload).eq('id', editingScaleId);
-      if (error) { toast('Update failed: ' + error.message, 'error'); return; }
-      toast('Scale updated!', 'success');
+      if (error) { toast(t('updateFailed') + error.message, 'error'); return; }
+      toast(t('saveSuccess'), 'success');
     } else {
       const { error } = await sb.from('scales').insert(payload);
-      if (error) { toast('Create failed: ' + error.message, 'error'); return; }
-      toast('Scale created!', 'success');
+      if (error) { toast(t('createFailed') + error.message, 'error'); return; }
+      toast(t('createSuccess'), 'success');
     }
   } catch(e) {
-    toast('Network error: ' + e.message, 'error');
+    toast(t('networkError') + e.message, 'error');
     return;
   }
   closeScaleModal();
@@ -500,14 +607,14 @@ async function savePaperLink() {
   const notes = document.getElementById('link-notes').value.trim();
   if (!paperId) return;
 
-  try {
+    try {
     const { error } = await sb.from('scale_papers').insert({
       scale_id: selectedScale.id, paper_id: paperId, usage_type: usageType, notes
     });
-    if (error) { toast('Link failed: ' + error.message, 'error'); return; }
-    toast('Paper linked!', 'success');
+    if (error) { toast(t('linkFailed') + error.message, 'error'); return; }
+    toast(t('linkSuccess'), 'success');
   } catch(e) {
-    toast('Network error: ' + e.message, 'error');
+    toast(t('networkError') + e.message, 'error');
     return;
   }
   closeLinkPaperModal();
@@ -516,11 +623,11 @@ async function savePaperLink() {
 }
 
 async function unlinkPaper(linkId) {
-  if (!confirm('Unlink this paper from the scale?')) return;
+  if (!confirm(t('unlinkConfirm'))) return;
   try {
     const { error } = await sb.from('scale_papers').delete().eq('id', linkId);
-    if (error) { toast('Unlink failed: ' + error.message, 'error'); return; }
-    toast('Paper unlinked', 'info');
+    if (error) { toast(t('linkFailed') + error.message, 'error'); return; }
+    toast(t('unlinkSuccess'), 'info');
   } catch(e) {
     toast('Network error: ' + e.message, 'error');
     return;
