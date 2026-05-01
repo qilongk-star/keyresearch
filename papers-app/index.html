@@ -3407,8 +3407,70 @@ async function movePaperToFolder(paperId, folderId) {
 }
 
 async function deletePaper(paperId) {
-  const paper = await sb.from('papers').select('title').eq('id', paperId).single();
-  if (!confirm(`Delete paper "${paper?.title || ''}"? This cannot be undone.`)) return;
+  const { data: paper } = await sb.from('papers').select('title').eq('id', paperId).single();
+  const title = paper?.title || paperId;
+
+  // Step 1: Show a custom modal asking for passcode
+  const confirmed = await new Promise(resolve => {
+    // Build modal HTML
+    const overlay = document.createElement('div');
+    overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.6);z-index:9999;display:flex;align-items:center;justify-content:center;';
+    overlay.innerHTML = `
+      <div style="background:var(--bg-secondary);border:1px solid var(--border);border-radius:14px;padding:28px 32px;min-width:340px;max-width:420px;box-shadow:0 20px 60px rgba(0,0,0,0.5);">
+        <div style="font-size:18px;font-weight:700;color:var(--danger);margin-bottom:8px;">🗑️ Delete Paper</div>
+        <div style="font-size:13px;color:var(--text-secondary);margin-bottom:16px;line-height:1.5;">
+          You are about to permanently delete:<br>
+          <strong style="color:var(--text-primary)">"${esc(title)}"</strong><br><br>
+          Type <code style="background:var(--bg-tertiary);padding:2px 8px;border-radius:5px;color:var(--danger);font-weight:700;">delete</code> to confirm.
+        </div>
+        <input id="delete-confirm-input" type="text" placeholder="Type delete to confirm"
+          style="width:100%;padding:9px 12px;border-radius:8px;border:1px solid var(--border);background:var(--bg-tertiary);color:var(--text-primary);font-size:14px;outline:none;margin-bottom:14px;"
+          autocomplete="off" spellcheck="false" />
+        <div style="display:flex;gap:10px;justify-content:flex-end;">
+          <button id="delete-cancel-btn" style="padding:8px 18px;border-radius:8px;border:1px solid var(--border);background:var(--bg-tertiary);color:var(--text-primary);cursor:pointer;font-size:13px;">Cancel</button>
+          <button id="delete-confirm-btn" style="padding:8px 18px;border-radius:8px;border:none;background:var(--danger);color:white;cursor:pointer;font-size:13px;font-weight:600;opacity:0.4;pointer-events:none;">Delete</button>
+        </div>
+      </div>`;
+    document.body.appendChild(overlay);
+
+    const input = overlay.querySelector('#delete-confirm-input');
+    const confirmBtn = overlay.querySelector('#delete-confirm-btn');
+    const cancelBtn = overlay.querySelector('#delete-cancel-btn');
+
+    input.addEventListener('input', () => {
+      const ok = input.value.trim().toLowerCase() === 'delete';
+      confirmBtn.style.opacity = ok ? '1' : '0.4';
+      confirmBtn.style.pointerEvents = ok ? 'auto' : 'none';
+    });
+    input.addEventListener('keydown', e => {
+      if (e.key === 'Enter' && input.value.trim().toLowerCase() === 'delete') {
+        document.body.removeChild(overlay);
+        resolve(true);
+      } else if (e.key === 'Escape') {
+        document.body.removeChild(overlay);
+        resolve(false);
+      }
+    });
+    confirmBtn.addEventListener('click', () => {
+      document.body.removeChild(overlay);
+      resolve(true);
+    });
+    cancelBtn.addEventListener('click', () => {
+      document.body.removeChild(overlay);
+      resolve(false);
+    });
+    overlay.addEventListener('click', e => {
+      if (e.target === overlay) {
+        document.body.removeChild(overlay);
+        resolve(false);
+      }
+    });
+
+    // Focus input after render
+    requestAnimationFrame(() => input.focus());
+  });
+
+  if (!confirmed) return;
 
   const { error } = await sb.from('papers').delete().eq('id', paperId);
   if (error) { toast('Delete failed: ' + error.message, 'error'); return; }
