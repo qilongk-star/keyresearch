@@ -2837,6 +2837,7 @@ function renderAnnoList() {
           <div class="ai-text-full" id="ai-full-${a.id}" style="display:none">${esc(rawText)}</div>
           <div class="ai-actions">
             <button class="ai-copy-btn" data-copy-id="${a.id}">📋 复制</button>
+            <button class="ai-copy-btn" data-scale-id="${a.id}" style="color:#a78bfa;border-color:#6d28d9">📏 Scale Bank</button>
             ${isOwn ? `<button class="ai-copy-btn" style="color:var(--danger);border-color:var(--danger)" data-del-id="${a.id}">🗑️ 删除</button>` : ''}
             <button class="ai-copy-btn" data-scroll-id="${a.id}">→ 定位</button>
           </div>
@@ -2863,6 +2864,13 @@ function renderAnnoList() {
       e.stopPropagation();
       const t = annoTextCache[btn.dataset.copyId] || '';
       copyText(t, btn);
+    });
+  });
+  list.querySelectorAll('[data-scale-id]').forEach(btn => {
+    btn.addEventListener('click', e => {
+      e.stopPropagation();
+      const anno = annotations.find(a => a.id === btn.dataset.scaleId);
+      if (anno) openScaleBankModal(anno.text || '', anno);
     });
   });
   list.querySelectorAll('[data-del-id]').forEach(btn => {
@@ -2923,6 +2931,258 @@ function copyText(text, btn) {
   });
 }
 
+// ─── Scale Bank Modal ───
+let scaleBankAnnoRef = null; // reference to annotation being linked
+
+function openScaleBankModal(highlightText, anno) {
+  scaleBankAnnoRef = anno || null;
+  document.querySelectorAll('.scale-bank-modal').forEach(m => m.remove());
+
+  const overlay = document.createElement('div');
+  overlay.className = 'scale-bank-modal';
+  overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.6);z-index:99999;display:flex;align-items:center;justify-content:center;';
+  overlay.innerHTML = `
+    <div style="background:var(--bg-secondary);border:1px solid var(--border);border-radius:14px;padding:24px;min-width:480px;max-width:620px;max-height:85vh;overflow-y:auto;box-shadow:0 20px 60px rgba(0,0,0,0.5);">
+      <div style="font-size:16px;font-weight:700;margin-bottom:4px;">Add to Scale Bank</div>
+      <div style="font-size:12px;color:var(--text-muted);margin-bottom:16px;">Create a new scale or add items to an existing one.</div>
+
+      <div style="margin-bottom:14px;">
+        <label style="display:block;font-size:12px;color:var(--text-secondary);margin-bottom:4px;">Scale Name *</label>
+        <input id="sb-scale-name" placeholder="e.g., Perceived Usefulness Scale" style="width:100%;padding:8px 12px;border-radius:8px;border:1px solid var(--border);background:var(--bg-tertiary);color:var(--text-primary);font-size:13px;outline:none;">
+      </div>
+
+      <div style="margin-bottom:14px;">
+        <label style="display:block;font-size:12px;color:var(--text-secondary);margin-bottom:4px;">Description</label>
+        <textarea id="sb-scale-desc" placeholder="Brief description of the scale..." style="width:100%;padding:8px 12px;border-radius:8px;border:1px solid var(--border);background:var(--bg-tertiary);color:var(--text-primary);font-size:13px;outline:none;resize:vertical;min-height:60px;"></textarea>
+      </div>
+
+      <div style="margin-bottom:14px;">
+        <label style="display:block;font-size:12px;color:var(--text-secondary);margin-bottom:4px;">Source Type</label>
+        <select id="sb-source-type" style="width:100%;padding:8px 12px;border-radius:8px;border:1px solid var(--border);background:var(--bg-tertiary);color:var(--text-primary);font-size:13px;">
+          <option value="original">Original</option>
+          <option value="adapted">Adapted from another scale</option>
+          <option value="modified">Modified from another scale</option>
+        </select>
+      </div>
+
+      <div style="margin-bottom:14px;">
+        <label style="display:flex;align-items:center;justify-content:space-between;font-size:12px;color:var(--text-secondary);margin-bottom:4px;">
+          <span>Scale Items</span>
+          <div style="display:flex;gap:6px;">
+            <button onclick="sbUseAiExtract()" style="padding:3px 10px;border-radius:6px;border:1px solid #6d28d9;background:transparent;color:#a78bfa;font-size:11px;cursor:pointer;">&#x1F916; AI Extract</button>
+            <button onclick="sbParseByLine()" style="padding:3px 10px;border-radius:6px;border:1px solid var(--border);background:transparent;color:var(--text-secondary);font-size:11px;cursor:pointer;">Split by line</button>
+          </div>
+        </label>
+        <div id="sb-items-editor" style="display:flex;flex-direction:column;gap:4px;"></div>
+        <button onclick="sbAddItemRow()" style="margin-top:6px;padding:4px 10px;border-radius:6px;border:1px solid var(--border);background:transparent;color:var(--text-secondary);font-size:11px;cursor:pointer;">+ Add Item</button>
+      </div>
+
+      <div id="sb-ai-settings" style="display:none;margin-bottom:14px;padding:10px;border-radius:8px;border:1px solid #6d28d9;background:rgba(109,40,217,0.08);">
+        <label style="display:block;font-size:11px;color:#a78bfa;margin-bottom:6px;">AI Settings (optional)</label>
+        <div style="display:flex;gap:8px;align-items:center;">
+          <select id="sb-ai-provider" style="flex:1;padding:6px 8px;border-radius:6px;border:1px solid var(--border);background:var(--bg-tertiary);color:var(--text-primary);font-size:12px;">
+            <option value="deepseek">DeepSeek</option>
+            <option value="openai">OpenAI</option>
+          </select>
+          <input id="sb-ai-key" type="password" placeholder="API Key (stored locally only)" style="flex:2;padding:6px 8px;border-radius:6px;border:1px solid var(--border);background:var(--bg-tertiary);color:var(--text-primary);font-size:12px;">
+        </div>
+        <div style="font-size:10px;color:var(--text-muted);margin-top:4px;">Key is saved in your browser only, never sent to our servers.</div>
+      </div>
+
+      <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:16px;">
+        <button onclick="this.closest('.scale-bank-modal').remove()" style="padding:8px 16px;border-radius:8px;border:1px solid var(--border);background:transparent;color:var(--text-secondary);cursor:pointer;font-size:13px;">Cancel</button>
+        <button onclick="sbSaveScale()" style="padding:8px 16px;border-radius:8px;border:none;background:#6d28d9;color:white;cursor:pointer;font-size:13px;font-weight:600;">Save to Scale Bank</button>
+      </div>
+    </div>
+  `;
+
+  document.body.appendChild(overlay);
+
+  // Pre-fill items from highlight text
+  sbAddItemRow(highlightText);
+  overlay.querySelector('#sb-ai-settings').style.display = 'none';
+
+  // Close on overlay click
+  overlay.addEventListener('click', e => { if (e.target === overlay) overlay.remove(); });
+}
+
+function sbAddItemRow(text) {
+  const editor = document.getElementById('sb-items-editor');
+  if (!editor) return;
+  const row = document.createElement('div');
+  row.style.cssText = 'display:flex;gap:6px;align-items:center;';
+  row.innerHTML = `
+    <input placeholder="Scale item text" value="${esc(text || '')}" style="flex:1;padding:6px 10px;border-radius:6px;border:1px solid var(--border);background:var(--bg-tertiary);color:var(--text-primary);font-size:12px;outline:none;">
+    <label style="display:flex;align-items:center;gap:3px;font-size:11px;color:var(--text-secondary);cursor:pointer;white-space:nowrap;">
+      <input type="checkbox"> Rev
+    </label>
+    <span onclick="this.parentElement.remove()" style="padding:2px 6px;border-radius:4px;color:var(--danger);cursor:pointer;font-size:14px;line-height:1;">&times;</span>
+  `;
+  editor.appendChild(row);
+}
+
+function sbParseByLine() {
+  const editor = document.getElementById('sb-items-editor');
+  if (!editor) return;
+  editor.innerHTML = '';
+  // Collect all existing text
+  const texts = [];
+  editor.querySelectorAll('input[type=text]').forEach(inp => { if (inp.value.trim()) texts.push(inp.value.trim()); });
+  // If no existing items, try to split the first item by lines
+  if (texts.length === 0) {
+    const overlay = document.querySelector('.scale-bank-modal');
+    // nothing to split
+    toast('No text to split', 'info');
+    return;
+  }
+  const combined = texts.join('\n');
+  editor.innerHTML = '';
+  combined.split(/\n/).filter(line => line.trim()).forEach(line => sbAddItemRow(line.trim()));
+  toast('Split into ' + editor.querySelectorAll('.sb-item-row, div').length + ' items', 'success');
+}
+
+async function sbUseAiExtract() {
+  const settingsDiv = document.getElementById('sb-ai-settings');
+  const provider = document.getElementById('sb-ai-provider').value;
+  const apiKey = document.getElementById('sb-ai-key').value;
+
+  // If no API key, show settings
+  if (!apiKey) {
+    settingsDiv.style.display = settingsDiv.style.display === 'none' ? 'block' : 'none';
+    if (!apiKey && settingsDiv.style.display === 'block') return;
+  }
+
+  // Collect text from current items
+  const editor = document.getElementById('sb-items-editor');
+  const rawText = Array.from(editor.querySelectorAll('input[type=text]')).map(i => i.value).filter(v => v.trim()).join('\n');
+
+  if (!rawText.trim()) {
+    toast('No text to extract from', 'info');
+    return;
+  }
+
+  const btn = event.target.closest('button');
+  const origText = btn.textContent;
+  btn.textContent = 'Extracting...';
+  btn.disabled = true;
+
+  try {
+    let apiUrl, headers;
+    if (provider === 'deepseek') {
+      apiUrl = 'https://api.deepseek.com/chat/completions';
+      headers = { 'Authorization': `Bearer ${apiKey}`, 'Content-Type': 'application/json' };
+    } else {
+      apiUrl = 'https://api.openai.com/v1/chat/completions';
+      headers = { 'Authorization': `Bearer ${apiKey}`, 'Content-Type': 'application/json' };
+    }
+
+    const prompt = `Extract scale/measurement items from the following text. Return ONLY a JSON array of objects with "label" (the item text) and "reverse_scored" (boolean, true if the item is reverse-scored based on keywords like "reverse", "negatively", "opposite"). If no clear scale items are found, return an empty array.\n\nText:\n${rawText}`;
+
+    const resp = await fetch(apiUrl, {
+      method: 'POST',
+      headers,
+      body: JSON.stringify({
+        model: provider === 'deepseek' ? 'deepseek-chat' : 'gpt-4o-mini',
+        messages: [{ role: 'user', content: prompt }],
+        temperature: 0.1,
+        response_format: { type: 'json_object' }
+      })
+    });
+
+    if (!resp.ok) {
+      const errText = await resp.text();
+      throw new Error(`API ${resp.status}: ${errText.substring(0, 100)}`);
+    }
+
+    const result = await resp.json();
+    const content = result.choices[0].message.content;
+    let items;
+    try {
+      const parsed = JSON.parse(content);
+      items = parsed.items || parsed.scale_items || (Array.isArray(parsed) ? parsed : []);
+    } catch {
+      throw new Error('AI returned invalid JSON');
+    }
+
+    if (items.length === 0) {
+      toast('AI could not identify scale items', 'info');
+      btn.textContent = origText;
+      btn.disabled = false;
+      return;
+    }
+
+    // Replace editor with AI results
+    editor.innerHTML = '';
+    items.forEach(item => {
+      sbAddItemRow(item.label || item.text || '');
+      const lastRow = editor.lastElementChild;
+      if (item.reverse_scored && lastRow) {
+        const chk = lastRow.querySelector('input[type=checkbox]');
+        if (chk) chk.checked = true;
+      }
+    });
+
+    toast(`AI extracted ${items.length} items`, 'success');
+
+    // Save API key locally for next time
+    localStorage.setItem('sb_ai_key_' + provider, apiKey);
+  } catch (e) {
+    console.error('AI extract error:', e);
+    toast('AI extraction failed: ' + e.message, 'error');
+  }
+
+  btn.textContent = origText;
+  btn.disabled = false;
+}
+
+async function sbSaveScale() {
+  const name = document.getElementById('sb-scale-name').value.trim();
+  if (!name) { toast('Please enter a scale name', 'error'); return; }
+
+  const desc = document.getElementById('sb-scale-desc').value.trim();
+  const sourceType = document.getElementById('sb-source-type').value;
+
+  const items = [];
+  document.querySelectorAll('#sb-items-editor div').forEach(row => {
+    const input = row.querySelector('input[type=text]');
+    const chk = row.querySelector('input[type=checkbox]');
+    if (input && input.value.trim()) {
+      items.push({ label: input.value.trim(), reverse_scored: chk ? chk.checked : false });
+    }
+  });
+
+  const payload = {
+    name,
+    description: desc,
+    items,
+    source_type: sourceType,
+    created_by: currentUser?.name || 'PapersHub User'
+  };
+
+  try {
+    const { data, error } = await sb.from('scales').insert(payload).select();
+    if (error) { toast('Save failed: ' + error.message, 'error'); return; }
+
+    const scaleId = data[0].id;
+
+    // Auto-link to current paper
+    if (scaleBankAnnoRef && currentPaper) {
+      const { error: linkErr } = await sb.from('scale_papers').insert({
+        scale_id: scaleId,
+        paper_id: currentPaper.id,
+        usage_type: 'adapted',
+        notes: 'Added from PapersHub highlight'
+      });
+      if (linkErr) console.warn('Auto-link paper failed:', linkErr);
+    }
+
+    toast('Scale saved to Scale Bank!', 'success');
+    document.querySelectorAll('.scale-bank-modal').forEach(m => m.remove());
+  } catch (e) {
+    toast('Network error: ' + e.message, 'error');
+  }
+}
+
 // ─── Highlight click popup ───
 function showHighlightPopup(anno, anchorEl) {
   document.querySelectorAll('.hl-popup').forEach(p => p.remove());
@@ -2942,6 +3202,7 @@ function showHighlightPopup(anno, anchorEl) {
     <div class="hl-popup-text">${esc(text)}</div>
     <div class="hl-popup-btns">
       <button class="hl-popup-copy">📋 复制文本</button>
+      <button class="hl-popup-scale" style="background:#6d28d9;color:white;border-color:#6d28d9 !important;">📏 Scale Bank</button>
       ${isOwn ? `<button class="hl-popup-del">🗑️ 删除</button>` : ''}
       <button class="hl-popup-close">关闭</button>
     </div>
@@ -2949,6 +3210,7 @@ function showHighlightPopup(anno, anchorEl) {
 
   // Attach event listeners (avoid inline onclick with text content)
   popup.querySelector('.hl-popup-copy').addEventListener('click', () => copyText(text, popup.querySelector('.hl-popup-copy')));
+  popup.querySelector('.hl-popup-scale').addEventListener('click', () => { popup.remove(); openScaleBankModal(text, anno); });
   if (isOwn) {
     popup.querySelector('.hl-popup-del').addEventListener('click', () => {
       deleteAnno(anno.id);
@@ -3406,6 +3668,60 @@ async function movePaperToFolder(paperId, folderId) {
   loadPapers();
 }
 
+function showSqlFixModal() {
+    const sql = `\
+-- 在 Supabase Dashboard → SQL Editor 中运行以下 SQL:
+-- ============================================================
+
+-- 1. papers 表允许删除
+DROP POLICY IF EXISTS "papers_delete" ON papers;
+CREATE POLICY "papers_delete" ON papers FOR DELETE USING (true);
+
+-- 2. annotations 表允许更新 (修复 highlight resize 不保存)
+DROP POLICY IF EXISTS "anno_update" ON annotations;
+CREATE POLICY "anno_update" ON annotations FOR UPDATE USING (true);
+
+-- 3. 创建 RPC 函数用于删除 (bypasses RLS)
+CREATE OR REPLACE FUNCTION delete_paper_by_id(paper_id UUID)
+RETURNS void
+LANGUAGE plpgsql
+SECURITY DEFINER
+AS $$
+BEGIN
+  DELETE FROM annotations WHERE paper_id = paper_id;
+  DELETE FROM papers WHERE id = paper_id;
+END;
+$$;
+
+GRANT EXECUTE ON FUNCTION delete_paper_by_id(UUID) TO anon, authenticated;
+
+-- ============================================================
+-- 运行后刷新本页面即可生效`;
+
+  const overlay = document.createElement('div');
+  overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.7);z-index:9999;display:flex;align-items:center;justify-content:center;';
+  overlay.innerHTML = `
+    <div style="background:var(--bg-secondary);border:1px solid var(--danger);border-radius:14px;padding:24px 28px;min-width:420px;max-width:640px;max-height:80vh;overflow:auto;box-shadow:0 20px 60px rgba(0,0,0,0.5);">
+      <div style="font-size:18px;font-weight:700;color:var(--danger);margin-bottom:8px;">⚠️ 数据库权限缺失</div>
+      <div style="font-size:13px;color:var(--text-secondary);margin-bottom:16px;line-height:1.6;">
+        删除功能被 Supabase Row Level Security 拦截。<br>
+        请按以下步骤操作（只需一次）：
+        <ol style="margin:8px 0 0 18px;line-height:1.8;">
+          <li>打开 <a href="https://app.supabase.com/project/hhgundxzxiqeglzbatmd/sql" target="_blank" style="color:var(--accent);">Supabase SQL Editor ↗</a></li>
+          <li>复制下方 SQL，粘贴到编辑器</li>
+          <li>点击 <b>Run</b> 按钮</li>
+          <li>刷新本页面</li>
+        </ol>
+      </div>
+      <textarea readonly style="width:100%;height:220px;padding:10px;border-radius:8px;border:1px solid var(--border);background:#1e1e2e;color:#a6e3a1;font-family:monospace;font-size:12px;resize:vertical;margin-bottom:14px;">${sql}</textarea>
+      <div style="display:flex;gap:10px;justify-content:flex-end;">
+        <button onclick="navigator.clipboard.writeText(this.parentElement.previousElementSibling.value).then(()=>{this.textContent='已复制!';setTimeout(()=>this.textContent='复制SQL',2000);})" style="padding:8px 16px;border-radius:8px;border:1px solid var(--border);background:var(--bg-tertiary);color:var(--text-primary);cursor:pointer;font-size:13px;">复制SQL</button>
+        <button onclick="document.body.removeChild(this.closest('[style*=fixed]'))" style="padding:8px 16px;border-radius:8px;border:none;background:var(--accent);color:white;cursor:pointer;font-size:13px;font-weight:600;">知道了</button>
+      </div>
+    </div>`;
+  document.body.appendChild(overlay);
+}
+
 async function deletePaper(paperId) {
   const { data: paper } = await sb.from('papers').select('title').eq('id', paperId).single();
   const title = paper?.title || paperId;
@@ -3472,9 +3788,27 @@ async function deletePaper(paperId) {
 
   if (!confirmed) return;
 
-  const { error } = await sb.from('papers').delete().eq('id', paperId);
-  if (error) { toast('Delete failed: ' + error.message, 'error'); return; }
-  // Also delete annotations via RPC
+  // Try direct delete first, fallback to RPC if RLS blocks it
+  let deleteError = null;
+  let { error } = await sb.from('papers').delete().eq('id', paperId);
+  if (error && (error.message?.includes('row-level security') || error.code === '42501')) {
+    // RLS blocked — try RPC function (SECURITY DEFINER bypasses RLS)
+    const { error: rpcError } = await sb.rpc('delete_paper_by_id', { paper_id: paperId });
+    deleteError = rpcError;
+  } else {
+    deleteError = error;
+  }
+  if (deleteError) {
+    console.error('Delete paper error:', deleteError);
+    // Show SQL fix modal if it's an RLS issue
+    if (deleteError.message?.includes('row-level security') || deleteError.code === '42501') {
+      showSqlFixModal();
+    } else {
+      toast('删除失败: ' + deleteError.message, 'error');
+    }
+    return;
+  }
+  // Also delete annotations (RPC or direct)
   try { await sb.rpc('delete_paper_annotations', { paper_id: paperId }); } catch(e) { console.error(e); }
   toast('Paper deleted', 'success');
   loadPapers();
