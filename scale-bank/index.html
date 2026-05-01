@@ -1,0 +1,679 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Scale Bank - KeyResearch</title>
+<script src="https://unpkg.com/@supabase/supabase-js@2.49.1/dist/umd/supabase.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/d3@7/dist/d3.min.js"></script>
+<style>
+* { box-sizing: border-box; margin:0; padding:0; }
+:root {
+  --bg-primary: #0f1117; --bg-secondary: #1a1b26; --bg-tertiary: #24253a;
+  --text-primary: #e1e2e8; --text-secondary: #9398b0; --text-muted: #5f6382;
+  --accent: #7c6aef; --accent-hover: #6a56e0; --accent-soft: rgba(124,106,239,0.15);
+  --success: #4ade80; --warning: #fbbf24; --danger: #f87171;
+  --border: #2d2e42; --radius: 10px;
+}
+body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: var(--bg-primary); color: var(--text-primary); min-height: 100vh; }
+a { color: var(--accent); text-decoration: none; }
+a:hover { text-decoration: underline; }
+
+/* Header */
+.header { display:flex; align-items:center; justify-content:space-between; padding:16px 24px; border-bottom:1px solid var(--border); background:var(--bg-secondary); }
+.header-left { display:flex; align-items:center; gap:12px; }
+.logo { height:32px; border-radius:6px; }
+.nav-links { display:flex; gap:6px; }
+.nav-links a { padding:6px 14px; border-radius:6px; font-size:13px; color:var(--text-secondary); transition:0.15s; }
+.nav-links a:hover, .nav-links a.active { background:var(--accent-soft); color:var(--accent); text-decoration:none; }
+
+/* Layout */
+.main { display:flex; height: calc(100vh - 61px); }
+.sidebar { width:340px; border-right:1px solid var(--border); background:var(--bg-secondary); display:flex; flex-direction:column; overflow:hidden; }
+.sidebar-header { padding:14px 16px; border-bottom:1px solid var(--border); display:flex; align-items:center; justify-content:space-between; }
+.sidebar-header h3 { font-size:14px; font-weight:600; }
+.btn { padding:6px 14px; border-radius:6px; border:none; cursor:pointer; font-size:12px; font-weight:600; transition:0.15s; }
+.btn-primary { background:var(--accent); color:white; }
+.btn-primary:hover { background:var(--accent-hover); }
+.btn-ghost { background:transparent; color:var(--text-secondary); border:1px solid var(--border); }
+.btn-ghost:hover { background:var(--bg-tertiary); color:var(--text-primary); }
+.btn-danger { background:var(--danger); color:white; }
+.btn-sm { padding:4px 10px; font-size:11px; }
+
+/* Scale list */
+.scale-list { flex:1; overflow-y:auto; padding:8px; }
+.scale-item { padding:10px 12px; border-radius:8px; cursor:pointer; transition:0.15s; border:1px solid transparent; margin-bottom:4px; }
+.scale-item:hover { background:var(--bg-tertiary); }
+.scale-item.active { background:var(--accent-soft); border-color:var(--accent); }
+.scale-item-name { font-size:13px; font-weight:600; margin-bottom:2px; }
+.scale-item-meta { font-size:11px; color:var(--text-muted); }
+.scale-item-tags { display:flex; gap:4px; margin-top:4px; flex-wrap:wrap; }
+.tag { padding:2px 6px; border-radius:4px; font-size:10px; background:var(--bg-tertiary); color:var(--text-secondary); }
+
+/* Tree view area */
+.content { flex:1; display:flex; flex-direction:column; overflow:hidden; }
+.tree-toolbar { padding:10px 16px; border-bottom:1px solid var(--border); display:flex; gap:8px; align-items:center; background:var(--bg-secondary); }
+.tree-container { flex:1; overflow:auto; position:relative; background: var(--bg-primary); }
+
+/* D3 Tree */
+.tree-node { cursor:pointer; }
+.tree-node rect { rx:8; ry:8; stroke-width:2; }
+.tree-node text { font-size:12px; fill:var(--text-primary); }
+.tree-link { fill:none; stroke:var(--border); stroke-width:2; }
+
+/* Detail panel */
+.detail-panel { width:380px; border-left:1px solid var(--border); background:var(--bg-secondary); overflow-y:auto; display:none; }
+.detail-panel.show { display:block; }
+.detail-header { padding:14px 16px; border-bottom:1px solid var(--border); display:flex; justify-content:space-between; align-items:center; }
+.detail-body { padding:16px; }
+.detail-section { margin-bottom:20px; }
+.detail-section h4 { font-size:12px; text-transform:uppercase; color:var(--text-muted); margin-bottom:8px; letter-spacing:0.5px; }
+.item-row { display:flex; align-items:center; gap:8px; padding:6px 0; border-bottom:1px solid var(--border); font-size:13px; }
+.item-row:last-child { border-bottom:none; }
+
+/* Items editor */
+.item-editor { display:flex; flex-direction:column; gap:6px; }
+.item-input-row { display:flex; gap:6px; align-items:center; }
+.item-input-row input { flex:1; padding:6px 10px; border-radius:6px; border:1px solid var(--border); background:var(--bg-tertiary); color:var(--text-primary); font-size:12px; }
+.item-input-row label { display:flex; align-items:center; gap:4px; font-size:11px; color:var(--text-secondary); cursor:pointer; }
+
+/* Modal */
+.modal-overlay { position:fixed; inset:0; background:rgba(0,0,0,0.6); z-index:9999; display:flex; align-items:center; justify-content:center; }
+.modal { background:var(--bg-secondary); border:1px solid var(--border); border-radius:14px; padding:24px; min-width:420px; max-width:560px; max-height:80vh; overflow-y:auto; }
+.modal h3 { margin-bottom:16px; }
+.form-group { margin-bottom:14px; }
+.form-group label { display:block; font-size:12px; color:var(--text-secondary); margin-bottom:4px; }
+.form-group input, .form-group textarea, .form-group select { width:100%; padding:8px 12px; border-radius:8px; border:1px solid var(--border); background:var(--bg-tertiary); color:var(--text-primary); font-size:13px; outline:none; }
+.form-group textarea { resize:vertical; min-height:80px; }
+.form-actions { display:flex; gap:8px; justify-content:flex-end; margin-top:16px; }
+
+/* Toast */
+.toast-container { position:fixed; top:16px; right:16px; z-index:99999; display:flex; flex-direction:column; gap:8px; }
+.toast { padding:10px 16px; border-radius:8px; font-size:13px; animation:slideIn 0.25s ease; }
+.toast-success { background:#065f46; color:#6ee7b7; }
+.toast-error { background:#7f1d1d; color:#fca5a5; }
+.toast-info { background:#1e3a5f; color:#93c5fd; }
+@keyframes slideIn { from { transform:translateX(100%); opacity:0; } to { transform:translateX(0); opacity:1; } }
+
+/* Search */
+.search-box { padding:8px 12px; border-radius:8px; border:1px solid var(--border); background:var(--bg-tertiary); color:var(--text-primary); font-size:13px; width:100%; outline:none; margin-bottom:8px; }
+
+/* Paper link */
+.paper-link { display:flex; align-items:center; gap:8px; padding:6px 10px; border-radius:6px; background:var(--bg-tertiary); font-size:12px; margin-bottom:4px; }
+.paper-link a { flex:1; color:var(--accent); }
+.usage-badge { padding:2px 6px; border-radius:4px; font-size:10px; background:var(--accent-soft); color:var(--accent); }
+
+.empty-state { display:flex; flex-direction:column; align-items:center; justify-content:center; height:100%; color:var(--text-muted); font-size:14px; gap:8px; }
+</style>
+</head>
+<body>
+
+<div class="header">
+  <div class="header-left">
+    <img src="../Keylogo.png" class="logo" alt="KeyResearch">
+    <nav class="nav-links">
+      <a href="../root-index.html">Portal</a>
+      <a href="../keysearch/">KeySearch</a>
+      <a href="../refcheck/">RefCheck</a>
+      <a href="../papers-app/">PapersHub</a>
+      <a href="./" class="active">Scale Bank</a>
+      <a href="../silicon-sampling/">Silicon Sampling</a>
+    </nav>
+  </div>
+</div>
+
+<div class="main">
+  <!-- Sidebar: Scale list -->
+  <div class="sidebar">
+    <div class="sidebar-header">
+      <h3>Scales & Manipulations</h3>
+      <button class="btn btn-primary btn-sm" onclick="openCreateModal()">+ New</button>
+    </div>
+    <div style="padding:8px 12px;">
+      <input class="search-box" id="search-input" placeholder="Search scales..." oninput="filterScales()">
+    </div>
+    <div class="scale-list" id="scale-list"></div>
+  </div>
+
+  <!-- Main: Tree View -->
+  <div class="content">
+    <div class="tree-toolbar">
+      <button class="btn btn-ghost btn-sm" onclick="loadScales()">馃攧 Refresh</button>
+      <button class="btn btn-ghost btn-sm" onclick="toggleView()">
+        <span id="view-toggle-text">馃搳 Tree View</span>
+      </button>
+      <div style="flex:1;"></div>
+      <span style="font-size:12px;color:var(--text-muted);" id="scale-count"></span>
+    </div>
+    <div class="tree-container" id="tree-container">
+      <div class="empty-state" id="empty-state">
+        <div style="font-size:48px;">馃搹</div>
+        <div>No scales yet. Create your first scale!</div>
+        <button class="btn btn-primary btn-sm" onclick="openCreateModal()">Create Scale</button>
+      </div>
+      <svg id="tree-svg" style="display:none;width:100%;height:100%;"></svg>
+    </div>
+  </div>
+
+  <!-- Detail Panel -->
+  <div class="detail-panel" id="detail-panel">
+    <div class="detail-header">
+      <h3 id="detail-title">Scale Details</h3>
+      <button class="btn btn-ghost btn-sm" onclick="closeDetail()">鉁?/button>
+    </div>
+    <div class="detail-body">
+      <div class="detail-section">
+        <h4>Description</h4>
+        <p id="detail-desc" style="font-size:13px;line-height:1.6;color:var(--text-secondary);"></p>
+      </div>
+      <div class="detail-section">
+        <h4>Items <button class="btn btn-ghost btn-sm" onclick="openEditModal()" style="float:right;">Edit</button></h4>
+        <div id="detail-items"></div>
+      </div>
+      <div class="detail-section">
+        <h4>Source Type</h4>
+        <p id="detail-source-type" style="font-size:13px;"></p>
+      </div>
+      <div class="detail-section">
+        <h4>Adapted From</h4>
+        <div id="detail-original"></div>
+      </div>
+      <div class="detail-section">
+        <h4>Linked Papers <button class="btn btn-ghost btn-sm" onclick="openLinkPaperModal()" style="float:right;">+ Link</button></h4>
+        <div id="detail-papers"></div>
+      </div>
+      <div class="detail-section" style="margin-top:24px;">
+        <button class="btn btn-danger btn-sm" onclick="deleteScaleConfirm()" style="width:100%;">Delete Scale</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Create/Edit Scale Modal -->
+<div class="modal-overlay" id="scale-modal" style="display:none;">
+  <div class="modal">
+    <h3 id="modal-title">Create Scale</h3>
+    <div class="form-group">
+      <label>Scale Name *</label>
+      <input id="scale-name" placeholder="e.g., Big Five Personality Traits">
+    </div>
+    <div class="form-group">
+      <label>Description</label>
+      <textarea id="scale-desc" placeholder="Brief description of the scale..."></textarea>
+    </div>
+    <div class="form-group">
+      <label>Source Type</label>
+      <select id="scale-source-type">
+        <option value="original">Original</option>
+        <option value="adapted">Adapted from another scale</option>
+        <option value="modified">Modified from another scale</option>
+      </select>
+    </div>
+    <div class="form-group" id="original-scale-group" style="display:none;">
+      <label>Adapted/Modified From</label>
+      <select id="original-scale-select"></select>
+    </div>
+    <div class="form-group">
+      <label>Items (scale items/constructs)</label>
+      <div class="item-editor" id="items-editor"></div>
+      <button class="btn btn-ghost btn-sm" style="margin-top:8px;" onclick="addItemRow()">+ Add Item</button>
+    </div>
+    <div class="form-actions">
+      <button class="btn btn-ghost" onclick="closeScaleModal()">Cancel</button>
+      <button class="btn btn-primary" onclick="saveScale()">Save Scale</button>
+    </div>
+  </div>
+</div>
+
+<!-- Link Paper Modal -->
+<div class="modal-overlay" id="link-paper-modal" style="display:none;">
+  <div class="modal">
+    <h3>Link Paper to Scale</h3>
+    <div class="form-group">
+      <label>Paper (from PapersHub)</label>
+      <select id="paper-select" style="width:100%;padding:8px 12px;border-radius:8px;border:1px solid var(--border);background:var(--bg-tertiary);color:var(--text-primary);"></select>
+    </div>
+    <div class="form-group">
+      <label>Usage Type</label>
+      <select id="usage-type" style="width:100%;padding:8px 12px;border-radius:8px;border:1px solid var(--border);background:var(--bg-tertiary);color:var(--text-primary);">
+        <option value="used">Used in study</option>
+        <option value="adapted">Scale adapted</option>
+        <option value="validated">Scale validated</option>
+        <option value="cited">Cited/referenced</option>
+      </select>
+    </div>
+    <div class="form-group">
+      <label>Notes</label>
+      <textarea id="link-notes" placeholder="Optional notes..."></textarea>
+    </div>
+    <div class="form-actions">
+      <button class="btn btn-ghost" onclick="closeLinkPaperModal()">Cancel</button>
+      <button class="btn btn-primary" onclick="savePaperLink()">Link Paper</button>
+    </div>
+  </div>
+</div>
+
+<!-- Toast container -->
+<div class="toast-container" id="toast-container"></div>
+
+<script>
+// 鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺?
+// CONFIGURATION (same Supabase project as PapersHub)
+// 鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺?
+const SUPABASE_URL = 'https://hhgundxzxiqeglzbatmd.supabase.co';
+const SUPABASE_KEY = 'sb_publishable_U2qfHiGyIWB9QZtsU6K0QA_a2U4bxDH';
+const sb = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+
+let scales = [];
+let papers = [];
+let selectedScale = null;
+let isTreeView = true;
+let editingScaleId = null;
+
+// 鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺?
+// INIT
+// 鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺?
+async function init() {
+  await Promise.all([loadScales(), loadPapers()]);
+  renderScaleList();
+  if (scales.length > 0) selectScale(scales[0].id);
+}
+
+async function loadScales() {
+  const { data, error } = await sb.from('scales').select(`*, scale_papers(id, paper_id, usage_type, notes, papers(id, title))`).order('created_at', { ascending: false });
+  if (error) { toast('Failed to load scales: ' + error.message, 'error'); return; }
+  scales = data || [];
+  document.getElementById('scale-count').textContent = `${scales.length} scale${scales.length!==1?'s':''}`;
+  if (isTreeView) renderTree();
+}
+
+async function loadPapers() {
+  const { data, error } = await sb.from('papers').select('id, title').order('created_at', { ascending: false }).limit(200);
+  if (error) return;
+  papers = data || [];
+}
+
+// 鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺?
+// SCALE LIST
+// 鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺?
+function renderScaleList(filter = '') {
+  const list = document.getElementById('scale-list');
+  const lower = filter.toLowerCase();
+  const filtered = filter ? scales.filter(s => s.name.toLowerCase().includes(lower)) : scales;
+  list.innerHTML = filtered.map(s => `
+    <div class="scale-item ${selectedScale?.id===s.id?'active':''}" onclick="selectScale('${s.id}')">
+      <div class="scale-item-name">${esc(s.name)}</div>
+      <div class="scale-item-meta">${(s.items||[]).length} items 路 ${s.source_type} 路 ${s.scale_papers?.length||0} papers</div>
+    </div>
+  `).join('');
+}
+
+function filterScales() {
+  renderScaleList(document.getElementById('search-input').value);
+}
+
+function selectScale(id) {
+  selectedScale = scales.find(s => s.id === id);
+  renderScaleList();
+  renderDetail();
+  if (isTreeView) renderTree();
+}
+
+// 鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺?
+// D3 HORIZONTAL TREE (forest layout)
+// 鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺?
+function renderTree() {
+  const svg = document.getElementById('tree-svg');
+  const container = document.getElementById('tree-container');
+  if (scales.length === 0) {
+    svg.style.display = 'none';
+    document.getElementById('empty-state').style.display = 'flex';
+    return;
+  }
+  svg.style.display = 'block';
+  document.getElementById('empty-state').style.display = 'none';
+
+  // Build tree data: scales with 'original' as roots, adapted/modified as children
+  const origins = scales.filter(s => s.source_type === 'original' || !s.original_scale_id);
+  const adapted = scales.filter(s => s.original_scale_id);
+
+  // Build hierarchy: each original scale + its adapted versions
+  const roots = [];
+  const scaleMap = {};
+  scales.forEach(s => { scaleMap[s.id] = { ...s, children: [] }; });
+
+  // First pass: link adapted to original
+  Object.values(scaleMap).forEach(s => {
+    if (s.original_scale_id && scaleMap[s.original_scale_id]) {
+      scaleMap[s.original_scale_id].children.push(s);
+    } else {
+      roots.push(s);
+    }
+  });
+
+  const width = container.clientWidth || 1200;
+  const height = container.clientHeight || 600;
+
+  // Use d3.tree with horizontal orientation
+  const treeLayout = d3.tree()
+    .nodeSize([80, 220])
+    .separation((a, b) => a.parent === b.parent ? 1 : 1.3);
+
+  // Create root node for each tree
+  const svgSel = d3.select('#tree-svg');
+  svgSel.attr('width', width).attr('height', height);
+  svgSel.selectAll('*').remove();
+
+  const g = svgSel.append('g').attr('transform', 'translate(40, 30)');
+
+  // Render each root tree
+  let totalHeight = 0;
+  roots.forEach((root, idx) => {
+    const rootNode = d3.hierarchy(root);
+    treeLayout(rootNode);
+
+    const treeG = g.append('g').attr('transform', `translate(0, ${totalHeight})`);
+
+    // Links
+    treeG.selectAll('.link')
+      .data(rootNode.links())
+      .join('line')
+      .attr('class', 'tree-link')
+      .attr('x1', d => d.source.x)
+      .attr('y1', d => d.source.y)
+      .attr('x2', d => d.target.x)
+      .attr('y2', d => d.target.y);
+
+    // Nodes
+    const nodes = treeG.selectAll('.node')
+      .data(rootNode.descendants())
+      .join('g')
+      .attr('class', 'tree-node')
+      .attr('transform', d => `translate(${d.y},${d.x})`);
+
+    nodes.append('rect')
+      .attr('width', 180).attr('height', 60).attr('x', -90).attr('y', -30)
+      .attr('fill', d => d.data.source_type === 'original' ? '#1a365d' : d.data.source_type === 'adapted' ? '#553c9a' : '#744210')
+      .attr('stroke', d => d.data.id === selectedScale?.id ? '#7c6aef' : 'var(--border)')
+      .attr('stroke-width', d => d.data.id === selectedScale?.id ? 3 : 1)
+      .style('cursor', 'pointer')
+      .on('click', (ev, d) => selectScale(d.data.id));
+
+    nodes.append('text')
+      .attr('text-anchor', 'middle').attr('dy', -6)
+      .attr('fill', 'var(--text-primary)').attr('font-size', '12px')
+      .attr('font-weight', '600')
+      .text(d => d.data.name.length > 20 ? d.data.name.substring(0, 20) + '...' : d.data.name);
+
+    nodes.append('text')
+      .attr('text-anchor', 'middle').attr('dy', 12)
+      .attr('fill', 'var(--text-muted)').attr('font-size', '10px')
+      .text(d => `${(d.data.items||[]).length} items 路 ${d.data.scale_papers?.length||0} papers`);
+
+    totalHeight += (rootNode.height + 1) * 80 + 40;
+  });
+
+  // Adjust SVG height
+  svgSel.attr('height', Math.max(height, totalHeight + 60));
+
+  // Zoom behavior
+  const zoom = d3.zoom().on('zoom', (ev) => g.attr('transform', ev.transform));
+  svgSel.call(zoom);
+}
+
+// 鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺?
+// DETAIL PANEL
+// 鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺?
+function renderDetail() {
+  const panel = document.getElementById('detail-panel');
+  if (!selectedScale) { panel.classList.remove('show'); return; }
+  panel.classList.add('show');
+
+  document.getElementById('detail-title').textContent = selectedScale.name;
+  document.getElementById('detail-desc').textContent = selectedScale.description || 'No description.';
+  document.getElementById('detail-source-type').textContent = selectedScale.source_type;
+
+  // Items
+  const itemsDiv = document.getElementById('detail-items');
+  const items = selectedScale.items || [];
+  if (items.length === 0) {
+    itemsDiv.innerHTML = '<span style="color:var(--text-muted);font-size:12px;">No items defined.</span>';
+  } else {
+    itemsDiv.innerHTML = items.map((item, i) => `
+      <div class="item-row">
+        <span style="color:var(--text-muted);min-width:20px;">${i+1}.</span>
+        <span style="flex:1;">${esc(typeof item==='string'?item:item.label||item.text||'')}</span>
+        ${item.reverse_scored?'<span class="tag" style="font-size:10px;">Reverse</span>':''}
+      </div>
+    `).join('');
+  }
+
+  // Original scale
+  const origDiv = document.getElementById('detail-original');
+  if (selectedScale.original_scale_id) {
+    const orig = scales.find(s => s.id === selectedScale.original_scale_id);
+    origDiv.innerHTML = orig ? `<a href="#" onclick="selectScale('${orig.id}');return false;">${esc(orig.name)}</a>` : '<span style="color:var(--text-muted);">Unknown</span>';
+  } else {
+    origDiv.innerHTML = '<span style="color:var(--text-muted);font-size:12px;">None (original)</span>';
+  }
+
+  // Linked papers
+  const papersDiv = document.getElementById('detail-papers');
+  const linkedPapers = selectedScale.scale_papers || [];
+  if (linkedPapers.length === 0) {
+    papersDiv.innerHTML = '<span style="color:var(--text-muted);font-size:12px;">No linked papers.</span>';
+  } else {
+    papersDiv.innerHTML = linkedPapers.map(lp => `
+      <div class="paper-link">
+        <a href="../papers-app/#${lp.paper_id}" target="_blank">${esc(lp.papers?.title||'Unknown Paper')}</a>
+        <span class="usage-badge">${lp.usage_type}</span>
+        <span class="btn btn-ghost btn-sm" style="padding:2px 6px;" onclick="unlinkPaper('${lp.id}')">鉁?/span>
+      </div>
+    `).join('');
+  }
+}
+
+function closeDetail() {
+  document.getElementById('detail-panel').classList.remove('show');
+  selectedScale = null;
+  renderScaleList();
+}
+
+// 鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺?
+// CREATE / EDIT SCALE MODAL
+// 鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺?
+function openCreateModal() {
+  editingScaleId = null;
+  document.getElementById('modal-title').textContent = 'Create Scale';
+  document.getElementById('scale-name').value = '';
+  document.getElementById('scale-desc').value = '';
+  document.getElementById('scale-source-type').value = 'original';
+  document.getElementById('original-scale-group').style.display = 'none';
+  document.getElementById('original-scale-select').innerHTML = scales
+    .filter(s => s.source_type === 'original')
+    .map(s => `<option value="${s.id}">${esc(s.name)}</option>`).join('');
+  document.getElementById('items-editor').innerHTML = '';
+  addItemRow(); // start with one item
+  document.getElementById('scale-modal').style.display = 'flex';
+}
+
+function openEditModal() {
+  if (!selectedScale) return;
+  editingScaleId = selectedScale.id;
+  document.getElementById('modal-title').textContent = 'Edit Scale';
+  document.getElementById('scale-name').value = selectedScale.name;
+  document.getElementById('scale-desc').value = selectedScale.description || '';
+  document.getElementById('scale-source-type').value = selectedScale.source_type;
+  const showOrig = selectedScale.source_type !== 'original';
+  document.getElementById('original-scale-group').style.display = showOrig ? 'block' : 'none';
+  document.getElementById('original-scale-select').innerHTML = scales
+    .filter(s => s.source_type === 'original' && s.id !== selectedScale.id)
+    .map(s => `<option value="${s.id}" ${s.id===selectedScale.original_scale_id?'selected':''}>${esc(s.name)}</option>`).join('');
+  // Populate items
+  const editor = document.getElementById('items-editor');
+  editor.innerHTML = '';
+  const items = selectedScale.items || [];
+  if (items.length === 0) addItemRow();
+  else items.forEach(item => addItemRow(typeof item==='string'?{label:item}:item));
+  document.getElementById('scale-modal').style.display = 'flex';
+}
+
+document.getElementById('scale-source-type').addEventListener('change', function() {
+  document.getElementById('original-scale-group').style.display = this.value !== 'original' ? 'block' : 'none';
+});
+
+function addItemRow(item = null) {
+  const editor = document.getElementById('items-editor');
+  const row = document.createElement('div');
+  row.className = 'item-input-row';
+  row.innerHTML = `
+    <input placeholder="Item label" value="${esc(item?.label||item?.text||'')}">
+    <label><input type="checkbox" ${item?.reverse_scored?'checked':''}> Reverse</label>
+    <span class="btn btn-ghost btn-sm" style="padding:2px 6px;color:var(--danger);" onclick="this.parentElement.remove()">鉁?/span>
+  `;
+  editor.appendChild(row);
+}
+
+async function saveScale() {
+  const name = document.getElementById('scale-name').value.trim();
+  if (!name) { toast('Please enter a scale name', 'error'); return; }
+  const desc = document.getElementById('scale-desc').value.trim();
+  const sourceType = document.getElementById('scale-source-type').value;
+  const originalId = sourceType !== 'original' ? document.getElementById('original-scale-select').value || null : null;
+
+  // Collect items
+  const items = [];
+  document.querySelectorAll('#items-editor .item-input-row').forEach(row => {
+    const input = row.querySelector('input[type=text]');
+    const chk = row.querySelector('input[type=checkbox]');
+    if (input.value.trim()) items.push({ label: input.value.trim(), reverse_scored: chk?.checked || false });
+  });
+
+  const payload = {
+    name, description: desc, items, source_type: sourceType,
+    original_scale_id: originalId, created_by: 'KeyResearch User'
+  };
+
+  if (editingScaleId) {
+    const { error } = await sb.from('scales').update(payload).eq('id', editingScaleId);
+    if (error) { toast('Update failed: ' + error.message, 'error'); return; }
+    toast('Scale updated!', 'success');
+  } else {
+    const { error } = await sb.from('scales').insert(payload);
+    if (error) { toast('Create failed: ' + error.message, 'error'); return; }
+    toast('Scale created!', 'success');
+  }
+  closeScaleModal();
+  await loadScales();
+  renderScaleList();
+  if (!editingScaleId && scales.length > 0) selectScale(scales[0].id);
+  else if (editingScaleId) selectScale(editingScaleId);
+}
+
+function closeScaleModal() {
+  document.getElementById('scale-modal').style.display = 'none';
+  editingScaleId = null;
+}
+
+// 鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺?
+// LINK PAPER
+// 鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺?
+function openLinkPaperModal() {
+  if (!selectedScale) return;
+  // Populate paper select
+  const select = document.getElementById('paper-select');
+  select.innerHTML = papers.map(p => `<option value="${p.id}">${esc(p.title)}</option>`).join('');
+  document.getElementById('usage-type').value = 'used';
+  document.getElementById('link-notes').value = '';
+  document.getElementById('link-paper-modal').style.display = 'flex';
+}
+
+async function savePaperLink() {
+  const paperId = document.getElementById('paper-select').value;
+  const usageType = document.getElementById('usage-type').value;
+  const notes = document.getElementById('link-notes').value.trim();
+  if (!paperId) return;
+
+  const { error } = await sb.from('scale_papers').insert({
+    scale_id: selectedScale.id, paper_id: paperId, usage_type: usageType, notes
+  });
+  if (error) { toast('Link failed: ' + error.message, 'error'); return; }
+  toast('Paper linked!', 'success');
+  closeLinkPaperModal();
+  await loadScales();
+  selectScale(selectedScale.id);
+}
+
+async function unlinkPaper(linkId) {
+  if (!confirm('Unlink this paper from the scale?')) return;
+  const { error } = await sb.from('scale_papers').delete().eq('id', linkId);
+  if (error) { toast('Unlink failed: ' + error.message, 'error'); return; }
+  toast('Paper unlinked', 'info');
+  await loadScales();
+  selectScale(selectedScale.id);
+}
+
+function closeLinkPaperModal() {
+  document.getElementById('link-paper-modal').style.display = 'none';
+}
+
+// 鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺?
+// DELETE
+// 鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺?
+async function deleteScaleConfirm() {
+  if (!selectedScale) return;
+  if (!confirm(`Delete scale "${selectedScale.name}"? This cannot be undone.`)) return;
+  const { error } = await sb.from('scales').delete().eq('id', selectedScale.id);
+  if (error) {
+    if (error.message?.includes('row-level security') || error.code === '42501') {
+      toast('Delete failed: missing RLS DELETE policy. Run fix SQL in Supabase.', 'error');
+    } else {
+      toast('Delete failed: ' + error.message, 'error');
+    }
+    return;
+  }
+  toast('Scale deleted', 'success');
+  closeDetail();
+  await loadScales();
+  renderScaleList();
+}
+
+// 鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺?
+// VIEW TOGGLE
+// 鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺?
+function toggleView() {
+  isTreeView = !isTreeView;
+  document.getElementById('view-toggle-text').textContent = isTreeView ? '馃搳 Tree View' : '馃搵 List View';
+  const svg = document.getElementById('tree-svg');
+  if (isTreeView) {
+    renderTree();
+  } else {
+    svg.style.display = 'none';
+    // Could implement list view here
+  }
+}
+
+// 鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺?
+// UTILITIES
+// 鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺?
+function esc(s) {
+  if (!s) return '';
+  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+function toast(msg, type = 'info') {
+  const container = document.getElementById('toast-container');
+  const t = document.createElement('div');
+  t.className = `toast toast-${type}`;
+  t.textContent = msg;
+  container.appendChild(t);
+  setTimeout(() => { t.style.opacity = '0'; setTimeout(() => t.remove(), 300); }, 3000);
+}
+
+// 鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺?
+// BOOT
+// 鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺?
+init();
+</script>
+</body>
+</html>
