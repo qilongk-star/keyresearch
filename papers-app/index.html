@@ -3053,12 +3053,18 @@ function sbAddConstruct(prefillText) {
       </div>
       <div style="width:130px;">
         <label style="display:block;font-size:10px;color:var(--text-secondary);margin-bottom:3px;">Source Type</label>
-        <select class="sb-c-source" style="width:100%;padding:6px 8px;border-radius:7px;border:1px solid var(--border);background:var(--bg-secondary);color:var(--text-primary);font-size:12px;">
+        <select class="sb-c-source" onchange="sbToggleCitation(this)" style="width:100%;padding:6px 8px;border-radius:7px;border:1px solid var(--border);background:var(--bg-secondary);color:var(--text-primary);font-size:12px;">
           <option value="original">Original</option>
           <option value="adapted">Adapted</option>
           <option value="modified">Modified</option>
         </select>
       </div>
+    </div>
+
+    <!-- Source citation (shown when adapted/modified) -->
+    <div class="sb-c-citation-wrap" style="margin-bottom:8px;display:none;">
+      <label style="display:block;font-size:10px;color:var(--text-secondary);margin-bottom:3px;">Source Citation * <span style="font-weight:400;color:var(--text-muted);">(original scale reference)</span></label>
+      <input class="sb-c-citation" placeholder="e.g., Davis, 1989" style="width:100%;padding:6px 10px;border-radius:7px;border:1px solid var(--border);background:var(--bg-secondary);color:var(--text-primary);font-size:12px;outline:none;box-sizing:border-box;">
     </div>
 
     <div style="margin-bottom:8px;">
@@ -3086,6 +3092,16 @@ function sbAddConstruct(prefillText) {
 
 function sbRenumberCards() {
   document.querySelectorAll('.sb-construct-card').forEach((c, i) => c.dataset.idx = i);
+}
+
+function sbToggleCitation(selectEl) {
+  const card = selectEl.closest('.sb-construct-card');
+  if (!card) return;
+  const wrap = card.querySelector('.sb-c-citation-wrap');
+  if (!wrap) return;
+  const show = (selectEl.value === 'adapted' || selectEl.value === 'modified');
+  wrap.style.display = show ? 'block' : 'none';
+  if (!show) { const inp = wrap.querySelector('.sb-c-citation'); if (inp) inp.value = ''; }
 }
 
 // Add an item row inside a specific construct card
@@ -3252,7 +3268,7 @@ async function sbSaveAllConstructs() {
   const cards = document.querySelectorAll('#sb-constructs-list .sb-construct-card');
   if (!cards.length) { toast('No constructs to save', 'info'); return; }
 
-  // Validate: every card must have a name
+  // Validate: every card must have a name; adapted/modified must have citation
   let valid = true;
   cards.forEach(card => {
     const nameEl = card.querySelector('.sb-c-name');
@@ -3260,8 +3276,18 @@ async function sbSaveAllConstructs() {
       nameEl && (nameEl.style.border = '1px solid var(--danger)');
       valid = false;
     }
+    const sourceType = card.querySelector('.sb-c-source')?.value || 'original';
+    if (sourceType === 'adapted' || sourceType === 'modified') {
+      const citEl = card.querySelector('.sb-c-citation');
+      if (!citEl || !citEl.value.trim()) {
+        citEl && (citEl.style.border = '1px solid var(--danger)');
+        const wrap = card.querySelector('.sb-c-citation-wrap');
+        wrap && (wrap.style.border = '1px solid var(--danger)');
+        valid = false;
+      }
+    }
   });
-  if (!valid) { toast('Each construct needs a name', 'error'); return; }
+  if (!valid) { toast('Fill name + citation (for adapted/modified)', 'error'); return; }
 
   const saveBtn = document.querySelector('.scale-bank-modal button[onclick="sbSaveAllConstructs()"]');
   const statusEl = document.getElementById('sb-save-status');
@@ -3287,18 +3313,26 @@ async function sbSaveAllConstructs() {
     const payload = {
       name,
       description: desc,
-      items,           // JSONB column — send as JS array, supabase-js will serialize
+      items,
       source_type: sourceType,
       created_by: currentUser?.name || 'PapersHub User'
     };
+    if (citation) payload.source_citation = citation;
 
     try {
       const { data, error } = await sb.from('scales').insert(payload).select();
-      if (error) { console.error('Save failed for', name, error); failed++; continue; }
+      if (error) {
+        const errMsg = JSON.stringify(error, null, 2);
+        console.error('Save failed for', name, errMsg);
+        if (errMsg.includes('source_citation') && errMsg.includes('column')) {
+          console.error('⚠️ Missing column "source_citation". Run SQL in /scale-bank/add-source-citation.sql first!');
+        }
+        failed++; continue;
+      }
       saved++;
 
       // Auto-link to current paper
-      if (scaleBankAnnoRef && currentPaper) {
+      if (scaleBankAnnoRef && currentPaper && data?.[0]?.id) {
         await sb.from('scale_papers').insert({
           scale_id: data[0].id,
           paper_id: currentPaper.id,
@@ -3307,7 +3341,7 @@ async function sbSaveAllConstructs() {
         }).catch(e => console.warn('Auto-link failed:', e));
       }
     } catch (e) {
-      console.error('Network error saving', name, e);
+      console.error('Network error saving', name, String(e));
       failed++;
     }
   }
