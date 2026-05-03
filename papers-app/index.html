@@ -2980,7 +2980,7 @@ function openScaleBankModal(highlightText, anno) {
       <div id="sb-ai-settings" style="display:none;margin-bottom:14px;padding:10px;border-radius:8px;border:1px solid #6d28d9;background:rgba(109,40,217,0.08);">
         <label style="display:block;font-size:11px;color:#a78bfa;margin-bottom:6px;">AI Settings (optional)</label>
         <div style="display:flex;gap:8px;align-items:center;">
-          <select id="sb-ai-provider" style="flex:1;padding:6px 8px;border-radius:6px;border:1px solid var(--border);background:var(--bg-tertiary);color:var(--text-primary);font-size:12px;">
+          <select id="sb-ai-provider" onchange="var k=localStorage.getItem('sb_ai_key_'+this.value)||'';document.getElementById('sb-ai-key').value=k;" style="flex:1;padding:6px 8px;border-radius:6px;border:1px solid var(--border);background:var(--bg-tertiary);color:var(--text-primary);font-size:12px;">
             <option value="deepseek">DeepSeek</option>
             <option value="openai">OpenAI</option>
           </select>
@@ -2996,11 +2996,22 @@ function openScaleBankModal(highlightText, anno) {
     </div>
   `;
 
+  // Store original highlight text so AI Extract can use it directly
+  overlay.dataset.highlightText = highlightText || '';
+
   document.body.appendChild(overlay);
 
   // Pre-fill items from highlight text
   sbAddItemRow(highlightText);
   overlay.querySelector('#sb-ai-settings').style.display = 'none';
+
+  // Restore saved API key & provider from localStorage
+  const savedProvider = localStorage.getItem('sb_ai_provider') || 'deepseek';
+  const savedKey = localStorage.getItem('sb_ai_key_' + savedProvider) || '';
+  const providerEl = overlay.querySelector('#sb-ai-provider');
+  const keyEl = overlay.querySelector('#sb-ai-key');
+  if (providerEl) providerEl.value = savedProvider;
+  if (keyEl && savedKey) keyEl.value = savedKey;
 
   // Close on overlay click
   overlay.addEventListener('click', e => { if (e.target === overlay) overlay.remove(); });
@@ -3046,24 +3057,33 @@ async function sbUseAiExtract() {
   const provider = document.getElementById('sb-ai-provider').value;
   const apiKey = document.getElementById('sb-ai-key').value;
 
-  // If no API key, show settings
+  // If no API key yet, show settings panel and wait for user to fill in key
   if (!apiKey) {
-    settingsDiv.style.display = settingsDiv.style.display === 'none' ? 'block' : 'none';
-    if (!apiKey && settingsDiv.style.display === 'block') return;
+    settingsDiv.style.display = 'block';
+    const keyInput = document.getElementById('sb-ai-key');
+    if (keyInput) { keyInput.focus(); }
+    toast('Please enter your API key first', 'info');
+    return;
   }
 
-  // Collect text from current items
-  const editor = document.getElementById('sb-items-editor');
-  const rawText = Array.from(editor.querySelectorAll('input[type=text]')).map(i => i.value).filter(v => v.trim()).join('\n');
+  // Priority 1: use the original highlight text stored on the overlay
+  const overlay = document.querySelector('.scale-bank-modal');
+  const highlightText = overlay ? overlay.dataset.highlightText || '' : '';
 
-  if (!rawText.trim()) {
-    toast('No text to extract from', 'info');
+  // Priority 2: fall back to whatever is typed in the items editor
+  const editor = document.getElementById('sb-items-editor');
+  const editorText = Array.from(editor.querySelectorAll('input[type=text]')).map(i => i.value).filter(v => v.trim()).join('\n');
+
+  const rawText = highlightText.trim() || editorText.trim();
+
+  if (!rawText) {
+    toast('No highlighted text to extract from', 'info');
     return;
   }
 
   const btn = event.target.closest('button');
   const origText = btn.textContent;
-  btn.textContent = 'Extracting...';
+  btn.textContent = '&#x23F3; Extracting...';
   btn.disabled = true;
 
   try {
@@ -3076,7 +3096,27 @@ async function sbUseAiExtract() {
       headers = { 'Authorization': `Bearer ${apiKey}`, 'Content-Type': 'application/json' };
     }
 
-    const prompt = `Extract scale/measurement items from the following text. Return ONLY a JSON array of objects with "label" (the item text) and "reverse_scored" (boolean, true if the item is reverse-scored based on keywords like "reverse", "negatively", "opposite"). If no clear scale items are found, return an empty array.\n\nText:\n${rawText}`;
+    const prompt = `You are a research methodology assistant. The following text is a highlighted excerpt from an academic paper. \
+Extract the scale/construct name and its measurement items.
+
+Return ONLY valid JSON in this exact structure:
+{
+  "scale_name": "<name of the construct or scale, e.g. Perceived Usefulness>",
+  "items": [
+    { "label": "<item text>", "reverse_scored": false },
+    ...
+  ]
+}
+
+Rules:
+- "scale_name": infer from context (e.g. the heading or phrase before the items). If unclear, use an empty string.
+- "items": each individual survey/questionnaire item. Split by numbering (1. 2. 3.) or line breaks. Remove item numbers.
+- "reverse_scored": true only if the item is explicitly marked as reverse-scored (e.g. "R", "(R)", "reverse", "negatively worded").
+- If no clear items are found, return {"scale_name":"","items":[]}.
+- Do NOT include any text outside the JSON.
+
+Text:
+${rawText}`;
 
     const resp = await fetch(apiUrl, {
       method: 'POST',
@@ -3091,27 +3131,35 @@ async function sbUseAiExtract() {
 
     if (!resp.ok) {
       const errText = await resp.text();
-      throw new Error(`API ${resp.status}: ${errText.substring(0, 100)}`);
+      throw new Error(`API ${resp.status}: ${errText.substring(0, 200)}`);
     }
 
     const result = await resp.json();
     const content = result.choices[0].message.content;
-    let items;
+    let parsed;
     try {
-      const parsed = JSON.parse(content);
-      items = parsed.items || parsed.scale_items || (Array.isArray(parsed) ? parsed : []);
+      parsed = JSON.parse(content);
     } catch {
-      throw new Error('AI returned invalid JSON');
+      throw new Error('AI returned invalid JSON. Raw: ' + content.substring(0, 100));
     }
 
+    const items = parsed.items || parsed.scale_items || (Array.isArray(parsed) ? parsed : []);
+    const scaleName = parsed.scale_name || '';
+
     if (items.length === 0) {
-      toast('AI could not identify scale items', 'info');
-      btn.textContent = origText;
+      toast('AI could not identify scale items in this text', 'info');
+      btn.innerHTML = origText;
       btn.disabled = false;
       return;
     }
 
-    // Replace editor with AI results
+    // Auto-fill scale name if the field is still empty
+    const nameInput = document.getElementById('sb-scale-name');
+    if (nameInput && !nameInput.value.trim() && scaleName) {
+      nameInput.value = scaleName;
+    }
+
+    // Replace editor with AI-extracted items
     editor.innerHTML = '';
     items.forEach(item => {
       sbAddItemRow(item.label || item.text || '');
@@ -3122,16 +3170,18 @@ async function sbUseAiExtract() {
       }
     });
 
-    toast(`AI extracted ${items.length} items`, 'success');
+    toast(`&#x2728; AI extracted ${items.length} item${items.length > 1 ? 's' : ''}`, 'success');
 
-    // Save API key locally for next time
+    // Persist API key and provider for next time
     localStorage.setItem('sb_ai_key_' + provider, apiKey);
+    localStorage.setItem('sb_ai_provider', provider);
+
   } catch (e) {
     console.error('AI extract error:', e);
     toast('AI extraction failed: ' + e.message, 'error');
   }
 
-  btn.textContent = origText;
+  btn.innerHTML = origText;
   btn.disabled = false;
 }
 
