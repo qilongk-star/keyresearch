@@ -2933,187 +2933,246 @@ function copyText(text, btn) {
 
 // ─── Scale Bank Modal ───
 let scaleBankAnnoRef = null; // reference to annotation being linked
+let sbConstructs = [];       // [{name, description, sourceType, items:[{label,reverse_scored}]}]
 
 function openScaleBankModal(highlightText, anno) {
   scaleBankAnnoRef = anno || null;
+  sbConstructs = [];
   document.querySelectorAll('.scale-bank-modal').forEach(m => m.remove());
+
+  const ht = (highlightText || '').trim();
 
   const overlay = document.createElement('div');
   overlay.className = 'scale-bank-modal';
-  overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.6);z-index:99999;display:flex;align-items:center;justify-content:center;';
+  overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.65);z-index:99999;display:flex;align-items:center;justify-content:center;padding:16px;';
+  overlay.dataset.highlightText = ht;
+
   overlay.innerHTML = `
-    <div style="background:var(--bg-secondary);border:1px solid var(--border);border-radius:14px;padding:24px;min-width:480px;max-width:620px;max-height:85vh;overflow-y:auto;box-shadow:0 20px 60px rgba(0,0,0,0.5);">
-      <div style="font-size:16px;font-weight:700;margin-bottom:4px;">Add to Scale Bank</div>
-      <div style="font-size:12px;color:var(--text-muted);margin-bottom:16px;">Create a new scale or add items to an existing one.</div>
+    <div style="background:var(--bg-secondary);border:1px solid var(--border);border-radius:14px;width:min(960px,96vw);max-height:92vh;display:flex;flex-direction:column;box-shadow:0 24px 72px rgba(0,0,0,0.55);">
 
-      <div style="margin-bottom:14px;">
-        <label style="display:block;font-size:12px;color:var(--text-secondary);margin-bottom:4px;">Scale Name *</label>
-        <input id="sb-scale-name" placeholder="e.g., Perceived Usefulness Scale" style="width:100%;padding:8px 12px;border-radius:8px;border:1px solid var(--border);background:var(--bg-tertiary);color:var(--text-primary);font-size:13px;outline:none;">
-      </div>
-
-      <div style="margin-bottom:14px;">
-        <label style="display:block;font-size:12px;color:var(--text-secondary);margin-bottom:4px;">Description</label>
-        <textarea id="sb-scale-desc" placeholder="Brief description of the scale..." style="width:100%;padding:8px 12px;border-radius:8px;border:1px solid var(--border);background:var(--bg-tertiary);color:var(--text-primary);font-size:13px;outline:none;resize:vertical;min-height:60px;"></textarea>
-      </div>
-
-      <div style="margin-bottom:14px;">
-        <label style="display:block;font-size:12px;color:var(--text-secondary);margin-bottom:4px;">Source Type</label>
-        <select id="sb-source-type" style="width:100%;padding:8px 12px;border-radius:8px;border:1px solid var(--border);background:var(--bg-tertiary);color:var(--text-primary);font-size:13px;">
-          <option value="original">Original</option>
-          <option value="adapted">Adapted from another scale</option>
-          <option value="modified">Modified from another scale</option>
-        </select>
-      </div>
-
-      <div style="margin-bottom:14px;">
-        <label style="display:flex;align-items:center;justify-content:space-between;font-size:12px;color:var(--text-secondary);margin-bottom:4px;">
-          <span>Scale Items</span>
-          <div style="display:flex;gap:6px;">
-            <button onclick="sbUseAiExtract()" style="padding:3px 10px;border-radius:6px;border:1px solid #6d28d9;background:transparent;color:#a78bfa;font-size:11px;cursor:pointer;">&#x1F916; AI Extract</button>
-            <button onclick="sbParseByLine()" style="padding:3px 10px;border-radius:6px;border:1px solid var(--border);background:transparent;color:var(--text-secondary);font-size:11px;cursor:pointer;">Split by line</button>
+      <!-- Header -->
+      <div style="padding:20px 24px 12px;border-bottom:1px solid var(--border);flex-shrink:0;">
+        <div style="display:flex;align-items:center;justify-content:space-between;">
+          <div>
+            <div style="font-size:16px;font-weight:700;">Add to Scale Bank</div>
+            <div style="font-size:11px;color:var(--text-muted);margin-top:2px;">Extract constructs &amp; items from your highlighted text, then save.</div>
           </div>
-        </label>
-        <div id="sb-items-editor" style="display:flex;flex-direction:column;gap:4px;"></div>
-        <button onclick="sbAddItemRow()" style="margin-top:6px;padding:4px 10px;border-radius:6px;border:1px solid var(--border);background:transparent;color:var(--text-secondary);font-size:11px;cursor:pointer;">+ Add Item</button>
-      </div>
-
-      <div id="sb-ai-settings" style="display:none;margin-bottom:14px;padding:10px;border-radius:8px;border:1px solid #6d28d9;background:rgba(109,40,217,0.08);">
-        <label style="display:block;font-size:11px;color:#a78bfa;margin-bottom:6px;">AI Settings (optional)</label>
-        <div style="display:flex;gap:8px;align-items:center;">
-          <select id="sb-ai-provider" onchange="var k=localStorage.getItem('sb_ai_key_'+this.value)||'';document.getElementById('sb-ai-key').value=k;" style="flex:1;padding:6px 8px;border-radius:6px;border:1px solid var(--border);background:var(--bg-tertiary);color:var(--text-primary);font-size:12px;">
-            <option value="deepseek">DeepSeek</option>
-            <option value="openai">OpenAI</option>
-          </select>
-          <input id="sb-ai-key" type="password" placeholder="API Key (stored locally only)" style="flex:2;padding:6px 8px;border-radius:6px;border:1px solid var(--border);background:var(--bg-tertiary);color:var(--text-primary);font-size:12px;">
+          <button onclick="this.closest('.scale-bank-modal').remove()" style="width:28px;height:28px;border-radius:50%;border:1px solid var(--border);background:transparent;color:var(--text-secondary);cursor:pointer;font-size:16px;line-height:1;flex-shrink:0;">&times;</button>
         </div>
-        <div style="font-size:10px;color:var(--text-muted);margin-top:4px;">Key is saved in your browser only, never sent to our servers.</div>
       </div>
 
-      <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:16px;">
-        <button onclick="this.closest('.scale-bank-modal').remove()" style="padding:8px 16px;border-radius:8px;border:1px solid var(--border);background:transparent;color:var(--text-secondary);cursor:pointer;font-size:13px;">Cancel</button>
-        <button onclick="sbSaveScale()" style="padding:8px 16px;border-radius:8px;border:none;background:#6d28d9;color:white;cursor:pointer;font-size:13px;font-weight:600;">Save to Scale Bank</button>
+      <!-- Body: two-column -->
+      <div style="display:flex;flex:1;overflow:hidden;min-height:0;">
+
+        <!-- Left: highlight source text -->
+        <div style="width:38%;border-right:1px solid var(--border);display:flex;flex-direction:column;flex-shrink:0;">
+          <div style="padding:12px 16px 6px;font-size:11px;font-weight:600;color:var(--text-secondary);text-transform:uppercase;letter-spacing:.04em;flex-shrink:0;display:flex;align-items:center;justify-content:space-between;">
+            <span>Highlighted Text</span>
+            <button onclick="sbCopyHighlight()" style="padding:2px 8px;border-radius:5px;border:1px solid var(--border);background:transparent;color:var(--text-secondary);font-size:10px;cursor:pointer;">Copy</button>
+          </div>
+          <textarea id="sb-highlight-src" style="flex:1;margin:0 12px 12px;padding:10px;border-radius:8px;border:1px solid var(--border);background:var(--bg-tertiary);color:var(--text-primary);font-size:12px;line-height:1.6;resize:none;outline:none;overflow-y:auto;">${esc(ht)}</textarea>
+        </div>
+
+        <!-- Right: constructs list -->
+        <div style="flex:1;display:flex;flex-direction:column;overflow:hidden;min-width:0;">
+
+          <!-- AI + action bar -->
+          <div style="padding:10px 16px 8px;border-bottom:1px solid var(--border);flex-shrink:0;display:flex;flex-wrap:wrap;gap:8px;align-items:center;">
+            <button onclick="sbUseAiExtract(event)" style="padding:5px 14px;border-radius:7px;border:1px solid #6d28d9;background:rgba(109,40,217,0.12);color:#a78bfa;font-size:12px;font-weight:600;cursor:pointer;">&#x1F916; AI Extract All</button>
+            <button onclick="sbParseByLine()" style="padding:5px 12px;border-radius:7px;border:1px solid var(--border);background:transparent;color:var(--text-secondary);font-size:12px;cursor:pointer;">Split by Line</button>
+            <button onclick="sbAddConstruct()" style="padding:5px 12px;border-radius:7px;border:1px solid var(--border);background:transparent;color:var(--text-secondary);font-size:12px;cursor:pointer;">+ Add Construct</button>
+            <div style="flex:1;"></div>
+            <!-- AI settings inline -->
+            <div style="display:flex;gap:6px;align-items:center;">
+              <select id="sb-ai-provider" onchange="var k=localStorage.getItem('sb_ai_key_'+this.value)||'';document.getElementById('sb-ai-key').value=k;" style="padding:4px 6px;border-radius:6px;border:1px solid var(--border);background:var(--bg-tertiary);color:var(--text-primary);font-size:11px;">
+                <option value="deepseek">DeepSeek</option>
+                <option value="openai">OpenAI</option>
+              </select>
+              <input id="sb-ai-key" type="password" placeholder="API Key" style="width:140px;padding:4px 8px;border-radius:6px;border:1px solid var(--border);background:var(--bg-tertiary);color:var(--text-primary);font-size:11px;">
+            </div>
+          </div>
+          <div style="font-size:9px;color:var(--text-muted);padding:2px 16px 6px;flex-shrink:0;">Key saved in browser only, never sent to our servers.</div>
+
+          <!-- Constructs scroll area -->
+          <div id="sb-constructs-list" style="flex:1;overflow-y:auto;padding:8px 12px 12px;display:flex;flex-direction:column;gap:12px;"></div>
+        </div>
+      </div>
+
+      <!-- Footer -->
+      <div style="padding:12px 24px;border-top:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;flex-shrink:0;">
+        <div id="sb-save-status" style="font-size:12px;color:var(--text-muted);"></div>
+        <div style="display:flex;gap:8px;">
+          <button onclick="this.closest('.scale-bank-modal').remove()" style="padding:8px 18px;border-radius:8px;border:1px solid var(--border);background:transparent;color:var(--text-secondary);cursor:pointer;font-size:13px;">Cancel</button>
+          <button onclick="sbSaveAllConstructs()" style="padding:8px 20px;border-radius:8px;border:none;background:#6d28d9;color:white;cursor:pointer;font-size:13px;font-weight:600;">Save All to Scale Bank</button>
+        </div>
       </div>
     </div>
   `;
 
-  // Store original highlight text so AI Extract can use it directly
-  overlay.dataset.highlightText = highlightText || '';
-
   document.body.appendChild(overlay);
 
-  // Pre-fill items from highlight text
-  sbAddItemRow(highlightText);
-  overlay.querySelector('#sb-ai-settings').style.display = 'none';
-
-  // Restore saved API key & provider from localStorage
+  // Restore saved API key & provider
   const savedProvider = localStorage.getItem('sb_ai_provider') || 'deepseek';
   const savedKey = localStorage.getItem('sb_ai_key_' + savedProvider) || '';
-  const providerEl = overlay.querySelector('#sb-ai-provider');
-  const keyEl = overlay.querySelector('#sb-ai-key');
-  if (providerEl) providerEl.value = savedProvider;
-  if (keyEl && savedKey) keyEl.value = savedKey;
+  overlay.querySelector('#sb-ai-provider').value = savedProvider;
+  if (savedKey) overlay.querySelector('#sb-ai-key').value = savedKey;
 
-  // Close on overlay click
+  // Add one default construct card pre-filled with highlight text
+  sbAddConstruct(ht);
+
   overlay.addEventListener('click', e => { if (e.target === overlay) overlay.remove(); });
 }
 
-function sbAddItemRow(text) {
-  const editor = document.getElementById('sb-items-editor');
-  if (!editor) return;
-  const row = document.createElement('div');
-  row.style.cssText = 'display:flex;gap:6px;align-items:center;';
-  row.innerHTML = `
-    <input placeholder="Scale item text" value="${esc(text || '')}" style="flex:1;padding:6px 10px;border-radius:6px;border:1px solid var(--border);background:var(--bg-tertiary);color:var(--text-primary);font-size:12px;outline:none;">
-    <label style="display:flex;align-items:center;gap:3px;font-size:11px;color:var(--text-secondary);cursor:pointer;white-space:nowrap;">
-      <input type="checkbox"> Rev
-    </label>
-    <span onclick="this.parentElement.remove()" style="padding:2px 6px;border-radius:4px;color:var(--danger);cursor:pointer;font-size:14px;line-height:1;">&times;</span>
+// Copy highlight text to clipboard
+function sbCopyHighlight() {
+  const ta = document.getElementById('sb-highlight-src');
+  if (!ta) return;
+  const txt = ta.value;
+  navigator.clipboard.writeText(txt).then(() => toast('Highlight text copied!', 'success')).catch(() => {
+    ta.select(); document.execCommand('copy'); toast('Copied!', 'success');
+  });
+}
+
+// Add a construct card to the right panel
+function sbAddConstruct(prefillText) {
+  const list = document.getElementById('sb-constructs-list');
+  if (!list) return;
+
+  const idx = list.children.length;
+  const card = document.createElement('div');
+  card.className = 'sb-construct-card';
+  card.dataset.idx = idx;
+  card.style.cssText = 'border:1px solid var(--border);border-radius:10px;padding:14px;background:var(--bg-tertiary);position:relative;';
+  card.innerHTML = `
+    <button onclick="this.closest('.sb-construct-card').remove();sbRenumberCards();" title="Remove construct" style="position:absolute;top:8px;right:8px;width:22px;height:22px;border-radius:50%;border:1px solid var(--border);background:transparent;color:var(--text-muted);cursor:pointer;font-size:13px;line-height:1;">&times;</button>
+
+    <div style="display:flex;gap:8px;margin-bottom:8px;">
+      <div style="flex:1;">
+        <label style="display:block;font-size:10px;color:var(--text-secondary);margin-bottom:3px;">Construct / Scale Name *</label>
+        <input class="sb-c-name" placeholder="e.g., Perceived Usefulness" style="width:100%;padding:6px 10px;border-radius:7px;border:1px solid var(--border);background:var(--bg-secondary);color:var(--text-primary);font-size:12px;outline:none;box-sizing:border-box;">
+      </div>
+      <div style="width:130px;">
+        <label style="display:block;font-size:10px;color:var(--text-secondary);margin-bottom:3px;">Source Type</label>
+        <select class="sb-c-source" style="width:100%;padding:6px 8px;border-radius:7px;border:1px solid var(--border);background:var(--bg-secondary);color:var(--text-primary);font-size:12px;">
+          <option value="original">Original</option>
+          <option value="adapted">Adapted</option>
+          <option value="modified">Modified</option>
+        </select>
+      </div>
+    </div>
+
+    <div style="margin-bottom:8px;">
+      <label style="display:block;font-size:10px;color:var(--text-secondary);margin-bottom:3px;">Description</label>
+      <textarea class="sb-c-desc" placeholder="Brief description of what this construct measures..." style="width:100%;padding:6px 10px;border-radius:7px;border:1px solid var(--border);background:var(--bg-secondary);color:var(--text-primary);font-size:12px;outline:none;resize:vertical;min-height:48px;box-sizing:border-box;"></textarea>
+    </div>
+
+    <div>
+      <label style="display:flex;align-items:center;justify-content:space-between;font-size:10px;color:var(--text-secondary);margin-bottom:4px;">
+        <span>Items</span>
+        <button onclick="sbAddItemToCard(this.closest('.sb-construct-card'))" style="padding:2px 8px;border-radius:5px;border:1px solid var(--border);background:transparent;color:var(--text-secondary);font-size:10px;cursor:pointer;">+ Item</button>
+      </label>
+      <div class="sb-c-items" style="display:flex;flex-direction:column;gap:3px;"></div>
+    </div>
   `;
-  editor.appendChild(row);
-}
+  list.appendChild(card);
 
-function sbParseByLine() {
-  const editor = document.getElementById('sb-items-editor');
-  if (!editor) return;
-  editor.innerHTML = '';
-  // Collect all existing text
-  const texts = [];
-  editor.querySelectorAll('input[type=text]').forEach(inp => { if (inp.value.trim()) texts.push(inp.value.trim()); });
-  // If no existing items, try to split the first item by lines
-  if (texts.length === 0) {
-    const overlay = document.querySelector('.scale-bank-modal');
-    // nothing to split
-    toast('No text to split', 'info');
-    return;
+  // Pre-fill a single item row with the prefill text (can be empty for blank card)
+  if (prefillText && prefillText.trim()) {
+    sbAddItemToCard(card, prefillText.trim());
+  } else {
+    sbAddItemToCard(card);
   }
-  const combined = texts.join('\n');
-  editor.innerHTML = '';
-  combined.split(/\n/).filter(line => line.trim()).forEach(line => sbAddItemRow(line.trim()));
-  toast('Split into ' + editor.querySelectorAll('.sb-item-row, div').length + ' items', 'success');
 }
 
-async function sbUseAiExtract() {
-  const settingsDiv = document.getElementById('sb-ai-settings');
+function sbRenumberCards() {
+  document.querySelectorAll('.sb-construct-card').forEach((c, i) => c.dataset.idx = i);
+}
+
+// Add an item row inside a specific construct card
+function sbAddItemToCard(card, text) {
+  const container = card.querySelector('.sb-c-items');
+  if (!container) return;
+  const row = document.createElement('div');
+  row.style.cssText = 'display:flex;gap:5px;align-items:center;';
+  row.innerHTML = `
+    <input class="sb-item-input" placeholder="Item text" value="${esc(text || '')}" style="flex:1;padding:5px 8px;border-radius:6px;border:1px solid var(--border);background:var(--bg-secondary);color:var(--text-primary);font-size:11px;outline:none;">
+    <label style="display:flex;align-items:center;gap:2px;font-size:10px;color:var(--text-secondary);cursor:pointer;white-space:nowrap;">
+      <input type="checkbox" class="sb-item-rev"> Rev
+    </label>
+    <span onclick="this.parentElement.remove()" style="padding:1px 5px;color:var(--danger);cursor:pointer;font-size:13px;line-height:1;">&times;</span>
+  `;
+  container.appendChild(row);
+}
+
+// Split highlight source by lines into item rows of the first (or last) construct card
+function sbParseByLine() {
+  const overlay = document.querySelector('.scale-bank-modal');
+  const ht = (overlay?.dataset.highlightText || '').trim();
+  const srcTA = document.getElementById('sb-highlight-src');
+  const rawText = (srcTA ? srcTA.value : ht).trim();
+
+  if (!rawText) { toast('No text to split', 'info'); return; }
+
+  const lines = rawText.split(/\n/).map(l => l.trim()).filter(Boolean);
+  if (lines.length === 0) { toast('No lines found', 'info'); return; }
+
+  // Use the last construct card, or create one
+  let card = document.querySelector('#sb-constructs-list .sb-construct-card:last-child');
+  if (!card) { sbAddConstruct(); card = document.querySelector('#sb-constructs-list .sb-construct-card:last-child'); }
+
+  const itemsContainer = card.querySelector('.sb-c-items');
+  itemsContainer.innerHTML = '';
+  lines.forEach(line => sbAddItemToCard(card, line));
+  toast(`Split into ${lines.length} items`, 'success');
+}
+
+// ─── AI Extract (multi-construct) ───
+async function sbUseAiExtract(ev) {
+  const btn = (ev?.target || event?.target)?.closest('button');
   const provider = document.getElementById('sb-ai-provider').value;
   const apiKey = document.getElementById('sb-ai-key').value;
 
-  // If no API key yet, show settings panel and wait for user to fill in key
   if (!apiKey) {
-    settingsDiv.style.display = 'block';
-    const keyInput = document.getElementById('sb-ai-key');
-    if (keyInput) { keyInput.focus(); }
+    document.getElementById('sb-ai-key').focus();
     toast('Please enter your API key first', 'info');
     return;
   }
 
-  // Priority 1: use the original highlight text stored on the overlay
+  // Use the editable highlight source textarea as input
+  const srcTA = document.getElementById('sb-highlight-src');
   const overlay = document.querySelector('.scale-bank-modal');
-  const highlightText = overlay ? overlay.dataset.highlightText || '' : '';
+  const rawText = (srcTA ? srcTA.value : (overlay?.dataset.highlightText || '')).trim();
 
-  // Priority 2: fall back to whatever is typed in the items editor
-  const editor = document.getElementById('sb-items-editor');
-  const editorText = Array.from(editor.querySelectorAll('input[type=text]')).map(i => i.value).filter(v => v.trim()).join('\n');
+  if (!rawText) { toast('No highlighted text to extract from', 'info'); return; }
 
-  const rawText = highlightText.trim() || editorText.trim();
-
-  if (!rawText) {
-    toast('No highlighted text to extract from', 'info');
-    return;
-  }
-
-  const btn = event.target.closest('button');
-  const origText = btn.textContent;
-  btn.textContent = '&#x23F3; Extracting...';
-  btn.disabled = true;
+  if (btn) { btn.innerHTML = '&#x23F3; Extracting...'; btn.disabled = true; }
 
   try {
-    let apiUrl, headers;
-    if (provider === 'deepseek') {
-      apiUrl = 'https://api.deepseek.com/chat/completions';
-      headers = { 'Authorization': `Bearer ${apiKey}`, 'Content-Type': 'application/json' };
-    } else {
-      apiUrl = 'https://api.openai.com/v1/chat/completions';
-      headers = { 'Authorization': `Bearer ${apiKey}`, 'Content-Type': 'application/json' };
-    }
+    const apiUrl = provider === 'deepseek' ? 'https://api.deepseek.com/chat/completions' : 'https://api.openai.com/v1/chat/completions';
+    const headers = { 'Authorization': `Bearer ${apiKey}`, 'Content-Type': 'application/json' };
 
-    const prompt = `You are a research methodology assistant. The following text is a highlighted excerpt from an academic paper. \
-Extract the scale/construct name and its measurement items.
+    const prompt = `You are a research methodology expert. The text below is a highlighted excerpt from an academic paper. \
+It may contain one or multiple measurement constructs/scales with their questionnaire items.
 
-Return ONLY valid JSON in this exact structure:
-{
-  "scale_name": "<name of the construct or scale, e.g. Perceived Usefulness>",
-  "items": [
-    { "label": "<item text>", "reverse_scored": false },
-    ...
-  ]
-}
+Return ONLY valid JSON in this exact structure (an array — even if there is only one construct):
+[
+  {
+    "scale_name": "<construct name, e.g. Perceived Usefulness>",
+    "description": "<one or two sentences describing what this construct measures>",
+    "items": [
+      { "label": "<full item text, no numbering>", "reverse_scored": false }
+    ]
+  }
+]
 
 Rules:
-- "scale_name": infer from context (e.g. the heading or phrase before the items). If unclear, use an empty string.
-- "items": each individual survey/questionnaire item. Split by numbering (1. 2. 3.) or line breaks. Remove item numbers.
-- "reverse_scored": true only if the item is explicitly marked as reverse-scored (e.g. "R", "(R)", "reverse", "negatively worded").
-- If no clear items are found, return {"scale_name":"","items":[]}.
-- Do NOT include any text outside the JSON.
+- Identify ALL distinct constructs present. Each has its own object in the array.
+- "scale_name": use the heading or label before the items. If ambiguous, infer from item content.
+- "description": write a brief description of what the construct measures (do not copy item text).
+- "items": split by numbering (1. 2. 3.) or clear line breaks. Strip leading numbers/letters.
+- "reverse_scored": true ONLY when explicitly marked (R), (r), "reverse", "negatively worded", etc.
+- If no clear items found, return an array with one object whose "items" is [].
+- Do NOT include any text, markdown, or code fences outside the JSON array.
 
 Text:
 ${rawText}`;
@@ -3129,50 +3188,54 @@ ${rawText}`;
       })
     });
 
-    if (!resp.ok) {
-      const errText = await resp.text();
-      throw new Error(`API ${resp.status}: ${errText.substring(0, 200)}`);
-    }
+    if (!resp.ok) throw new Error(`API ${resp.status}: ${(await resp.text()).substring(0, 200)}`);
 
     const result = await resp.json();
-    const content = result.choices[0].message.content;
-    let parsed;
+    let content = result.choices[0].message.content;
+
+    // Unwrap if model returned {constructs:[...]} or {scales:[...]} wrapper
+    let constructs;
     try {
-      parsed = JSON.parse(content);
-    } catch {
-      throw new Error('AI returned invalid JSON. Raw: ' + content.substring(0, 100));
-    }
-
-    const items = parsed.items || parsed.scale_items || (Array.isArray(parsed) ? parsed : []);
-    const scaleName = parsed.scale_name || '';
-
-    if (items.length === 0) {
-      toast('AI could not identify scale items in this text', 'info');
-      btn.innerHTML = origText;
-      btn.disabled = false;
-      return;
-    }
-
-    // Auto-fill scale name if the field is still empty
-    const nameInput = document.getElementById('sb-scale-name');
-    if (nameInput && !nameInput.value.trim() && scaleName) {
-      nameInput.value = scaleName;
-    }
-
-    // Replace editor with AI-extracted items
-    editor.innerHTML = '';
-    items.forEach(item => {
-      sbAddItemRow(item.label || item.text || '');
-      const lastRow = editor.lastElementChild;
-      if (item.reverse_scored && lastRow) {
-        const chk = lastRow.querySelector('input[type=checkbox]');
-        if (chk) chk.checked = true;
+      const parsed = JSON.parse(content);
+      if (Array.isArray(parsed)) {
+        constructs = parsed;
+      } else {
+        constructs = parsed.constructs || parsed.scales || parsed.items || [parsed];
       }
+    } catch {
+      throw new Error('AI returned invalid JSON. Raw: ' + content.substring(0, 120));
+    }
+
+    if (!constructs.length) { toast('AI found no constructs in this text', 'info'); return; }
+
+    // Clear existing cards and render new ones
+    const list = document.getElementById('sb-constructs-list');
+    list.innerHTML = '';
+
+    constructs.forEach(c => {
+      sbAddConstruct(); // adds blank card
+      const card = list.lastElementChild;
+
+      const nameEl = card.querySelector('.sb-c-name');
+      const descEl = card.querySelector('.sb-c-desc');
+      const itemsEl = card.querySelector('.sb-c-items');
+
+      if (nameEl) nameEl.value = c.scale_name || c.name || '';
+      if (descEl) descEl.value = c.description || '';
+      itemsEl.innerHTML = '';
+      (c.items || []).forEach(item => {
+        sbAddItemToCard(card, item.label || item.text || '');
+        const lastRow = itemsEl.lastElementChild;
+        if (item.reverse_scored && lastRow) {
+          const chk = lastRow.querySelector('.sb-item-rev');
+          if (chk) chk.checked = true;
+        }
+      });
     });
 
-    toast(`&#x2728; AI extracted ${items.length} item${items.length > 1 ? 's' : ''}`, 'success');
+    const totalItems = constructs.reduce((s, c) => s + (c.items || []).length, 0);
+    toast(`&#x2728; AI extracted ${constructs.length} construct${constructs.length > 1 ? 's' : ''}, ${totalItems} items total`, 'success');
 
-    // Persist API key and provider for next time
     localStorage.setItem('sb_ai_key_' + provider, apiKey);
     localStorage.setItem('sb_ai_provider', provider);
 
@@ -3181,56 +3244,99 @@ ${rawText}`;
     toast('AI extraction failed: ' + e.message, 'error');
   }
 
-  btn.innerHTML = origText;
-  btn.disabled = false;
+  if (btn) { btn.innerHTML = '&#x1F916; AI Extract All'; btn.disabled = false; }
 }
 
-async function sbSaveScale() {
-  const name = document.getElementById('sb-scale-name').value.trim();
-  if (!name) { toast('Please enter a scale name', 'error'); return; }
+// ─── Save all construct cards to Supabase ───
+async function sbSaveAllConstructs() {
+  const cards = document.querySelectorAll('#sb-constructs-list .sb-construct-card');
+  if (!cards.length) { toast('No constructs to save', 'info'); return; }
 
-  const desc = document.getElementById('sb-scale-desc').value.trim();
-  const sourceType = document.getElementById('sb-source-type').value;
-
-  const items = [];
-  document.querySelectorAll('#sb-items-editor div').forEach(row => {
-    const input = row.querySelector('input[type=text]');
-    const chk = row.querySelector('input[type=checkbox]');
-    if (input && input.value.trim()) {
-      items.push({ label: input.value.trim(), reverse_scored: chk ? chk.checked : false });
+  // Validate: every card must have a name
+  let valid = true;
+  cards.forEach(card => {
+    const nameEl = card.querySelector('.sb-c-name');
+    if (!nameEl || !nameEl.value.trim()) {
+      nameEl && (nameEl.style.border = '1px solid var(--danger)');
+      valid = false;
     }
   });
+  if (!valid) { toast('Each construct needs a name', 'error'); return; }
 
-  const payload = {
-    name,
-    description: desc,
-    items,
-    source_type: sourceType,
-    created_by: currentUser?.name || 'PapersHub User'
-  };
+  const saveBtn = document.querySelector('.scale-bank-modal button[onclick="sbSaveAllConstructs()"]');
+  const statusEl = document.getElementById('sb-save-status');
+  if (saveBtn) { saveBtn.textContent = 'Saving...'; saveBtn.disabled = true; }
+  if (statusEl) statusEl.textContent = '';
 
-  try {
-    const { data, error } = await sb.from('scales').insert(payload).select();
-    if (error) { toast('Save failed: ' + error.message, 'error'); return; }
+  let saved = 0, failed = 0;
 
-    const scaleId = data[0].id;
+  for (const card of cards) {
+    const name = card.querySelector('.sb-c-name').value.trim();
+    const desc = card.querySelector('.sb-c-desc')?.value.trim() || '';
+    const sourceType = card.querySelector('.sb-c-source')?.value || 'original';
 
-    // Auto-link to current paper
-    if (scaleBankAnnoRef && currentPaper) {
-      const { error: linkErr } = await sb.from('scale_papers').insert({
-        scale_id: scaleId,
-        paper_id: currentPaper.id,
-        usage_type: 'adapted',
-        notes: 'Added from PapersHub highlight'
-      });
-      if (linkErr) console.warn('Auto-link paper failed:', linkErr);
+    // Collect items — use .sb-item-input class (not input[type=text]) to avoid selector mismatch
+    const items = [];
+    card.querySelectorAll('.sb-c-items .sb-item-input').forEach(inp => {
+      if (inp.value.trim()) {
+        const rev = inp.closest('div')?.querySelector('.sb-item-rev');
+        items.push({ label: inp.value.trim(), reverse_scored: rev ? rev.checked : false });
+      }
+    });
+
+    const payload = {
+      name,
+      description: desc,
+      items,           // JSONB column — send as JS array, supabase-js will serialize
+      source_type: sourceType,
+      created_by: currentUser?.name || 'PapersHub User'
+    };
+
+    try {
+      const { data, error } = await sb.from('scales').insert(payload).select();
+      if (error) { console.error('Save failed for', name, error); failed++; continue; }
+      saved++;
+
+      // Auto-link to current paper
+      if (scaleBankAnnoRef && currentPaper) {
+        await sb.from('scale_papers').insert({
+          scale_id: data[0].id,
+          paper_id: currentPaper.id,
+          usage_type: 'adapted',
+          notes: 'Added from PapersHub highlight'
+        }).catch(e => console.warn('Auto-link failed:', e));
+      }
+    } catch (e) {
+      console.error('Network error saving', name, e);
+      failed++;
     }
-
-    toast('Scale saved to Scale Bank!', 'success');
-    document.querySelectorAll('.scale-bank-modal').forEach(m => m.remove());
-  } catch (e) {
-    toast('Network error: ' + e.message, 'error');
   }
+
+  if (saveBtn) { saveBtn.textContent = 'Save All to Scale Bank'; saveBtn.disabled = false; }
+
+  if (failed === 0) {
+    toast(`&#x2705; Saved ${saved} construct${saved > 1 ? 's' : ''} to Scale Bank!`, 'success');
+    document.querySelectorAll('.scale-bank-modal').forEach(m => m.remove());
+  } else {
+    toast(`Saved ${saved}, failed ${failed}. Check console for details.`, 'error');
+    if (statusEl) statusEl.textContent = `${saved} saved, ${failed} failed`;
+  }
+}
+
+// Keep old sbSaveScale as alias so any existing calls still work
+async function sbSaveScale() { await sbSaveAllConstructs(); }
+
+// sbAddItemRow kept for backward compat (used by old inline calls if any)
+function sbAddItemRow(text) {
+  const card = document.querySelector('#sb-constructs-list .sb-construct-card:last-child');
+  if (card) { sbAddItemToCard(card, text); return; }
+  // Fallback if called outside new modal context (shouldn't happen)
+  const editor = document.getElementById('sb-items-editor');
+  if (!editor) return;
+  const row = document.createElement('div');
+  row.style.cssText = 'display:flex;gap:6px;align-items:center;';
+  row.innerHTML = `<input class="sb-item-input" placeholder="Scale item text" value="${esc(text || '')}" style="flex:1;padding:6px 10px;border-radius:6px;border:1px solid var(--border);background:var(--bg-tertiary);color:var(--text-primary);font-size:12px;outline:none;"><label style="display:flex;align-items:center;gap:3px;font-size:11px;color:var(--text-secondary);cursor:pointer;white-space:nowrap;"><input type="checkbox" class="sb-item-rev"> Rev</label><span onclick="this.parentElement.remove()" style="padding:2px 6px;border-radius:4px;color:var(--danger);cursor:pointer;font-size:14px;line-height:1;">&times;</span>`;
+  editor.appendChild(row);
 }
 
 // ─── Highlight click popup ───
