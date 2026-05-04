@@ -5,6 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Scale Bank - KeyResearch</title>
 <script src="https://unpkg.com/@supabase/supabase-js@2.49.1/dist/umd/supabase.js"></script>
+<script src="../key-research-common.js"></script>
 <style>
 * { box-sizing: border-box; margin:0; padding:0; }
 :root {
@@ -104,12 +105,7 @@ a:hover { text-decoration: underline; }
   <div class="header-left">
     <img src="../Keylogo.png" class="logo" alt="KeyResearch">
     <nav class="nav-links">
-      <a href="../root-index.html">Portal</a>
-      <a href="../keysearch/">KeySearch</a>
-      <a href="../refcheck/">RefCheck</a>
-      <a href="../papers-app/">PapersHub</a>
       <a href="./" class="active">Scale Bank</a>
-      <a href="../silicon-sampling/">Silicon Sampling</a>
     </nav>
   </div>
   <div class="lang-switch" onclick="toggleLang()" id="langBtn" style="padding:6px 14px;border-radius:6px;background:rgba(255,255,255,0.08);color:var(--text-secondary);cursor:pointer;font-size:12px;font-weight:600;border:1px solid var(--border);transition:0.15s;">中文</div>
@@ -232,7 +228,7 @@ a:hover { text-decoration: underline; }
 <div class="toast-container" id="toast-container"></div>
 
 <script>
-const SUPABASE_URL = 'https://hhgundxzxiqeglzbatmd.supabase.co';
+const SUPABASE_URL = 'https://key-research.com';
 const SUPABASE_KEY = 'sb_publishable_U2qfHiGyIWB9QZtsU6K0QA_a2U4bxDH';
 const sb = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 
