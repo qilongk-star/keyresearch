@@ -6,6 +6,7 @@
   <title>PapersHub - Research Team</title>
   <script src="https://unpkg.com/@supabase/supabase-js@2.49.1/dist/umd/supabase.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+  <script src="../key-research-common.js"></script>
   <style>
     * { box-sizing: border-box; margin: 0; padding: 0; }
     :root {
@@ -958,11 +959,10 @@
       <span class="online-dot"></span>
       <span id="online-count">1 online</span>
     </div>
-    <div class="user-badge" id="user-badge" onclick="openNameModal()">
+    <div class="user-badge" id="user-badge">
       <div class="user-avatar" id="user-avatar" style="background:var(--accent)">?</div>
       <span id="user-name-display">Set name</span>
     </div>
-    <a href="../" class="logout-btn" title="Back to portal">← Portal</a>
     <button class="topbar-btn" onclick="openUploadModal()">+ Add Paper</button>
   </div>
 </div>
@@ -1093,23 +1093,6 @@
     <div class="export-box-btns">
       <button class="export-copy-all" onclick="copyExportText()">📋 Copy All</button>
       <button class="export-close-btn" onclick="$('export-modal').classList.remove('active')">Close</button>
-    </div>
-  </div>
-</div>
-
-<!-- ═══ Name Modal ═══ -->
-<div class="modal-overlay" id="name-modal">
-  <div class="modal-box" style="max-width:360px">
-    <h3>👋 Welcome to PapersHub</h3>
-    <p style="font-size:13px;color:var(--text-secondary);margin-bottom:14px">
-      Enter your name to start. Your annotations will be labeled with it.
-    </p>
-    <label>Your name</label>
-    <input type="text" id="name-input" placeholder="e.g. Qi Long, Prof. Zhang..." maxlength="30">
-    <label style="margin-top:12px">Pick your color</label>
-    <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:4px" id="color-picks"></div>
-    <div class="modal-actions">
-      <button class="topbar-btn" onclick="confirmName()">Start</button>
     </div>
   </div>
 </div>
@@ -1302,12 +1285,10 @@
 // ═══════════════════════════════════════════════════════════════════
 // CONFIGURATION
 // ═══════════════════════════════════════════════════════════════════
-const SUPABASE_URL = 'https://hhgundxzxiqeglzbatmd.supabase.co';
+const SUPABASE_URL = 'https://key-research.com';
 const SUPABASE_KEY = 'sb_publishable_U2qfHiGyIWB9QZtsU6K0QA_a2U4bxDH';
 
-const sb = supabase.createClient(SUPABASE_URL, SUPABASE_KEY, {
-  realtime: { params: { eventsPerSecond: 10 } }
-});
+const sb = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 
 pdfjsLib.GlobalWorkerOptions.workerSrc =
   'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
@@ -1317,8 +1298,12 @@ pdfjsLib.GlobalWorkerOptions.workerSrc =
 // ═══════════════════════════════════════════════════════════════════
 const COLORS = ['#6366f1','#22c55e','#f59e0b','#ef4444','#ec4899','#06b6d4','#8b5cf6','#f97316','#14b8a6','#e11d48'];
 
+// Auto-populate from KeyResearch auth system nickname
+let krSessionUser = (() => {
+  try { const s = sessionStorage.getItem('kr_session'); return s ? JSON.parse(s) : null; } catch(e) { return null; }
+})();
 let currentUser = {
-  name: localStorage.getItem('ph_name') || '',
+  name: localStorage.getItem('ph_name') || (krSessionUser && krSessionUser.nickname) || '',
   color: localStorage.getItem('ph_color') || COLORS[0]
 };
 
@@ -1348,13 +1333,7 @@ let hlThickness = 'medium';   // highlight thickness: 'thin' | 'medium' | 'thick
 // INIT
 // ═══════════════════════════════════════════════════════════════════
 (async function init() {
-  if (!currentUser.name) {
-    openNameModal();
-  } else {
-    updateBadge();
-    $('name-modal').classList.remove('active');
-  }
-  initColorPicker();
+  updateBadge();
   initDropZone();
   await loadFolders();
   loadPapers();
@@ -1371,11 +1350,6 @@ let hlThickness = 'medium';   // highlight thickness: 'thin' | 'medium' | 'thick
   $('search-input').addEventListener('input', () => {
     clearTimeout(searchTimer);
     searchTimer = setTimeout(() => loadPapers(), 300);
-  });
-
-  // Enter key for name input
-  $('name-input').addEventListener('keydown', e => {
-    if (e.key === 'Enter') confirmName();
   });
 
   // Enter key for folder input
@@ -1415,33 +1389,6 @@ let hlThickness = 'medium';   // highlight thickness: 'thin' | 'medium' | 'thick
 // USER SETUP
 // ═══════════════════════════════════════════════════════════════════
 function $(id) { return document.getElementById(id); }
-
-function initColorPicker() {
-  const row = $('color-picks');
-  row.innerHTML = '';
-  COLORS.forEach(c => {
-    const el = document.createElement('div');
-    el.style.cssText = `width:28px;height:28px;border-radius:50%;cursor:pointer;border:3px solid ${c === currentUser.color ? 'white' : 'transparent'};background:${c};transition:border-color 0.2s`;
-    el.onclick = () => {
-      row.querySelectorAll('div').forEach(d => d.style.borderColor = 'transparent');
-      el.style.borderColor = 'white';
-      currentUser.color = c;
-    };
-    row.appendChild(el);
-  });
-}
-
-function openNameModal() { $('name-modal').classList.add('active'); $('name-input').focus(); }
-
-function confirmName() {
-  const name = $('name-input').value.trim();
-  if (!name) { toast('Please enter your name', 'error'); return; }
-  currentUser.name = name;
-  localStorage.setItem('ph_name', name);
-  localStorage.setItem('ph_color', currentUser.color);
-  updateBadge();
-  closeModal('name-modal');
-}
 
 function updateBadge() {
   $('user-avatar').style.background = currentUser.color;
@@ -3310,6 +3257,7 @@ async function sbSaveAllConstructs() {
       }
     });
 
+    const citation = card.querySelector('.sb-c-citation')?.value.trim() || '';
     const payload = {
       name,
       description: desc,
