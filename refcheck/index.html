@@ -1495,10 +1495,17 @@ const journalRatings = {
 function getJournalRating(journalName) {
     if (!journalName) return null;
     const normalized = journalName.toLowerCase().trim();
+    if (normalized.length < 8) return null; // Too short to be a meaningful journal name match
     let bestMatch = null;
     let bestLen = 0;
     for (const [key, rating] of Object.entries(journalRatings)) {
         if (normalized.includes(key) || key.includes(normalized)) {
+            // Prevent short substrings from matching long journal names
+            // e.g. "organization" should not match "organization science"
+            // Only allow reverse includes if the normalized name covers at least 60% of the key length
+            if (key.includes(normalized) && normalized.length < key.length * 0.65) continue;
+            // Also prevent short keys from matching long normalized names (e.g. "review" matching "journal of marketing review")
+            if (normalized.includes(key) && key.length < normalized.length * 0.5) continue;
             // Longest match wins to avoid "Journal of Marketing" matching "Journal of Marketing Research"
             if (key.length > bestLen) {
                 bestLen = key.length;
@@ -2322,11 +2329,33 @@ function parseOneRef(text) {
   const knownJournals = Object.keys(journalRatings);
   let bestMatchLen = 0;
   for (const jName of knownJournals) {
+    // For single-word entries < 14 chars, require stronger boundary evidence
+    const isSingleWordShort = !jName.includes(' ') && jName.length < 14;
     const idx = text.toLowerCase().indexOf(jName);
     if (idx >= 0) {
       const before = idx > 0 ? text[idx - 1] : ' ';
       const after = text[idx + jName.length] || ' ';
-      if (/[\s,;:.("'"/-]/.test(before) || /[\s,;:."')/-]/.test(after) || idx === 0) {
+      const basicSep = /[\s,;:.("'"/-]/.test(before) || /[\s,;:."')/-]/.test(after) || idx === 0;
+      if (basicSep) {
+        if (isSingleWordShort) {
+          // Check if preceded by a capitalized word (part of a multi-word proper noun like "Agriculture Organization")
+          if (idx > 2) {
+            const beforeWord = text.substring(Math.max(0, idx - 20), idx).trim();
+            const prevWords = beforeWord.match(/[A-Za-z]+/g);
+            if (prevWords && prevWords.length > 0 && /^[A-Z]/.test(prevWords[prevWords.length - 1])) {
+              // Preceded by capitalized word — only allow if followed by volume/number
+              const afterContext = text.substring(idx + jName.length, idx + jName.length + 20).trim();
+              if (!/^[\s]*[.,;:]?\s*\d/.test(afterContext)) continue;
+            }
+          }
+          const afterContext = text.substring(idx + jName.length, idx + jName.length + 20).trim();
+          const journalLikeAfter = /^[\s]*[.,;:]?\s*[\d(]/.test(afterContext) ||
+                                   /^[\s]*,/.test(afterContext) ||
+                                   /^[\s]*\.\s*$/.test(afterContext) ||
+                                   /^[\s]*[A-Z]/.test(afterContext) ||
+                                   /^[\s]*\(/.test(afterContext);
+          if (!journalLikeAfter) continue;
+        }
         if (jName.length > bestMatchLen) {
           bestMatchLen = jName.length;
           journalName = jName;
