@@ -166,6 +166,10 @@ body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-
 .vm-ref-original-list .orig-ref-line.highlighted { background: rgba(99,102,241,0.12); }
 .vm-ref-original-list .orig-ref-num { display: inline-block; font-size: 11px; font-weight: 700; color: var(--accent); text-align: right; min-width: 30px; flex-shrink: 0; line-height: 1.6; }
 .vm-ref-original-list .orig-ref-text { flex: 1; font-size: 12px; line-height: 1.7; color: var(--text); word-break: break-word; }
+.orig-ref-add-btn { flex-shrink: 0; padding: 2px 8px; font-size: 11px; font-weight: 600; border-radius: 5px; border: 1px solid var(--border); background: transparent; color: var(--muted); cursor: pointer; transition: all 0.15s; white-space: nowrap; align-self: flex-start; margin-top: 2px; }
+.orig-ref-add-btn:hover { border-color: var(--success); color: var(--success); background: rgba(34,197,94,0.1); }
+.orig-ref-add-btn.added { border-color: var(--success); color: var(--success); background: rgba(34,197,94,0.12); cursor: default; }
+.orig-ref-add-btn.verifying { border-color: var(--info); color: var(--info); animation: pulse 1s infinite; }
 .vm-ref-item { padding: 10px 12px; margin-bottom: 4px; border-radius: 8px; border-left: 3px solid transparent; cursor: pointer; transition: all 0.15s; }
 .vm-ref-item:hover { background: var(--bg); }
 .vm-ref-item.has-cit { border-left-color: var(--success); }
@@ -4018,11 +4022,18 @@ function renderRefPanel() {
   const lines = refSectionText.split('\n');
   let html = '';
   let lineNum = 0;
+  // Build a set of rawText prefixes already in references (for detecting "already added" lines)
+  const parsedPrefixes = new Set(references.map(r => (r.rawText || r.text || '').substring(0, 40).trim().toLowerCase()));
   lines.forEach((line, i) => {
     const trimmed = line.trim();
     if (!trimmed) return;
     lineNum++;
-    html += `<div class="orig-ref-line" data-line-idx="${i}" onclick="vmOrigLineClick(${i})"><span class="orig-ref-num">【${lineNum}】</span><span class="orig-ref-text">${esc(trimmed)}</span></div>`;
+    const alreadyAdded = parsedPrefixes.has(trimmed.substring(0, 40).toLowerCase()) ||
+      references.some(r => (r.rawText || r.text || '').toLowerCase().includes(trimmed.substring(0, 40).toLowerCase()));
+    const btnClass = alreadyAdded ? 'orig-ref-add-btn added' : 'orig-ref-add-btn';
+    const btnLabel = alreadyAdded ? '&#10003; Added' : '+ Add';
+    const btnClick = alreadyAdded ? '' : `onclick="event.stopPropagation();vmAddOrigLineAsRef(${i},this)"`;
+    html += `<div class="orig-ref-line" data-line-idx="${i}" onclick="vmOrigLineClick(${i})"><span class="orig-ref-num">【${lineNum}】</span><span class="orig-ref-text">${esc(trimmed)}</span><button class="${btnClass}" ${btnClick} title="${alreadyAdded ? 'Already in parsed references' : 'Add as reference and verify'}">${btnLabel}</button></div>`;
   });
   origList.innerHTML = html || '<div style="color:var(--muted);text-align:center;padding:20px;font-size:12px;">Empty</div>';
 }
@@ -4166,6 +4177,62 @@ function vmOrigLineClick(lineIdx) {
       refEl.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
     }
   }
+}
+
+async function vmAddOrigLineAsRef(lineIdx, btnEl) {
+  if (!refSectionText) return;
+  const lines = refSectionText.split('\n');
+  const rawText = (lines[lineIdx] || '').trim();
+  if (!rawText || rawText.length < 10) return;
+
+  // Check if already added
+  if (btnEl.classList.contains('added')) return;
+
+  // Check duplicate
+  const already = references.some(r => (r.rawText || r.text || '').toLowerCase().includes(rawText.substring(0, 40).toLowerCase()));
+  if (already) {
+    btnEl.textContent = '\u2713 Added';
+    btnEl.classList.add('added');
+    btnEl.onclick = null;
+    return;
+  }
+
+  // Parse the reference text
+  const parsed = parseOneRef(rawText);
+  const newIdx = references.length + 1;
+  const newRef = Object.assign(parsed, {
+    index: newIdx,
+    text: rawText,
+    rawText: rawText,
+    status: 'pending',
+    matchCount: 0,
+    isManuallyAdded: true
+  });
+  references.push(newRef);
+
+  // Update button state to verifying
+  btnEl.textContent = '...';
+  btnEl.className = 'orig-ref-add-btn verifying';
+  btnEl.onclick = null;
+
+  // Verify
+  try {
+    const result = await verifyOneRef(newRef);
+    newRef.status = result.status;
+    newRef.verifiedTitle = result.title || '';
+  } catch(e) {
+    newRef.status = 'error';
+  }
+
+  // Update button to added
+  btnEl.textContent = '\u2713 Added';
+  btnEl.className = 'orig-ref-add-btn added';
+
+  // Re-render both panels
+  renderReferences();
+  renderVisualMode();
+
+  toast(`Added & verified: [${newIdx}] ${rawText.substring(0, 60)}${rawText.length > 60 ? '...' : ''}`, 'success');
 }
 
 function sharedPrefixLen(a, b) {
@@ -4829,7 +4896,7 @@ function setStep(n) {
       </div>
       <div class="vm-ref-divider"></div>
       <div class="vm-ref-section vm-ref-original">
-        <h3>Original Reference List</h3>
+        <h3>Original Reference List <span style="font-size:10px;font-weight:400;color:var(--muted);margin-left:4px;">click <b style="color:var(--success)">+ Add</b> to add unrecognized refs</span></h3>
         <div id="vm-ref-original-list"></div>
       </div>
     </div>
