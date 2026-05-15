@@ -3394,14 +3394,28 @@ Reply ONLY with a JSON array of strings. Each string is one citation, e.g. ["Smi
   toast(`AI found ${deduped.length} citations (${newCount} new). Total: ${citations.length}, matched: ${matched}, unmatched: ${unmatched}`, 'success');
 }
 
+// Helper: get effective matched/total counts (citations[] + VM highlights manually matched but not synced back)
+function getEffectiveCitCounts() {
+  const citMatched = new Set(citations.filter(c => c.matchedRef !== null).map(c => c.text.toLowerCase().trim()));
+  // Count highlights that are manually matched but not yet in citations[]
+  const hlExtra = (window._vmHighlights || []).filter(h => h.matchedRef !== null &&
+    !citMatched.has(h.text.toLowerCase().trim()));
+  const extraLen = hlExtra.length;
+  return {
+    total: citations.length + extraLen,
+    matched: citations.filter(c => c.matchedRef !== null).length + extraLen
+  };
+}
+// Legacy alias
+function getEffectiveMatchedCits() { return getEffectiveCitCounts().matched; }
+
 // ============ REPORT ============
 function generateReport() {
   $('card-report').classList.remove('hidden');
   const totalRefs = references.length;
-  const totalCits = citations.length;
+  const { total: totalCits, matched: matchedCits } = getEffectiveCitCounts();
   const verifiedRefs = references.filter(r => r.status === 'verified' || r.status === 'likely').length;
-  const matchedCits = citations.filter(c => c.matchedRef !== null).length;
-  const unmatchedCits = totalCits - matchedCits;
+  const unmatchedCits = Math.max(0, totalCits - matchedCits);
   const unreferencedRefs = references.filter(r => r.matchCount === 0).length;
   const manualCits = citations.filter(c => c.source === 'manual').length;
 
@@ -3710,11 +3724,11 @@ function addSelectedTextAsCitation() {
 let vmSelectedCitIdx = null;
 
 function renderVisualMode() {
-  // Stats
-  const matchedCits = citations.filter(c => c.matchedRef !== null).length;
-  const unmatchedCits = citations.filter(c => c.matchedRef === null).length;
+  // Stats — use effective counts (includes VM manual matches not yet synced to citations[])
+  const { total: effectiveTotal, matched: matchedCits } = getEffectiveCitCounts();
+  const unmatchedCits = Math.max(0, effectiveTotal - matchedCits);
   const unreferencedRefs = references.filter(r => r.matchCount === 0).length;
-  $('vm-total').textContent = citations.length;
+  $('vm-total').textContent = effectiveTotal;
   $('vm-matched').textContent = matchedCits;
   $('vm-unmatched').textContent = unmatchedCits;
   $('vm-unreferenced').textContent = unreferencedRefs;
@@ -4538,8 +4552,32 @@ function assignMatch(refIdx) {
   if (matchingCit) {
     matchingCit.matchedRef = refIdx;
     matchingCit.matchType = 'manual';
+  } else {
+    // Fallback: match by position or loose text overlap
+    // Ensures citations[] array is always updated even when text normalization fails
+    let fallbackCit = null;
+
+    // Position-based match (most reliable)
+    if (hl.position !== undefined) {
+      fallbackCit = citations.find(c => c.matchedRef === null && c.position !== undefined &&
+        Math.abs(c.position - hl.position) < 5);
+    }
+
+    // Loose substring match
+    if (!fallbackCit) {
+      const hlShort = hl.text.toLowerCase().substring(0, 20);
+      fallbackCit = citations.find(c => c.matchedRef === null &&
+        (c.text.toLowerCase().includes(hlShort) || hl.text.toLowerCase().includes(c.text.toLowerCase().substring(0, 20))));
+    }
+
+    if (fallbackCit) {
+      fallbackCit.matchedRef = refIdx;
+      fallbackCit.matchType = 'manual';
+    }
+    // Note: even if no citations[] entry found, getEffectiveMatchedCits() accounts for
+    // the hl.matchedRef already set above, so Unmatched count will still drop correctly.
   }
-  
+
   // Update match count
   ref.matchCount++;
   
@@ -4705,8 +4743,8 @@ function calculateHealthScore() {
   
   const totalRefs = references.length;
   const totalCits = citations.filter(c => !c.isNumeric || true).length;
-  const matchedCits = citations.filter(c => c.matchedRef !== null).length;
-  const unmatchedCits = totalCits - matchedCits;
+  const matchedCits = getEffectiveMatchedCits();
+  const unmatchedCits = Math.max(0, totalCits - matchedCits);
   const unreferencedRefs = references.filter(r => r.matchCount === 0).length;
   const verifiedRefs = references.filter(r => r.status === 'verified' || r.status === 'likely').length;
   const manualCits = citations.filter(c => c.source === 'manual').length;
